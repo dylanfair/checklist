@@ -7,6 +7,7 @@ mod subcommands;
 
 use crate::subcommands::config::{read_config, Config};
 use crate::subcommands::database::create_sqlite_db;
+use crate::subcommands::task::{Task, Urgency};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -31,11 +32,19 @@ enum Commands {
         set: Option<PathBuf>,
     },
 
-    /// Adds an item to your checklist
+    /// Adds a task to your checklist
     Add {
-        /// Name of the item
+        /// Name of the task
         #[arg(short, long)]
         name: String,
+
+        /// Description of the task
+        #[arg(short, long)]
+        description: Option<String>,
+
+        /// Urgency of the task
+        #[arg(short, long, value_enum, value_parser)]
+        urgency: Option<Urgency>,
     },
 }
 
@@ -62,8 +71,13 @@ fn main() -> Result<()> {
                 println!("Successfully created the database to store your items in!");
             }
         }
-        Some(Commands::Add { name }) => {
+        Some(Commands::Add {
+            name,
+            description,
+            urgency,
+        }) => {
             println!("Name");
+            let new_task = Task::new(name.to_string(), description.clone(), urgency.clone());
         }
         None => {}
     }

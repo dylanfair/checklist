@@ -34,7 +34,7 @@ pub fn create_sqlite_db(testing: bool) -> Result<()> {
     let conn = make_connection(&sqlite_path)?;
 
     conn.execute(
-        "CREATE TABLE item (
+        "CREATE TABLE task (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             description TEXT,
