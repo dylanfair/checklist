@@ -5,7 +5,8 @@ use clap::{Parser, Subcommand};
 
 mod subcommands;
 
-use crate::subcommands::{config::save_db_path, database::create_sqlite_db};
+use crate::subcommands::config::{read_config, Config};
+use crate::subcommands::database::create_sqlite_db;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -20,20 +21,21 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Creates a sqlite db to store items in
-    Setup {
-        /// Path to make sqlite db at.
-        /// If not an update, a folder can be given where a
-        /// 'checklist.sqlite' will be made.
-        /// This can also be left made blank. Where in the sqlite db will
-        /// be made in your respective App Folder
-        /// If an update, the path must include the new sqlite database
-        /// to use.
+    /// Initializes checklist, creating a sqlite database
+    /// that the program will automatically use
+    /// and a config json file
+    Init {
+        /// Optional argument that will set a given
+        /// sqlite database as the new default
         #[arg(short, long)]
-        path: Option<PathBuf>,
+        set: Option<PathBuf>,
+    },
 
+    /// Adds an item to your checklist
+    Add {
+        /// Name of the item
         #[arg(short, long)]
-        update: bool,
+        name: String,
     },
 }
 
@@ -41,20 +43,27 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Some(Commands::Setup { path, update }) => {
-            if *update {
-                match path {
-                    Some(valid_path) => {
+        Some(Commands::Init { set }) => {
+            if let Some(valid_path) = set {
+                match read_config() {
+                    Ok(mut config) => {
+                        config.db_path = valid_path.clone();
+                        config.save()?;
                         println!("Updated db path to {:?}", valid_path);
                     }
-                    None => {
-                        println!("A path needs to be given if updating")
+                    Err(_) => {
+                        let config = Config::new(valid_path.clone());
+                        config.save()?;
+                        println!("Set db path to {:?}", valid_path);
                     }
                 }
             } else {
-                create_sqlite_db(path.clone(), cli.memory)?;
+                create_sqlite_db(false)?;
                 println!("Successfully created the database to store your items in!");
             }
+        }
+        Some(Commands::Add { name }) => {
+            println!("Name");
         }
         None => {}
     }
