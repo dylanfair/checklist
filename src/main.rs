@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 
 mod subcommands;
 
-use crate::subcommands::database::create_sqlite_db;
+use crate::subcommands::{config::save_db_path, database::create_sqlite_db};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -53,7 +53,7 @@ fn main() -> Result<()> {
                 }
             } else {
                 create_sqlite_db(path.clone(), cli.memory)?;
-                println!("Successfully created the database to store your items in!")
+                println!("Successfully created the database to store your items in!");
             }
         }
         None => {}
