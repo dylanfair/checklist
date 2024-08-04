@@ -6,8 +6,9 @@ use clap::{Parser, Subcommand};
 mod subcommands;
 
 use crate::subcommands::config::{read_config, Config};
-use crate::subcommands::database::{add_to_db, create_sqlite_db, make_memory_connection};
+use crate::subcommands::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
 use crate::subcommands::task::{Task, Urgency};
+use crate::subcommands::wipe::wipe_tasks;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -30,6 +31,20 @@ enum Commands {
         /// sqlite database as the new default
         #[arg(short, long)]
         set: Option<PathBuf>,
+    },
+
+    /// List out tasks
+    List {
+        /// Include completed
+        #[arg(short, long)]
+        completed: bool,
+    },
+
+    /// Wipe out all tasks
+    Wipe {
+        /// Bypass confirmation check
+        #[arg(short)]
+        yes: bool,
     },
 
     /// Adds a task to your checklist
@@ -75,6 +90,7 @@ fn main() -> Result<()> {
                 println!("Successfully created the database to store your items in!");
             }
         }
+
         Some(Commands::Add {
             name,
             description,
@@ -84,9 +100,37 @@ fn main() -> Result<()> {
             println!("Create task");
             let new_task = Task::new(name, description, latest, urgency);
             println!("{:?}", new_task);
-            add_to_db(new_task, cli.memory)?;
+
+            let conn = get_db(cli.memory)?;
+            add_to_db(&conn, new_task)?;
             println!("New task added successfully");
         }
+
+        Some(Commands::List { completed }) => {
+            let conn = get_db(cli.memory)?;
+            let tasks = get_all_db_contents(&conn).unwrap();
+            println!("Found {:?} tasks", tasks.len());
+            println!("id | name | description | latest | urgency | status | completed_on");
+            for task in tasks {
+                let print_fmt = format!(
+                    "{:?} | {:?} | {:?} | {:?} | {:?} | {:?} | {:?} ",
+                    task.get_id(),
+                    task.name,
+                    task.description,
+                    task.latest,
+                    task.urgency,
+                    task.status,
+                    task.completed_on
+                );
+                println!("{}", print_fmt);
+            }
+        }
+
+        Some(Commands::Wipe { yes }) => {
+            let conn = get_db(cli.memory)?;
+            wipe_tasks(&conn, yes)?
+        }
+
         None => {}
     }
 

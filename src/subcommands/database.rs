@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 
 use crate::subcommands::config::{get_config_dir, read_config, Config};
-use crate::subcommands::task::{Task, Urgency};
+use crate::subcommands::task::Task;
 
 pub fn make_memory_connection() -> Result<Connection> {
     println!("Setting up an in-memory sqlite_db");
@@ -65,7 +65,7 @@ pub fn create_sqlite_db(testing: bool) -> Result<()> {
     Ok(())
 }
 
-fn get_db(memory: bool) -> Result<Connection> {
+pub fn get_db(memory: bool) -> Result<Connection> {
     if memory {
         println!("Using an in-memory sqlite database");
         let conn = make_memory_connection().unwrap();
@@ -82,10 +82,7 @@ fn get_db(memory: bool) -> Result<Connection> {
     }
 }
 
-pub fn add_to_db(task: Task, memory: bool) -> Result<Connection> {
-    println!("Connecting to db");
-    let conn = get_db(memory)?;
-
+pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
     println!("Adding to db");
     conn.execute(
         "INSERT INTO task (id, name, description, latest, urgency, status, completed_on) 
@@ -102,7 +99,40 @@ pub fn add_to_db(task: Task, memory: bool) -> Result<Connection> {
     )
     .context("Failed to insert values into database")?;
 
-    Ok(conn)
+    Ok(())
+}
+
+pub fn get_all_db_contents(conn: &Connection) -> Result<Vec<Task>> {
+    let mut stmt = conn
+        .prepare("SELECT id, name, description, latest, urgency, status, completed_on FROM task")
+        .unwrap();
+
+    let task_iter = stmt
+        .query_map(params![], |row| {
+            Ok(Task::from_sql(
+                row.get(0).unwrap(),
+                row.get(1).unwrap(),
+                row.get(2).unwrap(),
+                row.get(3).unwrap(),
+                row.get(4).unwrap(),
+                row.get(5).unwrap(),
+                row.get(6).unwrap(),
+            ))
+        })
+        .unwrap();
+
+    let mut task_vec = vec![];
+    for task in task_iter {
+        task_vec.push(task.unwrap());
+    }
+
+    Ok(task_vec)
+}
+
+pub fn remove_all_db_contents(conn: &Connection) -> Result<()> {
+    conn.execute("DELETE FROM task", ())
+        .context("Failed to wipe the task table")?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -137,27 +167,17 @@ mod tests {
 
     #[test]
     fn add_to_database() {
+        let conn = get_db(true).unwrap();
+
         let new_task = Task::new(
             "My new task".to_string(),
             None,
             None,
             Some(Urgency::Critical),
         );
-        let conn = add_to_db(new_task, true).unwrap();
-        let mut stmt = conn
-            .prepare("SELECT id, name, description, urgency, latest, status from task WHERE name = 'My new task'")
-            .unwrap();
+        add_to_db(&conn, new_task).unwrap();
 
-        let task_iter = stmt.query_map([], |row| {
-            Ok(Task::from_sql(
-                row.get(0).unwrap(),
-                row.get(1).unwrap(),
-                row.get(2).unwrap(),
-                row.get(3).unwrap(),
-                row.get(4).unwrap(),
-                row.get(5).unwrap(),
-                row.get(6).unwrap(),
-            ))
-        });
+        let task_vec = get_all_db_contents(&conn).unwrap();
+        assert_eq!(task_vec.len(), 1);
     }
 }

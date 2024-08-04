@@ -1,6 +1,6 @@
 use chrono::prelude::*;
 use clap::ValueEnum;
-use rusqlite::{types::FromSql, ToSql};
+use rusqlite::{types::FromSql, types::ValueRef, ToSql};
 use std::string::ToString;
 use uuid::Uuid;
 
@@ -12,9 +12,29 @@ pub enum Urgency {
     Critical,
 }
 
+impl From<&str> for Urgency {
+    fn from(s: &str) -> Self {
+        match s {
+            "Low" => Urgency::Low,
+            "Medium" => Urgency::Medium,
+            "High" => Urgency::High,
+            "Critical" => Urgency::Critical,
+            _ => {
+                panic!()
+            }
+        }
+    }
+}
+
 impl ToSql for Urgency {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
         Ok(self.to_string().into())
+    }
+}
+
+impl FromSql for Urgency {
+    fn column_result(value: ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        value.as_str().map(Into::into)
     }
 }
 
@@ -26,6 +46,20 @@ pub enum Status {
     Closed,
 }
 
+impl From<&str> for Status {
+    fn from(s: &str) -> Self {
+        match s {
+            "Open" => Status::Open,
+            "Working" => Status::Working,
+            "Paused" => Status::Paused,
+            "Closed" => Status::Closed,
+            _ => {
+                panic!()
+            }
+        }
+    }
+}
+
 impl ToSql for Status {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
         Ok(self.to_string().into())
@@ -33,13 +67,8 @@ impl ToSql for Status {
 }
 
 impl FromSql for Status {
-    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        match value {
-            b"Open" => Ok(Self::Open),
-            b"Working" => Ok(Self::Working),
-            b"Paused" => Ok(Self::Paused),
-            b"Closed" => Ok(Self::Closed),
-        }
+    fn column_result(value: ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        value.as_str().map(Into::into)
     }
 }
 
