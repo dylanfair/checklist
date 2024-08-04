@@ -29,7 +29,7 @@ pub fn wipe_tasks(conn: &Connection, confirm_skip: bool) -> Result<()> {
 mod tests {
     use super::*;
     use crate::subcommands::database::{add_to_db, get_all_db_contents, get_db};
-    use crate::subcommands::task::{Task, Urgency};
+    use crate::subcommands::task::{Status, Task, Urgency};
 
     #[test]
     fn test_wipe_tasks() {
@@ -40,12 +40,14 @@ mod tests {
             Some(String::from("A description")),
             Some(String::from("A latest")),
             None,
+            Some(Status::Open),
         );
         let second_new_task = Task::new(
             String::from("Task2"),
             Some(String::from("Another description")),
             Some(String::from("A latest")),
             Some(Urgency::Medium),
+            Some(Status::Paused),
         );
 
         add_to_db(&conn, new_task).unwrap();

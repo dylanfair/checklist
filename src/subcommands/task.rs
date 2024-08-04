@@ -20,6 +20,7 @@ impl From<&str> for Urgency {
             "High" => Urgency::High,
             "Critical" => Urgency::Critical,
             _ => {
+                println!("String received was not a valid Urgency");
                 panic!()
             }
         }
@@ -38,7 +39,7 @@ impl FromSql for Urgency {
     }
 }
 
-#[derive(Clone, Debug, Copy, strum_macros::Display)]
+#[derive(Clone, Debug, Copy, ValueEnum, strum_macros::Display)]
 pub enum Status {
     Open,
     Working,
@@ -54,6 +55,7 @@ impl From<&str> for Status {
             "Paused" => Status::Paused,
             "Closed" => Status::Closed,
             _ => {
+                println!("String received wasn not a valid Status");
                 panic!()
             }
         }
@@ -80,6 +82,7 @@ pub struct Task {
     pub latest: Option<String>,
     pub urgency: Option<Urgency>,
     pub status: Status,
+    pub date_added: DateTime<Local>,
     pub completed_on: Option<DateTime<Local>>,
 }
 
@@ -89,6 +92,7 @@ impl Task {
         description: Option<String>,
         latest: Option<String>,
         urgency: Option<Urgency>,
+        status: Option<Status>,
     ) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -96,7 +100,8 @@ impl Task {
             description,
             latest,
             urgency,
-            status: Status::Open,
+            status: status.unwrap_or(Status::Open),
+            date_added: Local::now(),
             completed_on: None,
         }
     }
@@ -112,6 +117,7 @@ impl Task {
         latest: Option<String>,
         urgency: Option<Urgency>,
         status: Status,
+        date_added: DateTime<Local>,
         completed_on: Option<DateTime<Local>>,
     ) -> Self {
         Self {
@@ -121,6 +127,7 @@ impl Task {
             latest,
             urgency,
             status,
+            date_added,
             completed_on,
         }
     }

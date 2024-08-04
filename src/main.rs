@@ -7,7 +7,7 @@ mod subcommands;
 
 use crate::subcommands::config::{read_config, Config};
 use crate::subcommands::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
-use crate::subcommands::task::{Task, Urgency};
+use crate::subcommands::task::{Status, Task, Urgency};
 use crate::subcommands::wipe::wipe_tasks;
 
 #[derive(Parser, Debug)]
@@ -68,6 +68,10 @@ enum Commands {
         /// Urgency of the task
         #[arg(short, long, value_enum)]
         urgency: Option<Urgency>,
+
+        /// Status of the task
+        #[arg(short, long, value_enum)]
+        status: Option<Status>,
     },
 }
 
@@ -100,9 +104,10 @@ fn main() -> Result<()> {
             description,
             latest,
             urgency,
+            status,
         }) => {
             println!("Create task");
-            let new_task = Task::new(name, description, latest, urgency);
+            let new_task = Task::new(name, description, latest, urgency, status);
             println!("{:?}", new_task);
 
             let conn = get_db(cli.memory, cli.test)?;
@@ -114,16 +119,19 @@ fn main() -> Result<()> {
             let conn = get_db(cli.memory, cli.test)?;
             let tasks = get_all_db_contents(&conn).unwrap();
             println!("Found {:?} tasks", tasks.len());
-            println!("id | name | description | latest | urgency | status | completed_on");
+            println!(
+                "id | name | description | latest | urgency | status | date_added | completed_on"
+            );
             for task in tasks {
                 let print_fmt = format!(
-                    "{:?} | {:?} | {:?} | {:?} | {:?} | {:?} | {:?} ",
+                    "{:?} | {:?} | {:?} | {:?} | {:?} | {:?} | {:?} | {:?} ",
                     task.get_id(),
                     task.name,
                     task.description,
                     task.latest,
                     task.urgency,
                     task.status,
+                    task.date_added,
                     task.completed_on
                 );
                 println!("{}", print_fmt);

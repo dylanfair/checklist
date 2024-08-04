@@ -19,7 +19,8 @@ pub fn make_memory_connection() -> Result<Connection> {
             latest TEXT,
             urgency TEXT,
             status TEXT NOT NULL,
-            completed_on TEXT
+            date_added DATE NOT NULL,
+            completed_on DATE
         )",
         (),
     )?;
@@ -55,7 +56,8 @@ pub fn create_sqlite_db(testing: bool) -> Result<()> {
             latest TEXT,
             urgency TEXT,
             status TEXT NOT NULL,
-            completed_on TEXT
+            date_added DATE NOT NULL,
+            completed_on DATE
         )",
         (),
     )?;
@@ -85,8 +87,8 @@ pub fn get_db(memory: bool, testing: bool) -> Result<Connection> {
 pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
     println!("Adding to db");
     conn.execute(
-        "INSERT INTO task (id, name, description, latest, urgency, status, completed_on) 
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO task (id, name, description, latest, urgency, status, date_added, completed_on) 
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         (
             &task.get_id(),
             &task.name,
@@ -94,6 +96,7 @@ pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
             &task.latest,
             &task.urgency,
             &task.status,
+            &task.date_added,
             &task.completed_on,
         ),
     )
@@ -103,9 +106,7 @@ pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
 }
 
 pub fn get_all_db_contents(conn: &Connection) -> Result<Vec<Task>> {
-    let mut stmt = conn
-        .prepare("SELECT id, name, description, latest, urgency, status, completed_on FROM task")
-        .unwrap();
+    let mut stmt = conn.prepare("SELECT * FROM task").unwrap();
 
     let task_iter = stmt
         .query_map(params![], |row| {
@@ -117,6 +118,7 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<Vec<Task>> {
                 row.get(4).unwrap(),
                 row.get(5).unwrap(),
                 row.get(6).unwrap(),
+                row.get(7).unwrap(),
             ))
         })
         .unwrap();
@@ -137,7 +139,7 @@ pub fn remove_all_db_contents(conn: &Connection) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::subcommands::{config::read_config, task::Urgency};
+    use crate::subcommands::{config::read_config, task::Status, task::Urgency};
     use std::fs::remove_file;
 
     use super::*;
@@ -174,6 +176,7 @@ mod tests {
             None,
             None,
             Some(Urgency::Critical),
+            Some(Status::Open),
         );
         add_to_db(&conn, new_task).unwrap();
 
