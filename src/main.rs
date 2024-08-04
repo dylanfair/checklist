@@ -17,6 +17,10 @@ struct Cli {
     #[arg(short, long)]
     memory: bool,
 
+    /// Optional for testing using a test sqlite db
+    #[arg(short, long)]
+    test: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -73,20 +77,20 @@ fn main() -> Result<()> {
     match cli.command {
         Some(Commands::Init { set }) => {
             if let Some(valid_path) = set {
-                match read_config() {
+                match read_config(cli.test) {
                     Ok(mut config) => {
                         config.db_path = valid_path.clone();
-                        config.save()?;
+                        config.save(cli.test)?;
                         println!("Updated db path to {:?}", valid_path);
                     }
                     Err(_) => {
                         let config = Config::new(valid_path.clone());
-                        config.save()?;
+                        config.save(cli.test)?;
                         println!("Set db path to {:?}", valid_path);
                     }
                 }
             } else {
-                create_sqlite_db(false)?;
+                create_sqlite_db(cli.test)?;
                 println!("Successfully created the database to store your items in!");
             }
         }
@@ -101,13 +105,13 @@ fn main() -> Result<()> {
             let new_task = Task::new(name, description, latest, urgency);
             println!("{:?}", new_task);
 
-            let conn = get_db(cli.memory)?;
+            let conn = get_db(cli.memory, cli.test)?;
             add_to_db(&conn, new_task)?;
             println!("New task added successfully");
         }
 
         Some(Commands::List { completed }) => {
-            let conn = get_db(cli.memory)?;
+            let conn = get_db(cli.memory, cli.test)?;
             let tasks = get_all_db_contents(&conn).unwrap();
             println!("Found {:?} tasks", tasks.len());
             println!("id | name | description | latest | urgency | status | completed_on");
@@ -127,7 +131,7 @@ fn main() -> Result<()> {
         }
 
         Some(Commands::Wipe { yes }) => {
-            let conn = get_db(cli.memory)?;
+            let conn = get_db(cli.memory, cli.test)?;
             wipe_tasks(&conn, yes)?
         }
 

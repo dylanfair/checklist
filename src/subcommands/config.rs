@@ -16,27 +16,33 @@ impl Config {
         Self { db_path }
     }
 
-    pub fn save(&self) -> Result<()> {
+    pub fn save(&self, testing: bool) -> Result<()> {
         match get_config_dir() {
             Ok(conf_local_dir) => {
                 // We want to update our config
                 // We can do this by creating a .tmp file and renaming it
                 // This minimizes the chance of data being lost if an error
                 // happens mid-write
+                let mut config_file = String::from("config.json");
+                if testing {
+                    config_file = format!("test.{}", config_file);
+                }
+                let tmp_file = format!("{}.tmp", config_file);
 
-                let config_file = conf_local_dir.join("config.json");
-                let tmp_file = conf_local_dir.join("config.json.tmp");
+                let config_file_path = conf_local_dir.join(&config_file);
+                let tmp_file_path = conf_local_dir.join(&tmp_file);
 
                 let config_string =
                     serde_json::to_string(self).context("Failed to deserialize Config")?;
 
                 // Create a .tmp file
-                let mut file = File::create(&tmp_file).context("Failed to make a .tmp file")?;
+                let mut file =
+                    File::create(&tmp_file_path).context("Failed to make a .tmp file")?;
                 file.write_all(config_string.as_bytes())
                     .context("Failed to write to config file")?;
 
                 // Rename .tmp file to old file
-                rename(&tmp_file, &config_file)
+                rename(&tmp_file_path, &config_file_path)
                     .with_context(|| { format!("Failed to update config file with rename:\ntmp_file: {:?}\nconfig_file:{:?}", tmp_file, config_file)})?;
             }
             Err(e) => {
@@ -64,10 +70,15 @@ pub fn get_config_dir() -> Result<PathBuf> {
     Ok(conf_local_dir)
 }
 
-pub fn read_config() -> Result<Config> {
+pub fn read_config(testing: bool) -> Result<Config> {
     match get_config_dir() {
         Ok(local_config_dir) => {
-            let config_file_path = local_config_dir.join("config.json");
+            let mut config_f = String::from("config.json");
+            if testing {
+                config_f = format!("test.{}", config_f);
+            }
+            let config_file_path = local_config_dir.join(&config_f);
+
             let config_file = std::fs::File::open(&config_file_path)
                 .with_context(|| format!("Failed to open {:?}", config_file_path))?;
             let reader = BufReader::new(config_file);
@@ -89,24 +100,26 @@ mod tests {
 
     fn save_and_read_config(db_path: PathBuf) {
         let config = Config::new(db_path.clone());
-        match config.save() {
+        match config.save(true) {
             Ok(()) => {
                 let base_directories = BaseDirs::new().expect("Should find");
                 let config_file = base_directories
                     .config_local_dir()
-                    .join("checklist/config.json");
+                    .join("checklist/test.config.json");
                 assert_eq!(config_file.exists(), true);
             }
             Err(_) => {
+                println!("Encounted an error saving the test config file");
                 panic!()
             }
         }
 
-        match read_config() {
+        match read_config(true) {
             Ok(config) => {
                 assert_eq!(config.db_path, db_path);
             }
             Err(_) => {
+                println!("Encounted an error reading the test config file");
                 panic!()
             }
         }
@@ -124,13 +137,13 @@ mod tests {
     #[test]
     fn test_updating_the_config() -> Result<()> {
         let mut config = Config::new(PathBuf::from("first_db_path.db"));
-        config.save()?;
-        let read_in_config = read_config()?;
+        config.save(true)?;
+        let read_in_config = read_config(true)?;
         assert_eq!(config.db_path, read_in_config.db_path);
 
         config.db_path = PathBuf::from("second_db_path.db");
-        config.save()?;
-        let second_read_in_config = read_config()?;
+        config.save(true)?;
+        let second_read_in_config = read_config(true)?;
         assert_eq!(config.db_path, second_read_in_config.db_path);
 
         Ok(())

@@ -18,7 +18,7 @@ pub fn make_memory_connection() -> Result<Connection> {
             description TEXT,
             latest TEXT,
             urgency TEXT,
-            status TEXT,
+            status TEXT NOT NULL,
             completed_on TEXT
         )",
         (),
@@ -54,24 +54,24 @@ pub fn create_sqlite_db(testing: bool) -> Result<()> {
             description TEXT,
             latest TEXT,
             urgency TEXT,
-            status TEXT,
+            status TEXT NOT NULL,
             completed_on TEXT
         )",
         (),
     )?;
 
     let config = Config::new(sqlite_path);
-    config.save()?;
+    config.save(testing)?;
     Ok(())
 }
 
-pub fn get_db(memory: bool) -> Result<Connection> {
+pub fn get_db(memory: bool, testing: bool) -> Result<Connection> {
     if memory {
         println!("Using an in-memory sqlite database");
         let conn = make_memory_connection().unwrap();
         Ok(conn)
     } else {
-        let config = read_config().context("Failed to read in config")?;
+        let config = read_config(testing).context("Failed to read in config")?;
         let conn = make_connection(&config.db_path).with_context(|| {
             format!(
                 "Failed to make a connection to the database: {:?}",
@@ -157,7 +157,7 @@ mod tests {
 
         create_sqlite_db(true).unwrap();
 
-        let config = read_config().unwrap();
+        let config = read_config(true).unwrap();
         assert_eq!(config.db_path.exists(), true);
         let _ = make_connection(&config.db_path).unwrap();
 
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn add_to_database() {
-        let conn = get_db(true).unwrap();
+        let conn = get_db(true, false).unwrap();
 
         let new_task = Task::new(
             "My new task".to_string(),

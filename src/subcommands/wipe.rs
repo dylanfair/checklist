@@ -9,22 +9,19 @@ pub fn wipe_tasks(conn: &Connection, confirm_skip: bool) -> Result<()> {
             let mut confirmation = String::new();
             std::io::stdin().read_line(&mut confirmation).unwrap();
 
-            let confirmation = confirmation.replace("\n", "").to_lowercase();
-            let confirmation_str = confirmation.as_str();
-            println!("{}", confirmation_str);
-            if confirmation_str == "y" || confirmation_str == "n" {
-                println!("You must provide either a 'y' or 'n'");
-                continue;
+            match confirmation.to_lowercase().trim_end() {
+                "y" => break,
+                "n" => {
+                    println!("Not wiping all tasks");
+                    return Ok(());
+                }
+                _ => println!("You must provide either a 'y' or 'n'"),
             }
-
-            if confirmation_str == "y" {
-                break;
-            }
-            println!("Not wiping all tasks");
-            return Ok(());
         }
     }
+    println!("Removing tasks from database");
     remove_all_db_contents(&conn)?;
+    println!("Success!");
     Ok(())
 }
 
@@ -36,7 +33,7 @@ mod tests {
 
     #[test]
     fn test_wipe_tasks() {
-        let conn = get_db(true).unwrap();
+        let conn = get_db(true, false).unwrap();
 
         let new_task = Task::new(
             String::from("Task1"),
