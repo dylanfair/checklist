@@ -96,7 +96,7 @@ pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
             &task.latest,
             &task.urgency,
             &task.status,
-            &task.date_added,
+            &task.get_date_added(),
             &task.completed_on,
         ),
     )
@@ -131,9 +131,14 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<Vec<Task>> {
     Ok(task_vec)
 }
 
-pub fn remove_all_db_contents(conn: &Connection) -> Result<()> {
-    conn.execute("DELETE FROM task", ())
-        .context("Failed to wipe the task table")?;
+pub fn remove_all_db_contents(conn: &Connection, hard: bool) -> Result<()> {
+    if hard {
+        conn.execute("DROP TABLE task", ())
+            .context("Failed to drop the task table")?;
+    } else {
+        conn.execute("DELETE FROM task", ())
+            .context("Failed to wipe all tasks from the task table")?;
+    }
     Ok(())
 }
 

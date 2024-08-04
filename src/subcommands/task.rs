@@ -82,7 +82,7 @@ pub struct Task {
     pub latest: Option<String>,
     pub urgency: Option<Urgency>,
     pub status: Status,
-    pub date_added: DateTime<Local>,
+    date_added: DateTime<Local>,
     pub completed_on: Option<DateTime<Local>>,
 }
 
@@ -108,6 +108,10 @@ impl Task {
 
     pub fn get_id(&self) -> Uuid {
         self.id
+    }
+
+    pub fn get_date_added(&self) -> DateTime<Local> {
+        self.date_added
     }
 
     pub fn from_sql(

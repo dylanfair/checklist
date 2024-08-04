@@ -44,11 +44,15 @@ enum Commands {
         completed: bool,
     },
 
-    /// Wipe out all tasks
+    /// Wipe out all tasks in the sqlite database
     Wipe {
         /// Bypass confirmation check
         #[arg(short)]
         yes: bool,
+
+        /// Pass in to drop the table entirely
+        #[arg(short)]
+        hard: bool,
     },
 
     /// Adds a task to your checklist
@@ -57,19 +61,19 @@ enum Commands {
         #[arg(short, long)]
         name: String,
 
-        /// Description of the task
+        /// Optional: Description of the task
         #[arg(short, long)]
         description: Option<String>,
 
-        /// Latest updates on the task
+        /// Optional: Latest updates on the task
         #[arg(short, long)]
         latest: Option<String>,
 
-        /// Urgency of the task
+        /// Optional: Urgency of the task
         #[arg(short, long, value_enum)]
         urgency: Option<Urgency>,
 
-        /// Status of the task
+        /// Optional: Status of the task
         #[arg(short, long, value_enum)]
         status: Option<Status>,
     },
@@ -131,16 +135,16 @@ fn main() -> Result<()> {
                     task.latest,
                     task.urgency,
                     task.status,
-                    task.date_added,
+                    task.get_date_added(),
                     task.completed_on
                 );
                 println!("{}", print_fmt);
             }
         }
 
-        Some(Commands::Wipe { yes }) => {
+        Some(Commands::Wipe { yes, hard }) => {
             let conn = get_db(cli.memory, cli.test)?;
-            wipe_tasks(&conn, yes)?
+            wipe_tasks(&conn, yes, hard)?
         }
 
         None => {}

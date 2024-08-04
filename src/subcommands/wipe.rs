@@ -2,7 +2,7 @@ use crate::subcommands::database::remove_all_db_contents;
 use anyhow::Result;
 use rusqlite::Connection;
 
-pub fn wipe_tasks(conn: &Connection, confirm_skip: bool) -> Result<()> {
+pub fn wipe_tasks(conn: &Connection, confirm_skip: bool, hard: bool) -> Result<()> {
     if !confirm_skip {
         println!("Are you sure you want to wipe out all your tasks? (y/n)");
         loop {
@@ -20,7 +20,7 @@ pub fn wipe_tasks(conn: &Connection, confirm_skip: bool) -> Result<()> {
         }
     }
     println!("Removing tasks from database");
-    remove_all_db_contents(&conn)?;
+    remove_all_db_contents(&conn, hard)?;
     println!("Success!");
     Ok(())
 }
@@ -56,7 +56,7 @@ mod tests {
         let tasks = get_all_db_contents(&conn).unwrap();
         assert_eq!(tasks.len(), 2);
 
-        remove_all_db_contents(&conn).unwrap();
+        remove_all_db_contents(&conn, false).unwrap();
         let tasks = get_all_db_contents(&conn).unwrap();
         assert_eq!(tasks.len(), 0);
     }
