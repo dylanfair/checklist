@@ -8,7 +8,9 @@ anyhow = "1.0.86"
 chrono = { version = "0.4.38", features = ["serde"] }
 clap = { version = "4.5.13", features = ["derive"] }
 directories = "5.0.1"
-rusqlite = { version = "0.32.1", features = ["bundled"] }
+rusqlite = { version = "0.32.1", features = ["bundled", "chrono", "uuid"] }
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.122"
+strum = { version = "0.26.3", features = ["strum_macros"] }
+strum_macros = "0.26.4"
 uuid = { version = "1.10.0", features = ["v4"] }

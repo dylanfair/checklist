@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 mod subcommands;
 
 use crate::subcommands::config::{read_config, Config};
-use crate::subcommands::database::create_sqlite_db;
+use crate::subcommands::database::{add_to_db, create_sqlite_db, make_memory_connection};
 use crate::subcommands::task::{Task, Urgency};
 
 #[derive(Parser, Debug)]
@@ -42,8 +42,12 @@ enum Commands {
         #[arg(short, long)]
         description: Option<String>,
 
+        /// Latest updates on the task
+        #[arg(short, long)]
+        latest: Option<String>,
+
         /// Urgency of the task
-        #[arg(short, long, value_enum, value_parser)]
+        #[arg(short, long, value_enum)]
         urgency: Option<Urgency>,
     },
 }
@@ -51,7 +55,7 @@ enum Commands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    match &cli.command {
+    match cli.command {
         Some(Commands::Init { set }) => {
             if let Some(valid_path) = set {
                 match read_config() {
@@ -74,10 +78,14 @@ fn main() -> Result<()> {
         Some(Commands::Add {
             name,
             description,
+            latest,
             urgency,
         }) => {
-            println!("Name");
-            let new_task = Task::new(name.to_string(), description.clone(), urgency.clone());
+            println!("Create task");
+            let new_task = Task::new(name, description, latest, urgency);
+            println!("{:?}", new_task);
+            add_to_db(new_task, cli.memory)?;
+            println!("New task added successfully");
         }
         None => {}
     }
