@@ -135,9 +135,11 @@ pub fn remove_all_db_contents(conn: &Connection, hard: bool) -> Result<()> {
     if hard {
         conn.execute("DROP TABLE task", ())
             .context("Failed to drop the task table")?;
+        println!("'task' table dropped successfully");
     } else {
         conn.execute("DELETE FROM task", ())
             .context("Failed to wipe all tasks from the task table")?;
+        println!("Tasks from 'task' table deleted successfully");
     }
     Ok(())
 }

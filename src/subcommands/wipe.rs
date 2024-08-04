@@ -4,7 +4,7 @@ use rusqlite::Connection;
 
 pub fn wipe_tasks(conn: &Connection, confirm_skip: bool, hard: bool) -> Result<()> {
     if !confirm_skip {
-        println!("Are you sure you want to wipe out all your tasks? (y/n)");
+        println!("Are you sure you want to proceed with the wipe? (y/n)");
         loop {
             let mut confirmation = String::new();
             std::io::stdin().read_line(&mut confirmation).unwrap();
@@ -12,14 +12,14 @@ pub fn wipe_tasks(conn: &Connection, confirm_skip: bool, hard: bool) -> Result<(
             match confirmation.to_lowercase().trim_end() {
                 "y" => break,
                 "n" => {
-                    println!("Not wiping all tasks");
+                    println!("Halting wipe");
                     return Ok(());
                 }
                 _ => println!("You must provide either a 'y' or 'n'"),
             }
         }
     }
-    println!("Removing tasks from database");
+    println!("Proceeding with wipe");
     remove_all_db_contents(&conn, hard)?;
     println!("Success!");
     Ok(())

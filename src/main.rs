@@ -51,7 +51,7 @@ enum Commands {
         yes: bool,
 
         /// Pass in to drop the table entirely
-        #[arg(short)]
+        #[arg(long)]
         hard: bool,
     },
 
