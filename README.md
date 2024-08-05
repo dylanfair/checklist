@@ -2,10 +2,12 @@
 
 ## Todo
 
-* Update
-* Delete
-* Mark complete
-  * Set completed_on time
+* Nicer display
+* How to single out task we want to perform action on
+  * Update
+    * Mark complete
+      * Set completed_on time
+  * Delete
 
 ## Done
 
