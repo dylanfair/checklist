@@ -2,12 +2,13 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use crossterm::style::Stylize;
 
 mod subcommands;
 
 use crate::subcommands::config::{read_config, Config};
 use crate::subcommands::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
-use crate::subcommands::task::{Status, Task, Urgency};
+use crate::subcommands::task::{sort_by_urgency, Status, Task, Urgency};
 use crate::subcommands::wipe::wipe_tasks;
 
 #[derive(Parser, Debug)]
@@ -121,24 +122,31 @@ fn main() -> Result<()> {
 
         Some(Commands::List { completed }) => {
             let conn = get_db(cli.memory, cli.test)?;
-            let tasks = get_all_db_contents(&conn).unwrap();
+            let mut tasks = get_all_db_contents(&conn).unwrap();
             println!("Found {:?} tasks", tasks.len());
-            println!(
-                "id | name | description | latest | urgency | status | date_added | completed_on"
-            );
-            for task in tasks {
+
+            // Order tasks here
+            sort_by_urgency(&mut tasks, true);
+
+            // Print out tasks
+            for (i, task) in tasks.into_iter().enumerate() {
                 let print_fmt = format!(
-                    "{:?} | {:?} | {:?} | {:?} | {:?} | {:?} | {:?} | {:?} ",
-                    task.get_id(),
+                    "{:?}. {:?} | {:?}
+    Status: {:?}
+    Description: {:?}
+    Latest Notes: {:?}
+    Added: {:?}
+    Completed: {:?}",
+                    i,
                     task.name,
-                    task.description,
-                    task.latest,
                     task.urgency,
                     task.status,
+                    task.description,
+                    task.latest,
                     task.get_date_added(),
                     task.completed_on
                 );
-                println!("{}", print_fmt);
+                println!("{}", print_fmt.blue());
             }
         }
 
