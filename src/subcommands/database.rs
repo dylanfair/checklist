@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use rusqlite::{params, Connection};
 
 use crate::subcommands::config::{get_config_dir, read_config, Config};
-use crate::subcommands::task::Task;
+use crate::subcommands::task::{Task, TaskList};
 
 pub fn make_memory_connection() -> Result<Connection> {
     println!("Setting up an in-memory sqlite_db");
@@ -19,6 +19,7 @@ pub fn make_memory_connection() -> Result<Connection> {
             latest TEXT,
             urgency TEXT,
             status TEXT NOT NULL,
+            tags TEXT,
             date_added DATE NOT NULL,
             completed_on DATE
         )",
@@ -56,6 +57,7 @@ pub fn create_sqlite_db(testing: bool) -> Result<()> {
             latest TEXT,
             urgency TEXT,
             status TEXT NOT NULL,
+            tags TEXT,
             date_added DATE NOT NULL,
             completed_on DATE
         )",
@@ -86,9 +88,10 @@ pub fn get_db(memory: bool, testing: bool) -> Result<Connection> {
 
 pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
     println!("Adding to db");
+    //let tags_to_string = &task.tags.unwrap_or(vec![]).join(":");
     conn.execute(
-        "INSERT INTO task (id, name, description, latest, urgency, status, date_added, completed_on) 
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO task (id, name, description, latest, urgency, status, tags, date_added, completed_on) 
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         (
             &task.get_id(),
             &task.name,
@@ -96,6 +99,7 @@ pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
             &task.latest,
             &task.urgency,
             &task.status,
+            &task.tags.clone().unwrap_or(vec![]).join(";"),
             &task.get_date_added(),
             &task.completed_on,
         ),
@@ -105,11 +109,22 @@ pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
     Ok(())
 }
 
-pub fn get_all_db_contents(conn: &Connection) -> Result<Vec<Task>> {
+pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
     let mut stmt = conn.prepare("SELECT * FROM task").unwrap();
 
     let task_iter = stmt
         .query_map(params![], |row| {
+            let mut tags_entry = None;
+            let tags: String = row.get(6).unwrap();
+            if tags != String::from("") {
+                let tags_parts = tags.split(";");
+                let mut tags_vec = vec![];
+                for part in tags_parts {
+                    tags_vec.push(part.to_string());
+                }
+                tags_entry = Some(tags_vec)
+            }
+            //let tags_vec = tags.split(";").collect::<Vec<String>>();
             Ok(Task::from_sql(
                 row.get(0).unwrap(),
                 row.get(1).unwrap(),
@@ -117,18 +132,19 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<Vec<Task>> {
                 row.get(3).unwrap(),
                 row.get(4).unwrap(),
                 row.get(5).unwrap(),
-                row.get(6).unwrap(),
+                tags_entry,
                 row.get(7).unwrap(),
+                row.get(8).unwrap(),
             ))
         })
         .unwrap();
 
-    let mut task_vec = vec![];
+    let mut task_list = TaskList::new();
     for task in task_iter {
-        task_vec.push(task.unwrap());
+        task_list.tasks.push(task.unwrap());
     }
 
-    Ok(task_vec)
+    Ok(task_list)
 }
 
 pub fn remove_all_db_contents(conn: &Connection, hard: bool) -> Result<()> {
@@ -184,10 +200,11 @@ mod tests {
             None,
             Some(Urgency::Critical),
             Some(Status::Open),
+            Some(vec![String::from("Tag1"), String::from("Tag2")]),
         );
         add_to_db(&conn, new_task).unwrap();
 
-        let task_vec = get_all_db_contents(&conn).unwrap();
-        assert_eq!(task_vec.len(), 1);
+        let task_list = get_all_db_contents(&conn).unwrap();
+        assert_eq!(task_list.len(), 1);
     }
 }

@@ -2,13 +2,12 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use crossterm::style::Stylize;
 
 mod subcommands;
 
 use crate::subcommands::config::{read_config, Config};
 use crate::subcommands::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
-use crate::subcommands::task::{sort_by_urgency, Status, Task, Urgency};
+use crate::subcommands::task::{Status, Task, Urgency};
 use crate::subcommands::wipe::wipe_tasks;
 
 #[derive(Parser, Debug)]
@@ -77,6 +76,10 @@ enum Commands {
         /// Optional: Status of the task
         #[arg(short, long, value_enum)]
         status: Option<Status>,
+
+        /// Optional: Status of the task
+        #[arg(short, long, num_args = 1..)]
+        tag: Option<Vec<String>>,
     },
 }
 
@@ -110,9 +113,10 @@ fn main() -> Result<()> {
             latest,
             urgency,
             status,
+            tag,
         }) => {
             println!("Create task");
-            let new_task = Task::new(name, description, latest, urgency, status);
+            let new_task = Task::new(name, description, latest, urgency, status, tag);
             println!("{:?}", new_task);
 
             let conn = get_db(cli.memory, cli.test)?;
@@ -122,32 +126,14 @@ fn main() -> Result<()> {
 
         Some(Commands::List { completed }) => {
             let conn = get_db(cli.memory, cli.test)?;
-            let mut tasks = get_all_db_contents(&conn).unwrap();
-            println!("Found {:?} tasks", tasks.len());
+            let mut task_list = get_all_db_contents(&conn).unwrap();
+            println!("Found {} tasks\n", task_list.len());
 
             // Order tasks here
-            sort_by_urgency(&mut tasks, true);
+            task_list.sort_by_urgency(true);
 
             // Print out tasks
-            for (i, task) in tasks.into_iter().enumerate() {
-                let print_fmt = format!(
-                    "{:?}. {:?} | {:?}
-    Status: {:?}
-    Description: {:?}
-    Latest Notes: {:?}
-    Added: {:?}
-    Completed: {:?}",
-                    i,
-                    task.name,
-                    task.urgency,
-                    task.status,
-                    task.description,
-                    task.latest,
-                    task.get_date_added(),
-                    task.completed_on
-                );
-                println!("{}", print_fmt.blue());
-            }
+            task_list.display_tasks();
         }
 
         Some(Commands::Wipe { yes, hard }) => {
