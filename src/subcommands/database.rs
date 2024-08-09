@@ -88,7 +88,13 @@ pub fn get_db(memory: bool, testing: bool) -> Result<Connection> {
 
 pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
     println!("Adding to db");
-    //let tags_to_string = &task.tags.unwrap_or(vec![]).join(":");
+    // Handle inserting tags
+    let mut tags_insert = None;
+    match &task.tags {
+        Some(tags) => tags_insert = Some(tags.join(";")),
+        None => {}
+    }
+
     conn.execute(
         "INSERT INTO task (id, name, description, latest, urgency, status, tags, date_added, completed_on) 
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
@@ -99,7 +105,7 @@ pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
             &task.latest,
             &task.urgency,
             &task.status,
-            &task.tags.clone().unwrap_or(vec![]).join(";"),
+            tags_insert,
             &task.get_date_added(),
             &task.completed_on,
         ),
@@ -114,17 +120,23 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
 
     let task_iter = stmt
         .query_map(params![], |row| {
+            // Need separate handling for the tags
+            // Basically convert string back to a vector
             let mut tags_entry = None;
-            let tags: String = row.get(6).unwrap();
-            if tags != String::from("") {
-                let tags_parts = tags.split(";");
-                let mut tags_vec = vec![];
-                for part in tags_parts {
-                    tags_vec.push(part.to_string());
+            let tags_option: Option<String> = row.get(6).unwrap();
+
+            match tags_option {
+                Some(tags) => {
+                    let tags_parts = tags.split(";");
+                    let mut tags_vec = vec![];
+                    for part in tags_parts {
+                        tags_vec.push(part.to_string());
+                    }
+                    tags_entry = Some(tags_vec);
                 }
-                tags_entry = Some(tags_vec)
+                None => {}
             }
-            //let tags_vec = tags.split(";").collect::<Vec<String>>();
+
             Ok(Task::from_sql(
                 row.get(0).unwrap(),
                 row.get(1).unwrap(),
