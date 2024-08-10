@@ -94,6 +94,32 @@ pub fn read_config(testing: bool) -> Result<Config> {
     }
 }
 
+pub fn set_new_path(path: PathBuf, testing: bool) -> Result<()> {
+    if path.exists() == false {
+        panic!("A valid path that exists needs to be supplied")
+    }
+    let absolute_path = std::fs::canonicalize(&path).with_context(|| {
+        format!(
+            "Failed to create a canonical path from the following: {:?}",
+            &path
+        )
+    })?;
+
+    match read_config(testing) {
+        Ok(mut config) => {
+            config.db_path = absolute_path.clone();
+            config.save(testing)?;
+            println!("Updated db path to {:?}", absolute_path);
+        }
+        Err(_) => {
+            let config = Config::new(absolute_path.clone());
+            config.save(testing)?;
+            println!("Set db path to {:?}", absolute_path);
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

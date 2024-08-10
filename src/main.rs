@@ -1,7 +1,9 @@
 use std::collections::HashSet;
+use std::error::Error;
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use backend::config::set_new_path;
 use clap::{Parser, Subcommand};
 
 mod backend;
@@ -40,12 +42,13 @@ enum Commands {
 
     /// List out tasks
     List {
-        /// Different display options
-        /// By default will show those not-completed
+        /// Optional: Different display options
+        /// By default will show tasks not-completed
         #[arg(short, long, value_enum)]
         display: Option<Display>,
 
-        /// Filter by the following tags
+        /// Optional: Filter for tasks with the following tags
+        /// Can supply multiple
         #[arg(short, long, num_args=1..)]
         tag: Option<Vec<String>>,
     },
@@ -95,18 +98,7 @@ fn main() -> Result<()> {
     match cli.command {
         Some(Commands::Init { set }) => {
             if let Some(valid_path) = set {
-                match read_config(cli.test) {
-                    Ok(mut config) => {
-                        config.db_path = valid_path.clone();
-                        config.save(cli.test)?;
-                        println!("Updated db path to {:?}", valid_path);
-                    }
-                    Err(_) => {
-                        let config = Config::new(valid_path.clone());
-                        config.save(cli.test)?;
-                        println!("Set db path to {:?}", valid_path);
-                    }
-                }
+                set_new_path(valid_path, cli.test)?;
             } else {
                 create_sqlite_db(cli.test)?;
                 println!("Successfully created the database to store your items in!");

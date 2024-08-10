@@ -50,6 +50,9 @@ pub fn create_sqlite_db(testing: bool) -> Result<()> {
     println!("Setting up a database at {:?}", sqlite_path);
     let conn = make_connection(&sqlite_path)?;
 
+    let config = Config::new(sqlite_path);
+    config.save(testing)?;
+
     conn.execute(
         "CREATE TABLE task (
             id TEXT PRIMARY KEY,
@@ -65,8 +68,6 @@ pub fn create_sqlite_db(testing: bool) -> Result<()> {
         (),
     )?;
 
-    let config = Config::new(sqlite_path);
-    config.save(testing)?;
     Ok(())
 }
 
