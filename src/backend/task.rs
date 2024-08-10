@@ -155,6 +155,7 @@ impl Task {
         self.date_added
     }
 
+    #[warn(dead_code)]
     pub fn update(
         &mut self,
         name: Option<String>,
@@ -267,6 +268,7 @@ impl TaskList {
         TaskList { tasks: vec![] }
     }
 
+    #[warn(dead_code)]
     pub fn from(tasks: Vec<Task>) -> Self {
         TaskList { tasks }
     }
@@ -279,6 +281,7 @@ impl TaskList {
         }
     }
 
+    #[warn(dead_code)]
     pub fn len(&self) -> usize {
         self.tasks.len()
     }
