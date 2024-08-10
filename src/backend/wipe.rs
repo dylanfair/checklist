@@ -1,4 +1,4 @@
-use crate::subcommands::database::remove_all_db_contents;
+use crate::backend::database::remove_all_db_contents;
 use anyhow::Result;
 use rusqlite::Connection;
 
@@ -28,8 +28,8 @@ pub fn wipe_tasks(conn: &Connection, confirm_skip: bool, hard: bool) -> Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::subcommands::database::{add_to_db, get_all_db_contents, get_db};
-    use crate::subcommands::task::{Status, Task, Urgency};
+    use crate::backend::database::{add_to_db, get_all_db_contents, get_db};
+    use crate::backend::task::{Status, Task, Urgency};
     use std::collections::HashSet;
 
     #[test]

@@ -4,12 +4,12 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-mod subcommands;
+mod backend;
 
-use crate::subcommands::config::{read_config, Config};
-use crate::subcommands::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
-use crate::subcommands::task::{Display, Status, Task, Urgency};
-use crate::subcommands::wipe::wipe_tasks;
+use crate::backend::config::{read_config, Config};
+use crate::backend::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
+use crate::backend::task::{Display, Status, Task, Urgency};
+use crate::backend::wipe::wipe_tasks;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 use rusqlite::{params, Connection};
 
-use crate::subcommands::config::{get_config_dir, read_config, Config};
-use crate::subcommands::task::{Task, TaskList};
+use crate::backend::config::{get_config_dir, read_config, Config};
+use crate::backend::task::{Task, TaskList};
 
 pub fn make_memory_connection() -> Result<Connection> {
     println!("Setting up an in-memory sqlite_db");
@@ -209,7 +209,7 @@ pub fn remove_all_db_contents(conn: &Connection, hard: bool) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::subcommands::{config::read_config, task::{Status, Urgency}};
+    use crate::backend::{config::read_config, task::{Status, Urgency}};
     use std::fs::remove_file;
 
     use super::*;
