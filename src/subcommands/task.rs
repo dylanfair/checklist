@@ -3,8 +3,17 @@ use clap::ValueEnum;
 use crossterm::style::Stylize;
 use rusqlite::{types::FromSql, types::ValueRef, ToSql};
 use std::cmp::Ordering;
+use std::collections::HashSet;
+use std::mem::swap;
 use std::string::ToString;
 use uuid::Uuid;
+
+#[derive(Clone, Copy, Debug, ValueEnum, strum_macros::Display)]
+pub enum Display {
+    All,
+    Completed,
+    NotCompleted,
+}
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum, strum_macros::Display)]
 pub enum Urgency {
@@ -52,7 +61,7 @@ impl FromSql for Urgency {
     }
 }
 
-#[derive(Clone, Debug, Copy, ValueEnum, strum_macros::Display)]
+#[derive(Clone, Debug, Copy, ValueEnum, strum_macros::Display, PartialEq, Eq)]
 pub enum Status {
     Open,
     Working,
@@ -98,7 +107,7 @@ impl FromSql for Status {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Task {
     id: Uuid,
     pub name: String,
@@ -106,7 +115,7 @@ pub struct Task {
     pub latest: Option<String>,
     pub urgency: Urgency,
     pub status: Status,
-    pub tags: Option<Vec<String>>,
+    pub tags: Option<HashSet<String>>,
     date_added: DateTime<Local>,
     pub completed_on: Option<DateTime<Local>>,
 }
@@ -118,18 +127,23 @@ impl Task {
         latest: Option<String>,
         urgency: Option<Urgency>,
         status: Option<Status>,
-        tags: Option<Vec<String>>,
+        tags: Option<HashSet<String>>,
     ) -> Self {
+        let status_value = status.unwrap_or(Status::Open);
         Self {
             id: Uuid::new_v4(),
             name,
             description,
             latest,
             urgency: urgency.unwrap_or(Urgency::Low),
-            status: status.unwrap_or(Status::Open),
+            status: status_value,
             tags,
             date_added: Local::now(),
-            completed_on: None,
+            completed_on: if status_value == Status::Completed {
+                Some(Local::now())
+            } else {
+                None
+            },
         }
     }
 
@@ -141,6 +155,57 @@ impl Task {
         self.date_added
     }
 
+    pub fn update(
+        &mut self,
+        name: Option<String>,
+        description: Option<String>,
+        latest: Option<String>,
+        urgency: Option<Urgency>,
+        status: Option<Status>,
+        add_tags: Option<HashSet<String>>,
+        remove_tags: Option<HashSet<String>>,
+    ) {
+        if let Some(n) = name {
+            self.name = n;
+        }
+        // Description
+        self.description = description;
+        // Latest
+        self.latest = latest;
+        // Urgency
+        if let Some(urg) = urgency {
+            self.urgency = urg;
+        }
+        // Status
+        if let Some(stat) = status {
+            self.status = stat;
+            if self.status == Status::Completed {
+                self.completed_on = Some(Local::now());
+            } else {
+                self.completed_on = None;
+            }
+        }
+        if let Some(add_t) = add_tags {
+            let mut old_tags: Option<HashSet<String>> = Some(HashSet::new());
+            swap(&mut old_tags, &mut self.tags);
+            let mut tags = old_tags.unwrap_or(HashSet::new());
+            tags.extend(add_t);
+            self.tags = Some(tags);
+        }
+        if self.tags.is_some() {
+            if let Some(remove_t) = remove_tags {
+                let mut old_tags: Option<HashSet<String>> = Some(HashSet::new());
+                swap(&mut old_tags, &mut self.tags);
+                let mut tags = old_tags.unwrap();
+
+                for t in remove_t {
+                    tags.remove(&t);
+                }
+                self.tags = Some(tags);
+            }
+        }
+    }
+
     pub fn from_sql(
         id: Uuid,
         name: String,
@@ -148,7 +213,7 @@ impl Task {
         latest: Option<String>,
         urgency: Urgency,
         status: Status,
-        tags: Option<Vec<String>>,
+        tags: Option<HashSet<String>>,
         date_added: DateTime<Local>,
         completed_on: Option<DateTime<Local>>,
     ) -> Self {
@@ -218,34 +283,86 @@ impl TaskList {
         self.tasks.len()
     }
 
+    pub fn filter_tasks(
+        &mut self,
+        display_option: Option<Display>,
+        tags_option: Option<Vec<String>>,
+    ) {
+        let mut tasks_to_keep = vec![];
+        'task: for task in &mut self.tasks.iter() {
+            // check if fits our display needs
+            match display_option {
+                Some(display) => match display {
+                    Display::Completed => {
+                        if task.status != Status::Completed {
+                            continue 'task;
+                        }
+                    }
+                    Display::NotCompleted => {
+                        if task.status == Status::Completed {
+                            continue 'task;
+                        }
+                    }
+                    Display::All => {}
+                },
+                None => {
+                    if task.status == Status::Completed {
+                        continue 'task;
+                    }
+                }
+            }
+
+            // Check if it has tags we are looking for
+            if let Some(tags) = tags_option.clone() {
+                match task.tags.clone() {
+                    Some(task_tags) => {
+                        for t in tags {
+                            if task_tags.contains(&t) == false {
+                                continue 'task;
+                            }
+                        }
+                    }
+                    None => continue 'task,
+                }
+            }
+            tasks_to_keep.push(task.clone());
+        }
+        self.tasks = tasks_to_keep;
+    }
+
     pub fn display_tasks(&self) {
-        for (i, task) in self.tasks.iter().enumerate() {
+        for task in self.tasks.iter() {
             let name = task.name.clone();
             let description = task.description.clone().unwrap_or(String::from("None"));
             let latest = task.latest.clone().unwrap_or(String::from("None"));
-            //let tags = task.tags.clone().unwrap_or(vec![]);
+            let task_tags = task.tags.clone().unwrap_or(HashSet::new());
 
             // Print out tasks
             println!("");
-            println!("{}. {}", i, name.italic());
-            println!("{:?}", task.tags);
-            println!(
+            println!("{}", name.underlined());
+            print!(" Tags:");
+            for tag in task_tags {
+                print!(" {}", tag.blue());
+            }
+            print!("\n");
+            print!(
                 "   {} | {}",
                 task.urgency.to_colored_string(),
                 task.status.to_colored_string()
             );
+            match task.completed_on {
+                Some(date) => {
+                    print!(" - {}", date.date_naive().to_string().green())
+                }
+                None => {}
+            }
+            print!("\n");
             println!(
                 "   Date Added: {}",
                 task.date_added.date_naive().to_string().cyan()
             );
-            println!("      Description: {}", description.blue());
-            println!("      Latest Update: {}", latest.blue());
-            match task.completed_on {
-                Some(date) => {
-                    println!("{}", date.date_naive().to_string().green())
-                }
-                None => {}
-            }
+            println!("  Description: {}", description.blue());
+            println!("  Latest Update: {}", latest.blue());
         }
     }
 }
@@ -253,6 +370,43 @@ impl TaskList {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_task_update() {
+        let mut task = Task::new(String::from("Test task"), None, None, None, None, None);
+        // add tags
+        task.update(
+            None,
+            None,
+            None,
+            Some(Urgency::Low),
+            Some(Status::Completed),
+            Some(HashSet::from(["task1".to_string(), "task2".to_string()])),
+            None,
+        );
+        assert_eq!(
+            task.tags,
+            Some(HashSet::from(["task1".to_string(), "task2".to_string()]))
+        );
+        assert_eq!(task.urgency, Urgency::Low);
+        assert_eq!(task.status, Status::Completed);
+        assert!(task.completed_on.is_some());
+
+        // remove tags
+        task.update(
+            None,
+            None,
+            None,
+            Some(Urgency::High),
+            Some(Status::Paused),
+            None,
+            Some(HashSet::from(["task1".to_string()])),
+        );
+        assert_eq!(task.tags, Some(HashSet::from(["task2".to_string()])));
+        assert_eq!(task.urgency, Urgency::High);
+        assert_eq!(task.status, Status::Paused);
+        assert!(task.completed_on.is_none());
+    }
 
     #[test]
     fn test_urgency_ordering() {

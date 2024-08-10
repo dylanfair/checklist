@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -7,7 +8,7 @@ mod subcommands;
 
 use crate::subcommands::config::{read_config, Config};
 use crate::subcommands::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
-use crate::subcommands::task::{Status, Task, Urgency};
+use crate::subcommands::task::{Display, Status, Task, Urgency};
 use crate::subcommands::wipe::wipe_tasks;
 
 #[derive(Parser, Debug)]
@@ -39,9 +40,14 @@ enum Commands {
 
     /// List out tasks
     List {
-        /// Include completed
-        #[arg(short, long)]
-        completed: bool,
+        /// Different display options
+        /// By default will show those not-completed
+        #[arg(short, long, value_enum)]
+        display: Option<Display>,
+
+        /// Filter by the following tags
+        #[arg(short, long, num_args=1..)]
+        tag: Option<Vec<String>>,
     },
 
     /// Wipe out all tasks in the sqlite database
@@ -77,7 +83,7 @@ enum Commands {
         #[arg(short, long, value_enum)]
         status: Option<Status>,
 
-        /// Optional: Status of the task
+        /// Optional: Tags to give the task
         #[arg(short, long, num_args = 1..)]
         tag: Option<Vec<String>>,
     },
@@ -116,18 +122,24 @@ fn main() -> Result<()> {
             tag,
         }) => {
             println!("Create task");
-            let new_task = Task::new(name, description, latest, urgency, status, tag);
+            let mut hashset = None;
+            if let Some(t) = tag {
+                hashset = Some(HashSet::from_iter(t));
+            }
+            let new_task = Task::new(name, description, latest, urgency, status, hashset);
             println!("{:?}", new_task);
 
             let conn = get_db(cli.memory, cli.test)?;
-            add_to_db(&conn, new_task)?;
+            add_to_db(&conn, &new_task)?;
             println!("New task added successfully");
         }
 
-        Some(Commands::List { completed }) => {
+        Some(Commands::List { display, tag }) => {
             let conn = get_db(cli.memory, cli.test)?;
             let mut task_list = get_all_db_contents(&conn).unwrap();
-            println!("Found {} tasks\n", task_list.len());
+
+            // Filter tasks
+            task_list.filter_tasks(display, tag);
 
             // Order tasks here
             task_list.sort_by_urgency(true);

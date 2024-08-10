@@ -30,6 +30,7 @@ mod tests {
     use super::*;
     use crate::subcommands::database::{add_to_db, get_all_db_contents, get_db};
     use crate::subcommands::task::{Status, Task, Urgency};
+    use std::collections::HashSet;
 
     #[test]
     fn test_wipe_tasks() {
@@ -41,7 +42,10 @@ mod tests {
             Some(String::from("A latest")),
             None,
             Some(Status::Open),
-            Some(vec![String::from("Tag3"), String::from("Tag4")]),
+            Some(HashSet::from_iter(vec![
+                String::from("Tag3"),
+                String::from("Tag4"),
+            ])),
         );
         let second_new_task = Task::new(
             String::from("Task2"),
@@ -49,11 +53,11 @@ mod tests {
             Some(String::from("A latest")),
             Some(Urgency::Medium),
             Some(Status::Paused),
-            Some(vec![String::from("Tag1")]),
+            Some(HashSet::from_iter(vec![String::from("Tag1")])),
         );
 
-        add_to_db(&conn, new_task).unwrap();
-        add_to_db(&conn, second_new_task).unwrap();
+        add_to_db(&conn, &new_task).unwrap();
+        add_to_db(&conn, &second_new_task).unwrap();
 
         let task_list = get_all_db_contents(&conn).unwrap();
         assert_eq!(task_list.len(), 2);

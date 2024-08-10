@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use rusqlite::{params, Connection};
@@ -86,12 +87,14 @@ pub fn get_db(memory: bool, testing: bool) -> Result<Connection> {
     }
 }
 
-pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
+pub fn add_to_db(conn: &Connection, task: &Task) -> Result<()> {
     println!("Adding to db");
     // Handle inserting tags
     let mut tags_insert = None;
     match &task.tags {
-        Some(tags) => tags_insert = Some(tags.join(";")),
+        Some(tags) => {
+            tags_insert = Some(tags.clone().into_iter().collect::<Vec<String>>().join(";"))
+        }
         None => {}
     }
 
@@ -115,6 +118,38 @@ pub fn add_to_db(conn: &Connection, task: Task) -> Result<()> {
     Ok(())
 }
 
+pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
+    println!("Updating task in db");
+    let mut tags_insert = None;
+    match &task.tags {
+        Some(tags) => {
+            tags_insert = Some(tags.clone().into_iter().collect::<Vec<String>>().join(";"))
+        }
+        None => {}
+    }
+
+    conn.execute(
+        "UPDATE task SET name = ?1, description = ?2, latest = ?3, urgency = ?4, status = ?5, tags = ?6, date_added = ?7, completed_on = ?8 WHERE id = ?9"
+        , (
+            &task.name, 
+            &task.description, 
+            &task.latest, 
+            &task.urgency, 
+            &task.status, 
+            tags_insert, 
+            &task.get_date_added(), 
+            &task.completed_on,
+            &task.get_id())).context("Failed to update values for the task")?;
+
+    Ok(())
+}
+
+pub fn delete_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
+    println!("Deleting task from db");
+    conn.execute("DELETE FROM task WHERE id = ?1", [&task.get_id()]).context("Failed to delete task from the database")?;
+    Ok(())
+}
+
 pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
     let mut stmt = conn.prepare("SELECT * FROM task").unwrap();
 
@@ -132,7 +167,7 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
                     for part in tags_parts {
                         tags_vec.push(part.to_string());
                     }
-                    tags_entry = Some(tags_vec);
+                    tags_entry = Some(HashSet::from_iter(tags_vec));
                 }
                 None => {}
             }
@@ -174,7 +209,7 @@ pub fn remove_all_db_contents(conn: &Connection, hard: bool) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::subcommands::{config::read_config, task::Status, task::Urgency};
+    use crate::subcommands::{config::read_config, task::{Status, Urgency}};
     use std::fs::remove_file;
 
     use super::*;
@@ -203,20 +238,66 @@ mod tests {
     }
 
     #[test]
-    fn add_to_database() {
+    fn add_update_delete_to_database() {
         let conn = get_db(true, false).unwrap();
 
-        let new_task = Task::new(
+        let mut new_task = Task::new(
             "My new task".to_string(),
             None,
             None,
             Some(Urgency::Critical),
             Some(Status::Open),
-            Some(vec![String::from("Tag1"), String::from("Tag2")]),
+            Some(HashSet::from_iter(vec![
+                String::from("Tag1"),
+                String::from("Tag2"),
+            ])),
         );
-        add_to_db(&conn, new_task).unwrap();
+        add_to_db(&conn, &new_task).unwrap();
 
+        // Check if data we get back from database matches
         let task_list = get_all_db_contents(&conn).unwrap();
         assert_eq!(task_list.len(), 1);
+        let task = task_list.tasks.get(0).unwrap();
+        assert_eq!(task.name, "My new task".to_string());
+        assert_eq!(task.description, None);
+        assert_eq!(task.latest, None);
+        assert_eq!(task.urgency, Urgency::Critical);
+        assert_eq!(task.status, Status::Open);
+        assert_eq!(task.tags, Some(HashSet::from_iter(vec![
+            String::from("Tag1"),
+            String::from("Tag2"),
+        ])));
+        assert!(task.completed_on.is_none());
+
+        // Now update our task
+        new_task.update(
+            None,
+            Some("New description".to_string()),
+            Some("New latest".to_string()),
+            None,
+            Some(Status::Completed),
+            None,
+            Some(HashSet::from_iter(["Tag1".to_string()]))
+            );
+        update_task_in_db(&conn, &new_task).unwrap();
+
+        // Again, see if data we get back matches
+        let task_list = get_all_db_contents(&conn).unwrap();
+        assert_eq!(task_list.len(), 1);
+        let task = task_list.tasks.get(0).unwrap();
+        assert_eq!(task.name, "My new task".to_string());
+        assert_eq!(task.description, Some("New description".to_string()));
+        assert_eq!(task.latest, Some("New latest".to_string()));
+        assert_eq!(task.urgency, Urgency::Critical);
+        assert_eq!(task.status, Status::Completed);
+        assert_eq!(task.tags, Some(HashSet::from_iter(vec![
+            String::from("Tag2"),
+        ])));
+        assert!(task.completed_on.is_some());
+
+        // Let's see if delete works as well!
+        delete_task_in_db(&conn, &new_task).unwrap();
+        let task_list = get_all_db_contents(&conn).unwrap();
+        assert_eq!(task_list.len(), 0);
     }
 }
