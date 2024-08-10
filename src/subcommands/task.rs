@@ -381,7 +381,11 @@ mod tests {
             None,
             Some(Urgency::Low),
             Some(Status::Completed),
-            Some(HashSet::from(["task1".to_string(), "task2".to_string()])),
+            Some(HashSet::from([
+                "task1".to_string(),
+                "task2".to_string(),
+                "task1".to_string(),
+            ])),
             None,
         );
         assert_eq!(
