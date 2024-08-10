@@ -1,10 +1,10 @@
-use anyhow::{Context, Result};
-use directories::BaseDirs;
-use serde::{Deserialize, Serialize};
-
 use std::fs::{rename, File};
 use std::io::{prelude::*, BufReader};
 use std::path::PathBuf;
+
+use anyhow::{Context, Result};
+use directories::BaseDirs;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {

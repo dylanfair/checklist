@@ -1,7 +1,7 @@
-use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::path::PathBuf;
 
+use anyhow::{Context, Result};
 use rusqlite::{params, Connection};
 
 use crate::backend::config::{get_config_dir, read_config, Config};
@@ -119,7 +119,7 @@ pub fn add_to_db(conn: &Connection, task: &Task) -> Result<()> {
     Ok(())
 }
 
-#[warn(dead_code)]
+#[allow(dead_code)]
 pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
     println!("Updating task in db");
     let mut tags_insert = None;
@@ -146,7 +146,7 @@ pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
     Ok(())
 }
 
-#[warn(dead_code)]
+#[allow(dead_code)]
 pub fn delete_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
     println!("Deleting task from db");
     conn.execute("DELETE FROM task WHERE id = ?1", [&task.get_id()]).context("Failed to delete task from the database")?;

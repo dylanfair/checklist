@@ -1,6 +1,7 @@
-use crate::backend::database::remove_all_db_contents;
 use anyhow::Result;
 use rusqlite::Connection;
+
+use crate::backend::database::remove_all_db_contents;
 
 pub fn wipe_tasks(conn: &Connection, confirm_skip: bool, hard: bool) -> Result<()> {
     if !confirm_skip {

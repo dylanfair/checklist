@@ -2,14 +2,14 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use backend::config::set_new_path;
 use clap::{Parser, Subcommand};
 
 mod backend;
 
-use crate::backend::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
-use crate::backend::task::{Display, Status, Task, Urgency};
-use crate::backend::wipe::wipe_tasks;
+use backend::config::set_new_path;
+use backend::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
+use backend::task::{Display, Status, Task, Urgency};
+use backend::wipe::wipe_tasks;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

@@ -1,11 +1,12 @@
-use chrono::prelude::*;
-use clap::ValueEnum;
-use crossterm::style::Stylize;
-use rusqlite::{types::FromSql, types::ValueRef, ToSql};
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::mem::swap;
 use std::string::ToString;
+
+use chrono::prelude::*;
+use clap::ValueEnum;
+use crossterm::style::Stylize;
+use rusqlite::{types::FromSql, types::ValueRef, ToSql};
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, ValueEnum, strum_macros::Display)]
@@ -155,7 +156,7 @@ impl Task {
         self.date_added
     }
 
-    #[warn(dead_code)]
+    #[allow(dead_code)]
     pub fn update(
         &mut self,
         name: Option<String>,
@@ -268,7 +269,7 @@ impl TaskList {
         TaskList { tasks: vec![] }
     }
 
-    #[warn(dead_code)]
+    #[allow(dead_code)]
     pub fn from(tasks: Vec<Task>) -> Self {
         TaskList { tasks }
     }
@@ -281,7 +282,7 @@ impl TaskList {
         }
     }
 
-    #[warn(dead_code)]
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.tasks.len()
     }
