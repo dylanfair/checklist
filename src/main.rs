@@ -5,11 +5,14 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod backend;
+mod display;
 
 use backend::config::set_new_path;
 use backend::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
 use backend::task::{Display, Status, Task, Urgency};
 use backend::wipe::wipe_tasks;
+
+use display::ui::run_ui;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -88,6 +91,9 @@ enum Commands {
         #[arg(short, long, num_args = 1..)]
         tag: Option<Vec<String>>,
     },
+
+    /// Displays tasks in an interactive terminal
+    Display {},
 }
 
 fn main() -> Result<()> {
@@ -141,6 +147,10 @@ fn main() -> Result<()> {
         Some(Commands::Wipe { yes, hard }) => {
             let conn = get_db(cli.memory, cli.test)?;
             wipe_tasks(&conn, yes, hard)?
+        }
+
+        Some(Commands::Display {}) => {
+            run_ui(cli.memory, cli.test)?;
         }
 
         None => {}
