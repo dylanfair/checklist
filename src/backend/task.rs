@@ -25,7 +25,7 @@ pub enum Urgency {
 }
 
 impl Urgency {
-    fn to_colored_string(&self) -> crossterm::style::StyledContent<String> {
+    pub fn to_colored_string(&self) -> crossterm::style::StyledContent<String> {
         match self {
             Urgency::Low => String::from("Low").green(),
             Urgency::Medium => String::from("Medium").yellow(),
@@ -71,7 +71,7 @@ pub enum Status {
 }
 
 impl Status {
-    fn to_colored_string(&self) -> crossterm::style::StyledContent<String> {
+    pub fn to_colored_string(&self) -> crossterm::style::StyledContent<String> {
         match self {
             Status::Open => String::from("Open").cyan(),
             Status::Working => String::from("Working").dark_green(),
@@ -117,7 +117,7 @@ pub struct Task {
     pub urgency: Urgency,
     pub status: Status,
     pub tags: Option<HashSet<String>>,
-    date_added: DateTime<Local>,
+    pub date_added: DateTime<Local>,
     pub completed_on: Option<DateTime<Local>>,
 }
 
