@@ -190,7 +190,36 @@ impl Renderer {
             let task_tags = task.tags.clone().unwrap_or(HashSet::new());
 
             // Print out tasks
-            self.stdout.queue(PrintStyledContent(name.underlined()))?;
+            // First line - Urgency and Title
+            let first_line = format!(
+                "{} - {}",
+                task.urgency.to_colored_string(),
+                name.underlined()
+            );
+            self.stdout.queue(Print(first_line))?;
+
+            // Second line - Status and tags
+            self.stdout.queue(cursor::MoveTo(
+                self.cursorinfo.cursor_x,
+                self.cursorinfo.cursor_y + 1,
+            ))?;
+            let mut tags_string = String::from("Tags:");
+            for tag in task_tags {
+                tags_string += &format!(" {}", tag.blue());
+            }
+            let second_line = format!("{} | {}", task.status.to_colored_string(), tags_string);
+            self.stdout.queue(Print(second_line))?;
+
+            // Third line - Date for when task was made
+            self.stdout.queue(cursor::MoveTo(
+                self.cursorinfo.cursor_x,
+                self.cursorinfo.cursor_y + 2,
+            ))?;
+            let third_line = format!(
+                "Made on: {}",
+                task.date_added.date_naive().to_string().cyan()
+            );
+            self.stdout.queue(Print(third_line))?;
             //print!(" Tags:");
             //for tag in task_tags {
             //    print!(" {}", tag.blue());
