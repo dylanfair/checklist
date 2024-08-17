@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
-use crossterm::style::{Print, PrintStyledContent, Stylize};
+use crossterm::style::{Color, Print, PrintStyledContent, SetForegroundColor, Stylize};
 use crossterm::terminal::{self, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{cursor, execute, ExecutableCommand, QueueableCommand};
 use rusqlite::Connection;
@@ -142,11 +142,6 @@ impl Renderer {
         self.stdout.queue(cursor::Hide)?;
         // Update task list
         self.pull_latest_tasklist()?;
-        // match self.pull_latest_tasklist() {
-        //     Ok(()) => {}
-        //     Err(_) => self.taskinfo.tasklist = TaskList::new(),
-        // }
-        println!("Pulled tasks");
         execute!(self.stdout, terminal::Clear(ClearType::All)).expect("Could not clear the screen");
 
         // Draw our main box
@@ -156,6 +151,14 @@ impl Renderer {
             self.width - self.box_padding,
             self.height - self.box_padding,
         )?;
+
+        self.stdout.queue(cursor::MoveTo(
+            self.main_box_start.0,
+            self.main_box_start.1 - 1,
+        ))?;
+        self.stdout.queue(PrintStyledContent(
+            "Welcome to your Checklist!".underlined().bold(),
+        ))?;
 
         // Position cursor so we can draw out some helpful commands!
         self.stdout.queue(cursor::MoveTo(
@@ -168,11 +171,18 @@ impl Renderer {
         // Now render our task list items
         self.display_tasks()?;
 
-        // Highlight current task
-        self.set_highlight()?;
-
         // Display details of current highlight
-        if self.taskinfo.tasklist.tasks.len() != 0 {
+        if self.taskinfo.tasklist.len() == 0 {
+            let middle_message = String::from("Add some tasks!");
+            self.stdout
+                .queue(cursor::MoveTo(
+                    (self.width / 2) - middle_message.chars().count() as u16,
+                    self.height / 2,
+                ))?
+                .queue(Print(middle_message))?;
+        } else {
+            // Highlight current task
+            self.set_highlight()?;
             // Draw detail box
             self.draw_box(
                 self.detail_box_start.0,
@@ -308,7 +318,8 @@ impl Renderer {
         let width = (self.width - self.box_padding - 1) - (self.detail_box_start.0);
 
         // Get current task displayed
-        let current_task = &self.taskinfo.tasklist.tasks[self.highlightinfo.current_task as usize];
+        let current_task =
+            &self.taskinfo.tasklist.tasks[self.highlightinfo.current_task as usize].clone();
         let name = current_task.name.clone();
 
         let task_tags = current_task.tags.clone().unwrap_or(HashSet::new());
@@ -364,42 +375,54 @@ impl Renderer {
         row += 2;
 
         self.stdout.queue(cursor::MoveTo(column, row))?;
-        self.stdout.queue(Print(format!(
-            "{} {}",
-            "Latest Updates:".to_string().underlined(),
-            current_task
-                .latest
-                .clone()
-                .unwrap_or(String::from(""))
-                .magenta()
-        )))?;
+        self.stdout
+            .queue(PrintStyledContent("Latest Updates:".underlined()))?;
 
+        row += 1;
+        let latest_updates = current_task.latest.clone().unwrap_or(String::from(""));
+        self.wrap_lines(latest_updates, column, row, width, Color::Magenta)?;
+
+        row = cursor::position()?.1; // reorient since could be anywhere after line wraaps
         row += 2;
         self.stdout.queue(cursor::MoveTo(column, row))?;
         self.stdout
             .queue(PrintStyledContent("Description:".underlined()))?;
 
         row += 1;
-        self.stdout.queue(cursor::MoveTo(column, row))?;
         let description = current_task.description.clone().unwrap_or(String::from(""));
-        let number_of_breaks = description.chars().count() / (width as usize - 3); // giving some
-                                                                                   // space on the
-                                                                                   // side
+        self.wrap_lines(description, column, row, width, Color::Grey)?;
+        Ok(())
+    }
+
+    fn wrap_lines(
+        &mut self,
+        lines: String,
+        start_x: u16,
+        mut start_y: u16,
+        width: u16,
+        text_color: Color,
+    ) -> Result<()> {
+        self.stdout.queue(cursor::MoveTo(start_x, start_y))?;
+        self.stdout.queue(SetForegroundColor(text_color))?;
+        let number_of_breaks = lines.chars().count() / (width as usize - 3); // giving some
+                                                                             // space on the
+                                                                             // side
         if number_of_breaks == 0 {
-            self.stdout.queue(PrintStyledContent(description.grey()))?;
+            self.stdout.queue(Print(lines))?;
         } else {
-            let words = description.split_whitespace();
-            let mut current_line_usage = width as i32;
+            let words = lines.split_whitespace();
+            let mut current_line_usage = width as i32; // in case we go negative
             for word in words {
                 if word.chars().count() >= current_line_usage as usize - 3 {
-                    row += 1;
-                    self.stdout.queue(cursor::MoveTo(column, row))?;
+                    start_y += 1;
+                    self.stdout.queue(cursor::MoveTo(start_x, start_y))?;
                     current_line_usage = width as i32;
                 }
-                self.stdout.queue(Print(format!("{} ", word.grey())))?;
+                self.stdout.queue(Print(format!("{} ", word)))?;
                 current_line_usage -= word.chars().count() as i32 + 1;
             }
         }
+        self.stdout.queue(SetForegroundColor(Color::Reset))?;
         Ok(())
     }
 
