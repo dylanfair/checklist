@@ -488,6 +488,57 @@ impl Renderer {
 
         Ok(())
     }
+
+    fn resize_tasks_window(&mut self) {
+        // Recalculate how many tasks we can show
+        self.taskwindow.tasks_that_can_fit =
+            ((self.height - (self.box_padding * 2)) / self.task_height) - 1;
+
+        // If our resize allows us to display all our tasks
+        if self.taskwindow.tasks_that_can_fit as usize >= self.taskinfo.total_tasklist.len() {
+            self.taskwindow.window_start = 0;
+            self.taskwindow.window_end = self.taskinfo.total_tasklist.len() as i64;
+            self.highlightinfo.highlight_place = self.taskinfo.current_task;
+        }
+        // Otherwise we need to handle if after the resize our current task would be outside
+        // of the task window
+        else {
+            // Current task would be greater than a new window if we just added tasks that
+            // can fit to old start
+            if self.taskinfo.current_task
+                > self.taskwindow.window_start as u64 + self.taskwindow.tasks_that_can_fit as u64
+            {
+                self.taskwindow.window_end = self.taskinfo.current_task as i64;
+                self.taskwindow.window_start =
+                    self.taskwindow.window_end - self.taskwindow.tasks_that_can_fit as i64;
+            }
+            // Current task would be less than a new window if we removed tasks
+            // that could fit to old end
+            else if (self.taskinfo.current_task as i64)
+                < self.taskwindow.window_end as i64 - self.taskwindow.tasks_that_can_fit as i64
+            {
+                self.taskwindow.window_start = self.taskinfo.current_task as i64;
+                self.taskwindow.window_end =
+                    self.taskwindow.window_start + self.taskwindow.tasks_that_can_fit as i64;
+            }
+            // otherwise, just create a new window of old start plus
+            else {
+                let potential_end =
+                    self.taskwindow.window_start + self.taskwindow.tasks_that_can_fit as i64;
+                if potential_end >= self.taskinfo.total_tasklist.len() as i64 {
+                    self.taskwindow.window_end = self.taskinfo.total_tasklist.len() as i64 - 1;
+                    self.taskwindow.window_start =
+                        self.taskwindow.window_end - self.taskwindow.tasks_that_can_fit as i64;
+                } else {
+                    self.taskwindow.window_end = potential_end;
+                }
+            }
+            // We can maintain highlight place by just taking our current task minus the window
+            // start
+            self.highlightinfo.highlight_place =
+                self.taskinfo.current_task as u64 - self.taskwindow.window_start as u64;
+        }
+    }
 }
 
 fn run(renderer: &mut Renderer) -> Result<bool> {
@@ -519,60 +570,8 @@ fn read_in_key(renderer: &mut Renderer) -> Result<bool> {
                     renderer.width = nw;
                     renderer.height = nh;
 
-                    // Recalculate how many tasks we can show
-                    renderer.taskwindow.tasks_that_can_fit =
-                        ((renderer.height - (renderer.box_padding * 2)) / renderer.task_height) - 1;
+                    renderer.resize_tasks_window();
 
-                    // If our resize allows us to display all our tasks
-                    if renderer.taskwindow.tasks_that_can_fit as usize
-                        >= renderer.taskinfo.total_tasklist.len()
-                    {
-                        renderer.taskwindow.window_start = 0;
-                        renderer.taskwindow.window_end =
-                            renderer.taskinfo.total_tasklist.len() as i64;
-                        renderer.highlightinfo.highlight_place = renderer.taskinfo.current_task;
-                    }
-                    // Otherwise we need to handle if after the resize our current task would be outside
-                    // of the task window
-                    else {
-                        // Current task would be greater than a new window if we just added tasks that
-                        // can fit to old start
-                        if renderer.taskinfo.current_task
-                            > renderer.taskwindow.window_start as u64
-                                + renderer.taskwindow.tasks_that_can_fit as u64
-                        {
-                            renderer.taskwindow.window_end = renderer.taskinfo.current_task as i64;
-                            renderer.taskwindow.window_start = renderer.taskwindow.window_end
-                                - renderer.taskwindow.tasks_that_can_fit as i64;
-                        }
-                        // Current task would be less than a new window if we removed tasks
-                        // that could fit to old end
-                        else if (renderer.taskinfo.current_task as i64)
-                            < renderer.taskwindow.window_end as i64
-                                - renderer.taskwindow.tasks_that_can_fit as i64
-                        {
-                            renderer.taskwindow.window_start =
-                                renderer.taskinfo.current_task as i64;
-                            renderer.taskwindow.window_end = renderer.taskwindow.window_start
-                                + renderer.taskwindow.tasks_that_can_fit as i64;
-                        }
-                        // otherwise, just create a new window of old start plus
-                        else {
-                            let potential_end = renderer.taskwindow.window_start
-                                + renderer.taskwindow.tasks_that_can_fit as i64;
-                            if potential_end >= renderer.taskinfo.total_tasklist.len() as i64 {
-                                renderer.taskwindow.window_end =
-                                    renderer.taskinfo.total_tasklist.len() as i64 - 1;
-                                renderer.taskwindow.window_start = renderer.taskwindow.window_end
-                                    - renderer.taskwindow.tasks_that_can_fit as i64;
-                            } else {
-                                renderer.taskwindow.window_end = potential_end;
-                            }
-                        }
-                        renderer.highlightinfo.highlight_place = renderer.taskinfo.current_task
-                            as u64
-                            - renderer.taskwindow.window_start as u64;
-                    }
                     renderer.render()?;
                 }
                 _ => {}
