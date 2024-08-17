@@ -10,7 +10,7 @@ use crossterm::{cursor, execute, ExecutableCommand, QueueableCommand};
 use rusqlite::Connection;
 
 use crate::backend::database::{get_all_db_contents, get_db};
-use crate::backend::task::{Display, TaskList};
+use crate::backend::task::{Display, Task, TaskList};
 
 struct CleanUp;
 
@@ -27,8 +27,10 @@ pub fn run_ui(memory: bool, testing: bool) -> Result<()> {
     let conn = get_db(memory, testing).context("Errored out making a database connection")?;
     terminal::enable_raw_mode().expect("Could not turn on raw mode");
 
-    let mut renderer = Renderer::new(3, conn);
+    let mut renderer = Renderer::new(3, 5, conn);
+    renderer.stdout.queue(cursor::Hide)?;
     renderer.stdout.execute(EnterAlternateScreen)?;
+    renderer.pull_latest_tasklist()?;
     renderer.render()?;
 
     while run(&mut renderer)? {}
@@ -37,19 +39,23 @@ pub fn run_ui(memory: bool, testing: bool) -> Result<()> {
 }
 
 struct TaskInfo {
-    tasklist: TaskList,
+    total_tasklist: TaskList,
     display_filter: Display,
     urgency_sort_desc: bool,
     tags_filter: Option<Vec<String>>,
+    current_task: u64,
+    display_tasklist: TaskList,
 }
 
 impl TaskInfo {
     fn new() -> Self {
         Self {
-            tasklist: TaskList::new(),
+            total_tasklist: TaskList::new(),
             display_filter: Display::All,
             urgency_sort_desc: true,
             tags_filter: None,
+            current_task: 0,
+            display_tasklist: TaskList::new(),
         }
     }
 }
@@ -60,9 +66,15 @@ struct CursorInfo {
 }
 
 struct HighlightInfo {
-    current_task: u64,
+    highlight_place: u64,
     highlight_x: u16,
     highlight_y: u16,
+}
+
+struct TaskWindow {
+    window_start: i64,
+    window_end: i64,
+    tasks_that_can_fit: u16,
 }
 
 struct Graphics {
@@ -98,12 +110,16 @@ struct Renderer {
     main_box_start: (u16, u16),
     detail_box_start: (u16, u16),
     graphics: Graphics,
+    task_height: u16,
 
     // Our stdout
     stdout: Stdout,
 
     // Information on tasks
     taskinfo: TaskInfo,
+
+    // Window of tasks we want to display
+    taskwindow: TaskWindow,
 
     // Information on where cursor is
     cursorinfo: CursorInfo,
@@ -113,25 +129,32 @@ struct Renderer {
 }
 
 impl Renderer {
-    fn new(box_padding: u16, conn: Connection) -> Self {
+    fn new(box_padding: u16, task_height: u16, conn: Connection) -> Self {
         let (width, height) = terminal::size().unwrap();
         let stdout = stdout();
+        let main_window_height = (height - (box_padding * 2)) / task_height;
         Self {
             conn,
             width,
             height,
             box_padding,
+            task_height,
             main_box_start: (box_padding, box_padding),
             detail_box_start: (width / 3, box_padding + 1),
             graphics: Graphics::new(),
             stdout,
             taskinfo: TaskInfo::new(),
+            taskwindow: TaskWindow {
+                window_start: 0,
+                window_end: main_window_height as i64 - 1,
+                tasks_that_can_fit: main_window_height - 1,
+            },
             cursorinfo: CursorInfo {
                 cursor_x: 0,
                 cursor_y: 0,
             },
             highlightinfo: HighlightInfo {
-                current_task: 0,
+                highlight_place: 0,
                 highlight_x: 0,
                 highlight_y: 0,
             },
@@ -139,9 +162,11 @@ impl Renderer {
     }
 
     fn render(&mut self) -> Result<()> {
-        self.stdout.queue(cursor::Hide)?;
         // Update task list
-        self.pull_latest_tasklist()?;
+        //self.pull_latest_tasklist()?;
+        // Set our task window
+        self.update_task_window();
+
         execute!(self.stdout, terminal::Clear(ClearType::All)).expect("Could not clear the screen");
 
         // Draw our main box
@@ -172,7 +197,7 @@ impl Renderer {
         self.display_tasks()?;
 
         // Display details of current highlight
-        if self.taskinfo.tasklist.len() == 0 {
+        if self.taskinfo.total_tasklist.len() == 0 {
             let middle_message = String::from("Add some tasks!");
             self.stdout
                 .queue(cursor::MoveTo(
@@ -236,27 +261,39 @@ impl Renderer {
     fn pull_latest_tasklist(&mut self) -> Result<()> {
         // Get data
         let task_list = get_all_db_contents(&self.conn).unwrap();
-        self.taskinfo.tasklist = task_list;
+        self.taskinfo.total_tasklist = task_list;
 
         // Filter tasks
-        self.taskinfo.tasklist.filter_tasks(
+        self.taskinfo.total_tasklist.filter_tasks(
             Some(self.taskinfo.display_filter),
             self.taskinfo.tags_filter.clone(),
         );
 
         // Order tasks here
         self.taskinfo
-            .tasklist
+            .total_tasklist
             .sort_by_urgency(self.taskinfo.urgency_sort_desc);
 
         Ok(())
+    }
+
+    fn update_task_window(&mut self) {
+        let current_tasks_in_window: &[Task];
+        if self.taskinfo.total_tasklist.len() <= self.taskwindow.tasks_that_can_fit as usize {
+            current_tasks_in_window = &self.taskinfo.total_tasklist.tasks[0..];
+        } else {
+            current_tasks_in_window = &self.taskinfo.total_tasklist.tasks
+                [self.taskwindow.window_start as usize..=self.taskwindow.window_end as usize]
+        }
+
+        self.taskinfo.display_tasklist = TaskList::from(current_tasks_in_window.to_vec());
     }
 
     pub fn display_tasks(&mut self) -> Result<()> {
         self.cursorinfo.cursor_x = self.main_box_start.0 + 3;
         self.cursorinfo.cursor_y = self.main_box_start.1 + 1;
 
-        for task in self.taskinfo.tasklist.tasks.iter() {
+        for task in self.taskinfo.display_tasklist.tasks.iter() {
             self.stdout
                 .queue(cursor::MoveTo(
                     self.cursorinfo.cursor_x,
@@ -267,7 +304,7 @@ impl Renderer {
             let name = task.name.clone();
             let task_tags = task.tags.clone().unwrap_or(HashSet::new());
             let mut task_tags_vec: Vec<&String> = task_tags.iter().collect();
-            task_tags_vec.sort_by(|a, b| b.cmp(a));
+            task_tags_vec.sort_by(|a, b| a.cmp(b));
 
             // Print out tasks
             // First line - Title
@@ -307,7 +344,7 @@ impl Renderer {
             );
             self.stdout.queue(Print(fourth_line))?;
 
-            self.cursorinfo.cursor_y += 5;
+            self.cursorinfo.cursor_y += self.task_height;
         }
         Ok(())
     }
@@ -319,12 +356,12 @@ impl Renderer {
 
         // Get current task displayed
         let current_task =
-            &self.taskinfo.tasklist.tasks[self.highlightinfo.current_task as usize].clone();
+            &self.taskinfo.total_tasklist.tasks[self.taskinfo.current_task as usize].clone();
         let name = current_task.name.clone();
 
         let task_tags = current_task.tags.clone().unwrap_or(HashSet::new());
         let mut task_tags_vec: Vec<&String> = task_tags.iter().collect();
-        task_tags_vec.sort_by(|a, b| b.cmp(a));
+        task_tags_vec.sort_by(|a, b| a.cmp(b));
 
         let column = self.detail_box_start.0 + 1;
         let mut row = self.detail_box_start.1 + 1;
@@ -391,6 +428,7 @@ impl Renderer {
         row += 1;
         let description = current_task.description.clone().unwrap_or(String::from(""));
         self.wrap_lines(description, column, row, width, Color::Grey)?;
+
         Ok(())
     }
 
@@ -434,12 +472,12 @@ impl Renderer {
             self.stdout.queue(Print(" "))?;
         }
 
-        // Set initial cursor position based on current task number
+        // Set initial cursor position based on whereh highter should be
         self.highlightinfo.highlight_x = self.main_box_start.0 + 1;
         self.highlightinfo.highlight_y =
-            self.box_padding + 1 + (5 * self.highlightinfo.current_task as u16);
+            self.box_padding + 1 + (self.task_height * self.highlightinfo.highlight_place as u16);
 
-        let highlight_length = 0..=3;
+        let highlight_length = 0..=self.task_height - 2;
         for i in highlight_length {
             self.stdout.queue(cursor::MoveTo(
                 self.highlightinfo.highlight_x,
@@ -447,12 +485,6 @@ impl Renderer {
             ))?;
             self.stdout.queue(PrintStyledContent("█".cyan()))?;
         }
-
-        // Set cursor back to top of item
-        self.stdout.queue(cursor::MoveTo(
-            self.highlightinfo.highlight_x,
-            self.highlightinfo.highlight_y,
-        ))?;
 
         Ok(())
     }
@@ -483,8 +515,64 @@ fn read_in_key(renderer: &mut Renderer) -> Result<bool> {
                     _ => {}
                 },
                 Event::Resize(nw, nh) => {
+                    // Fix width and height
                     renderer.width = nw;
                     renderer.height = nh;
+
+                    // Recalculate how many tasks we can show
+                    renderer.taskwindow.tasks_that_can_fit =
+                        ((renderer.height - (renderer.box_padding * 2)) / renderer.task_height) - 1;
+
+                    // If our resize allows us to display all our tasks
+                    if renderer.taskwindow.tasks_that_can_fit as usize
+                        >= renderer.taskinfo.total_tasklist.len()
+                    {
+                        renderer.taskwindow.window_start = 0;
+                        renderer.taskwindow.window_end =
+                            renderer.taskinfo.total_tasklist.len() as i64;
+                        renderer.highlightinfo.highlight_place = renderer.taskinfo.current_task;
+                    }
+                    // Otherwise we need to handle if after the resize our current task would be outside
+                    // of the task window
+                    else {
+                        // Current task would be greater than a new window if we just added tasks that
+                        // can fit to old start
+                        if renderer.taskinfo.current_task
+                            > renderer.taskwindow.window_start as u64
+                                + renderer.taskwindow.tasks_that_can_fit as u64
+                        {
+                            renderer.taskwindow.window_end = renderer.taskinfo.current_task as i64;
+                            renderer.taskwindow.window_start = renderer.taskwindow.window_end
+                                - renderer.taskwindow.tasks_that_can_fit as i64;
+                        }
+                        // Current task would be less than a new window if we removed tasks
+                        // that could fit to old end
+                        else if (renderer.taskinfo.current_task as i64)
+                            < renderer.taskwindow.window_end as i64
+                                - renderer.taskwindow.tasks_that_can_fit as i64
+                        {
+                            renderer.taskwindow.window_start =
+                                renderer.taskinfo.current_task as i64;
+                            renderer.taskwindow.window_end = renderer.taskwindow.window_start
+                                + renderer.taskwindow.tasks_that_can_fit as i64;
+                        }
+                        // otherwise, just create a new window of old start plus
+                        else {
+                            let potential_end = renderer.taskwindow.window_start
+                                + renderer.taskwindow.tasks_that_can_fit as i64;
+                            if potential_end >= renderer.taskinfo.total_tasklist.len() as i64 {
+                                renderer.taskwindow.window_end =
+                                    renderer.taskinfo.total_tasklist.len() as i64 - 1;
+                                renderer.taskwindow.window_start = renderer.taskwindow.window_end
+                                    - renderer.taskwindow.tasks_that_can_fit as i64;
+                            } else {
+                                renderer.taskwindow.window_end = potential_end;
+                            }
+                        }
+                        renderer.highlightinfo.highlight_place = renderer.taskinfo.current_task
+                            as u64
+                            - renderer.taskwindow.window_start as u64;
+                    }
                     renderer.render()?;
                 }
                 _ => {}
@@ -496,15 +584,27 @@ fn read_in_key(renderer: &mut Renderer) -> Result<bool> {
 fn handle_direction(renderer: &mut Renderer, direction: KeyCode) -> Result<()> {
     match direction {
         KeyCode::Up => {
-            if renderer.highlightinfo.current_task != 0 {
-                renderer.highlightinfo.current_task -= 1;
+            if renderer.taskinfo.current_task != 0 {
+                renderer.taskinfo.current_task -= 1;
+                if (renderer.taskinfo.current_task as i64) < renderer.taskwindow.window_start {
+                    renderer.taskwindow.window_start -= 1;
+                    renderer.taskwindow.window_end -= 1;
+                } else {
+                    renderer.highlightinfo.highlight_place -= 1;
+                }
             }
         }
         KeyCode::Down => {
-            if renderer.highlightinfo.current_task as usize + 1 != renderer.taskinfo.tasklist.len()
-                && renderer.taskinfo.tasklist.len() != 0
+            if renderer.taskinfo.current_task as usize + 1 != renderer.taskinfo.total_tasklist.len()
+                && renderer.taskinfo.total_tasklist.len() != 0
             {
-                renderer.highlightinfo.current_task += 1
+                renderer.taskinfo.current_task += 1;
+                if renderer.taskinfo.current_task as i64 > renderer.taskwindow.window_end {
+                    renderer.taskwindow.window_start += 1;
+                    renderer.taskwindow.window_end += 1;
+                } else {
+                    renderer.highlightinfo.highlight_place += 1;
+                }
             }
         }
         _ => panic!("We shouldn't be handling any other KeyCode here"),
