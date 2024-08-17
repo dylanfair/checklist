@@ -141,8 +141,12 @@ impl Renderer {
     fn render(&mut self) -> Result<()> {
         self.stdout.queue(cursor::Hide)?;
         // Update task list
-        self.pull_latest_tasklist()
-            .context("Had an error pulling the latest tasklist")?;
+        self.pull_latest_tasklist()?;
+        // match self.pull_latest_tasklist() {
+        //     Ok(()) => {}
+        //     Err(_) => self.taskinfo.tasklist = TaskList::new(),
+        // }
+        println!("Pulled tasks");
         execute!(self.stdout, terminal::Clear(ClearType::All)).expect("Could not clear the screen");
 
         // Draw our main box
@@ -151,14 +155,6 @@ impl Renderer {
             self.main_box_start.1,
             self.width - self.box_padding,
             self.height - self.box_padding,
-        )?;
-
-        // Draw detail box
-        self.draw_box(
-            self.detail_box_start.0,
-            self.detail_box_start.1,
-            self.width - self.box_padding - 1,
-            self.height - self.box_padding - 1,
         )?;
 
         // Position cursor so we can draw out some helpful commands!
@@ -175,8 +171,18 @@ impl Renderer {
         // Highlight current task
         self.set_highlight()?;
 
-        // Dispaly details of current highlight
-        self.display_details_of_current()?;
+        // Display details of current highlight
+        if self.taskinfo.tasklist.tasks.len() != 0 {
+            // Draw detail box
+            self.draw_box(
+                self.detail_box_start.0,
+                self.detail_box_start.1,
+                self.width - self.box_padding - 1,
+                self.height - self.box_padding - 1,
+            )?;
+            // Display details in box
+            self.display_details_of_current()?;
+        }
 
         // Finally, flush!
         self.stdout.flush()?;
@@ -297,6 +303,10 @@ impl Renderer {
     }
 
     fn display_details_of_current(&mut self) -> Result<()> {
+        // Get width of details box
+        // let width = self.width - self.box_padding - self.detail_box_start.0;
+        let width = (self.width - self.box_padding - 1) - (self.detail_box_start.0);
+
         // Get current task displayed
         let current_task = &self.taskinfo.tasklist.tasks[self.highlightinfo.current_task as usize];
         let name = current_task.name.clone();
@@ -371,14 +381,25 @@ impl Renderer {
 
         row += 1;
         self.stdout.queue(cursor::MoveTo(column, row))?;
-        self.stdout.queue(PrintStyledContent(
-            current_task
-                .description
-                .clone()
-                .unwrap_or(String::from(""))
-                .grey(),
-        ))?;
-
+        let description = current_task.description.clone().unwrap_or(String::from(""));
+        let number_of_breaks = description.chars().count() / (width as usize - 3); // giving some
+                                                                                   // space on the
+                                                                                   // side
+        if number_of_breaks == 0 {
+            self.stdout.queue(PrintStyledContent(description.grey()))?;
+        } else {
+            let words = description.split_whitespace();
+            let mut current_line_usage = width as i32;
+            for word in words {
+                if word.chars().count() >= current_line_usage as usize - 3 {
+                    row += 1;
+                    self.stdout.queue(cursor::MoveTo(column, row))?;
+                    current_line_usage = width as i32;
+                }
+                self.stdout.queue(Print(format!("{} ", word.grey())))?;
+                current_line_usage -= word.chars().count() as i32 + 1;
+            }
+        }
         Ok(())
     }
 
@@ -458,6 +479,7 @@ fn handle_direction(renderer: &mut Renderer, direction: KeyCode) -> Result<()> {
         }
         KeyCode::Down => {
             if renderer.highlightinfo.current_task as usize + 1 != renderer.taskinfo.tasklist.len()
+                && renderer.taskinfo.tasklist.len() != 0
             {
                 renderer.highlightinfo.current_task += 1
             }
