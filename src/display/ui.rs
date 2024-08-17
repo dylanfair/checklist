@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::io::{stdout, Cursor, Stdout, Write};
+use std::io::{stdout, Stdout, Write};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -10,7 +10,7 @@ use crossterm::{cursor, execute, ExecutableCommand, QueueableCommand};
 use rusqlite::Connection;
 
 use crate::backend::database::{get_all_db_contents, get_db};
-use crate::backend::task::{Display, TaskList, Urgency};
+use crate::backend::task::{Display, TaskList};
 
 struct CleanUp;
 
@@ -47,7 +47,7 @@ impl TaskInfo {
     fn new() -> Self {
         Self {
             tasklist: TaskList::new(),
-            display_filter: Display::NotCompleted,
+            display_filter: Display::All,
             urgency_sort_desc: true,
             tags_filter: None,
         }
@@ -59,14 +59,57 @@ struct CursorInfo {
     cursor_y: u16,
 }
 
+struct HighlightInfo {
+    current_task: u64,
+    highlight_x: u16,
+    highlight_y: u16,
+}
+
+struct Graphics {
+    vertical: String,
+    horizontal: String,
+    top_left: String,
+    top_right: String,
+    bottom_left: String,
+    bottom_right: String,
+}
+
+impl Graphics {
+    fn new() -> Self {
+        Self {
+            vertical: "─".to_string(),
+            horizontal: "│".to_string(),
+            top_left: "┌".to_string(),
+            top_right: "┐".to_string(),
+            bottom_left: "└".to_string(),
+            bottom_right: "┘".to_string(),
+        }
+    }
+}
+
 struct Renderer {
+    // DB connection
     conn: Connection,
+
+    // Diplay attributes
     width: u16,
     height: u16,
     box_padding: u16,
+    main_box_start: (u16, u16),
+    detail_box_start: (u16, u16),
+    graphics: Graphics,
+
+    // Our stdout
     stdout: Stdout,
+
+    // Information on tasks
     taskinfo: TaskInfo,
+
+    // Information on where cursor is
     cursorinfo: CursorInfo,
+
+    // Information on what task is currently highlighted
+    highlightinfo: HighlightInfo,
 }
 
 impl Renderer {
@@ -78,23 +121,45 @@ impl Renderer {
             width,
             height,
             box_padding,
+            main_box_start: (box_padding, box_padding),
+            detail_box_start: (width / 3, box_padding + 1),
+            graphics: Graphics::new(),
             stdout,
             taskinfo: TaskInfo::new(),
             cursorinfo: CursorInfo {
                 cursor_x: 0,
                 cursor_y: 0,
             },
+            highlightinfo: HighlightInfo {
+                current_task: 0,
+                highlight_x: 0,
+                highlight_y: 0,
+            },
         }
     }
 
     fn render(&mut self) -> Result<()> {
+        self.stdout.queue(cursor::Hide)?;
         // Update task list
         self.pull_latest_tasklist()
             .context("Had an error pulling the latest tasklist")?;
         execute!(self.stdout, terminal::Clear(ClearType::All)).expect("Could not clear the screen");
 
-        // Draw our box
-        self.draw_box()?;
+        // Draw our main box
+        self.draw_box(
+            self.main_box_start.0,
+            self.main_box_start.1,
+            self.width - self.box_padding,
+            self.height - self.box_padding,
+        )?;
+
+        // Draw detail box
+        self.draw_box(
+            self.detail_box_start.0,
+            self.detail_box_start.1,
+            self.width - self.box_padding - 1,
+            self.height - self.box_padding - 1,
+        )?;
 
         // Position cursor so we can draw out some helpful commands!
         self.stdout.queue(cursor::MoveTo(
@@ -107,46 +172,45 @@ impl Renderer {
         // Now render our task list items
         self.display_tasks()?;
 
+        // Highlight current task
+        self.set_highlight()?;
+
+        // Dispaly details of current highlight
+        self.display_details_of_current()?;
+
         // Finally, flush!
         self.stdout.flush()?;
 
         Ok(())
     }
 
-    fn draw_box(&mut self) -> Result<()> {
-        let vertical_char = "─";
-        let horizontal_char = "│";
-        let top_left = "┌";
-        let top_right = "┐";
-        let bottom_left = "└";
-        let bottom_right = "┘";
-
-        for i in self.box_padding..=self.width - self.box_padding {
-            for j in self.box_padding..=self.height - self.box_padding {
+    fn draw_box(&mut self, start_x: u16, start_y: u16, end_x: u16, end_y: u16) -> Result<()> {
+        for i in start_x..=end_x {
+            for j in start_y..=end_y {
                 self.stdout.queue(cursor::MoveTo(i, j))?;
 
-                if i == self.box_padding && j == self.box_padding {
-                    self.stdout.queue(Print(top_left))?;
+                if i == start_x && j == start_y {
+                    self.stdout.queue(Print(&self.graphics.top_left))?;
                     continue;
                 }
-                if i == self.box_padding && j == self.height - self.box_padding {
-                    self.stdout.queue(Print(bottom_left))?;
+                if i == start_x && j == end_y {
+                    self.stdout.queue(Print(&self.graphics.bottom_left))?;
                     continue;
                 }
-                if i == self.width - self.box_padding && j == self.box_padding {
-                    self.stdout.queue(Print(top_right))?;
+                if i == end_x && j == start_y {
+                    self.stdout.queue(Print(&self.graphics.top_right))?;
                     continue;
                 }
-                if i == self.width - self.box_padding && j == self.height - self.box_padding {
-                    self.stdout.queue(Print(bottom_right))?;
+                if i == end_x && j == end_y {
+                    self.stdout.queue(Print(&self.graphics.bottom_right))?;
                     continue;
                 }
 
-                if i == self.box_padding || i == self.width - self.box_padding {
-                    self.stdout.queue(Print(horizontal_char))?;
+                if i == start_x || i == end_x {
+                    self.stdout.queue(Print(&self.graphics.horizontal))?;
                 }
-                if j == self.box_padding || j == self.height - self.box_padding {
-                    self.stdout.queue(Print(vertical_char))?;
+                if j == start_y || j == end_y {
+                    self.stdout.queue(Print(&self.graphics.vertical))?;
                 }
             }
         }
@@ -173,8 +237,8 @@ impl Renderer {
     }
 
     pub fn display_tasks(&mut self) -> Result<()> {
-        self.cursorinfo.cursor_x = self.box_padding + 1;
-        self.cursorinfo.cursor_y = self.box_padding + 1;
+        self.cursorinfo.cursor_x = self.main_box_start.0 + 3;
+        self.cursorinfo.cursor_y = self.main_box_start.1 + 1;
 
         for task in self.taskinfo.tasklist.tasks.iter() {
             self.stdout
@@ -185,94 +249,195 @@ impl Renderer {
                 .context("Moving cursor during display_tasks()")?;
 
             let name = task.name.clone();
-            let description = task.description.clone().unwrap_or(String::from("None"));
-            let latest = task.latest.clone().unwrap_or(String::from("None"));
             let task_tags = task.tags.clone().unwrap_or(HashSet::new());
+            let mut task_tags_vec: Vec<&String> = task_tags.iter().collect();
+            task_tags_vec.sort_by(|a, b| b.cmp(a));
 
             // Print out tasks
-            // First line - Urgency and Title
-            let first_line = format!(
-                "{} - {}",
-                task.urgency.to_colored_string(),
-                name.underlined()
-            );
-            self.stdout.queue(Print(first_line))?;
-
+            // First line - Title
+            self.stdout
+                .queue(PrintStyledContent(name.magenta().underlined()))?;
             // Second line - Status and tags
             self.stdout.queue(cursor::MoveTo(
                 self.cursorinfo.cursor_x,
                 self.cursorinfo.cursor_y + 1,
             ))?;
-            let mut tags_string = String::from("Tags:");
-            for tag in task_tags {
-                tags_string += &format!(" {}", tag.blue());
-            }
-            let second_line = format!("{} | {}", task.status.to_colored_string(), tags_string);
+            let second_line = format!(
+                "{} - {}",
+                task.urgency.to_colored_string(),
+                task.status.to_colored_string(),
+            );
             self.stdout.queue(Print(second_line))?;
 
-            // Third line - Date for when task was made
             self.stdout.queue(cursor::MoveTo(
                 self.cursorinfo.cursor_x,
                 self.cursorinfo.cursor_y + 2,
             ))?;
-            let third_line = format!(
+            let mut tags_string = String::from("Tags:");
+            for tag in task_tags_vec {
+                tags_string += &format!(" {}", tag.clone().blue());
+            }
+            // let second_line = format!("{}", tags_string);
+            self.stdout.queue(Print(tags_string))?;
+
+            // Third line - Date for when task was made
+            self.stdout.queue(cursor::MoveTo(
+                self.cursorinfo.cursor_x,
+                self.cursorinfo.cursor_y + 3,
+            ))?;
+            let fourth_line = format!(
                 "Made on: {}",
                 task.date_added.date_naive().to_string().cyan()
             );
-            self.stdout.queue(Print(third_line))?;
-            //print!(" Tags:");
-            //for tag in task_tags {
-            //    print!(" {}", tag.blue());
-            //}
-            //print!("\n");
-            //print!(
-            //    "   {} | {}",
-            //    task.urgency.to_colored_string(),
-            //    task.status.to_colored_string()
-            //);
-            //match task.completed_on {
-            //    Some(date) => {
-            //        print!(" - {}", date.date_naive().to_string().green())
-            //    }
-            //    None => {}
-            //}
-            //print!("\n");
-            //println!(
-            //    "   Date Added: {}",
-            //    task.date_added.date_naive().to_string().cyan()
-            //);
-            //println!("  Description: {}", description.blue());
-            //println!("  Latest Update: {}", latest.blue());
+            self.stdout.queue(Print(fourth_line))?;
 
-            self.cursorinfo.cursor_y += 4;
+            self.cursorinfo.cursor_y += 5;
         }
+        Ok(())
+    }
+
+    fn display_details_of_current(&mut self) -> Result<()> {
+        // Get current task displayed
+        let current_task = &self.taskinfo.tasklist.tasks[self.highlightinfo.current_task as usize];
+        let name = current_task.name.clone();
+
+        let task_tags = current_task.tags.clone().unwrap_or(HashSet::new());
+        let mut task_tags_vec: Vec<&String> = task_tags.iter().collect();
+        task_tags_vec.sort_by(|a, b| b.cmp(a));
+
+        let column = self.detail_box_start.0 + 1;
+        let mut row = self.detail_box_start.1 + 1;
+
+        // Start printing
+        self.stdout.queue(cursor::MoveTo(column, row))?;
+        self.stdout
+            .queue(Print(format!("Title: {}", name.magenta().underlined())))?;
+        row += 1;
+
+        self.stdout.queue(cursor::MoveTo(column, row))?;
+        self.stdout.queue(Print(format!(
+            "Made on: {}",
+            current_task.date_added.date_naive().to_string().cyan()
+        )))?;
+        row += 1;
+
+        self.stdout.queue(cursor::MoveTo(column, row))?;
+        self.stdout.queue(Print(format!(
+            "Status: {}",
+            current_task.status.to_colored_string()
+        )))?;
+        match current_task.completed_on {
+            Some(date) => {
+                self.stdout.queue(Print(format!(
+                    " - {}",
+                    date.date_naive().to_string().green()
+                )))?;
+            }
+            None => {}
+        }
+        row += 1;
+
+        self.stdout.queue(cursor::MoveTo(column, row))?;
+        self.stdout.queue(Print(format!(
+            "Urgency: {}",
+            current_task.urgency.to_colored_string()
+        )))?;
+        row += 1;
+
+        self.stdout.queue(cursor::MoveTo(column, row))?;
+        let mut tags_string = String::from("Tags:");
+        for tag in task_tags_vec {
+            tags_string += &format!(" {}", tag.clone().blue());
+        }
+        // let second_line = format!("{}", tags_string);
+        self.stdout.queue(Print(tags_string))?;
+        row += 2;
+
+        self.stdout.queue(cursor::MoveTo(column, row))?;
+        self.stdout.queue(Print(format!(
+            "{} {}",
+            "Latest Updates:".to_string().underlined(),
+            current_task
+                .latest
+                .clone()
+                .unwrap_or(String::from(""))
+                .magenta()
+        )))?;
+
+        row += 2;
+        self.stdout.queue(cursor::MoveTo(column, row))?;
+        self.stdout
+            .queue(PrintStyledContent("Description:".underlined()))?;
+
+        row += 1;
+        self.stdout.queue(cursor::MoveTo(column, row))?;
+        self.stdout.queue(PrintStyledContent(
+            current_task
+                .description
+                .clone()
+                .unwrap_or(String::from(""))
+                .grey(),
+        ))?;
+
+        Ok(())
+    }
+
+    fn set_highlight(&mut self) -> Result<()> {
+        // First wipe all prior highlights
+        for h in self.main_box_start.0 + 1..=self.height - self.box_padding - 1 {
+            self.stdout
+                .queue(cursor::MoveTo(self.main_box_start.0 + 1, h))?;
+            self.stdout.queue(Print(" "))?;
+        }
+
+        // Set initial cursor position based on current task number
+        self.highlightinfo.highlight_x = self.main_box_start.0 + 1;
+        self.highlightinfo.highlight_y =
+            self.box_padding + 1 + (5 * self.highlightinfo.current_task as u16);
+
+        let highlight_length = 0..=3;
+        for i in highlight_length {
+            self.stdout.queue(cursor::MoveTo(
+                self.highlightinfo.highlight_x,
+                self.highlightinfo.highlight_y + i,
+            ))?;
+            self.stdout.queue(PrintStyledContent("█".cyan()))?;
+        }
+
+        // Set cursor back to top of item
+        self.stdout.queue(cursor::MoveTo(
+            self.highlightinfo.highlight_x,
+            self.highlightinfo.highlight_y,
+        ))?;
+
         Ok(())
     }
 }
 
 fn run(renderer: &mut Renderer) -> Result<bool> {
     // Need a way to display the data
-    process_keypress(renderer)
+    read_in_key(renderer)
 }
 
-fn process_keypress(renderer: &mut Renderer) -> Result<bool> {
-    match read_in_key(renderer)? {
-        KeyEvent {
-            code: KeyCode::Char('x'),
-            modifiers: KeyModifiers::NONE,
-            kind: _,
-            state: _,
-        } => return Ok(false),
-        _ => {}
-    }
-    Ok(true)
-}
-
-fn read_in_key(renderer: &mut Renderer) -> Result<KeyEvent> {
+fn read_in_key(renderer: &mut Renderer) -> Result<bool> {
     loop {
-        if event::poll(Duration::from_millis(33))? {
+        if event::poll(Duration::from_millis(500))? {
             match event::read()? {
-                Event::Key(event) => return Ok(event),
+                Event::Key(event) => match event {
+                    KeyEvent {
+                        code: KeyCode::Char('x'),
+                        modifiers: KeyModifiers::NONE,
+                        kind: _,
+                        state: _,
+                    } => return Ok(false),
+                    KeyEvent {
+                        code: direction @ (KeyCode::Up | KeyCode::Down),
+                        modifiers: KeyModifiers::NONE,
+                        kind: _,
+                        state: _,
+                    } => handle_direction(renderer, direction)?,
+                    _ => {}
+                },
                 Event::Resize(nw, nh) => {
                     renderer.width = nw;
                     renderer.height = nh;
@@ -282,4 +447,25 @@ fn read_in_key(renderer: &mut Renderer) -> Result<KeyEvent> {
             }
         }
     }
+}
+
+fn handle_direction(renderer: &mut Renderer, direction: KeyCode) -> Result<()> {
+    match direction {
+        KeyCode::Up => {
+            if renderer.highlightinfo.current_task != 0 {
+                renderer.highlightinfo.current_task -= 1;
+            }
+        }
+        KeyCode::Down => {
+            if renderer.highlightinfo.current_task as usize + 1 != renderer.taskinfo.tasklist.len()
+            {
+                renderer.highlightinfo.current_task += 1
+            }
+        }
+        _ => panic!("We shouldn't be handling any other KeyCode here"),
+    }
+    renderer.render()?;
+    renderer.stdout.flush()?;
+
+    Ok(())
 }
