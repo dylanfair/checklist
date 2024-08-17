@@ -510,7 +510,5 @@ fn handle_direction(renderer: &mut Renderer, direction: KeyCode) -> Result<()> {
         _ => panic!("We shouldn't be handling any other KeyCode here"),
     }
     renderer.render()?;
-    renderer.stdout.flush()?;
-
     Ok(())
 }
