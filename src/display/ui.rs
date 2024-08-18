@@ -208,6 +208,8 @@ impl Renderer {
         } else {
             // Highlight current task
             self.set_highlight()?;
+            //
+            self.render_task_scroll_bar()?;
             // Draw detail box
             self.draw_box(
                 self.detail_box_start.0,
@@ -487,6 +489,32 @@ impl Renderer {
         }
 
         Ok(())
+    }
+
+    fn render_task_scroll_bar(&mut self) -> Result<()> {
+        // Goal is the have a scroll bar to the right of the tasks so you know how many of them
+        // You are seeing of your total tasks
+        if self.taskinfo.display_tasklist.len() < self.taskwindow.tasks_that_can_fit as usize {
+            return Ok(());
+        }
+
+        // need to get height of main_box
+        let scrollbar_height = self.taskwindow.tasks_that_can_fit * self.task_height;
+
+        let bar_start = self.detail_box_start.1 + self.taskwindow.window_start as u16;
+        let bar_end = bar_start + scrollbar_height as u16;
+
+        // Move to one space over from detail_box_start
+        let scroll_start = (self.detail_box_start.0 - 1, self.detail_box_start.1);
+        // Now render our scroll bar
+        for i in bar_start..=bar_end {
+            // let adjustment = i * fraction;
+            self.stdout
+                .queue(cursor::MoveTo(scroll_start.0, i as u16))?;
+            self.stdout.queue(PrintStyledContent("█".magenta()))?;
+        }
+
+        return Ok(());
     }
 
     fn resize_tasks_window(&mut self) {
