@@ -44,6 +44,7 @@ struct TaskInfo {
     urgency_sort_desc: bool,
     tags_filter: Option<Vec<String>>,
     current_task: u64,
+    current_task_details_len: u64,
     display_tasklist: TaskList,
 }
 
@@ -55,6 +56,7 @@ impl TaskInfo {
             urgency_sort_desc: true,
             tags_filter: None,
             current_task: 0,
+            current_task_details_len: 0,
             display_tasklist: TaskList::new(),
         }
     }
@@ -430,6 +432,8 @@ impl Renderer {
         row += 1;
         let description = current_task.description.clone().unwrap_or(String::from(""));
         self.wrap_lines(description, column, row, width, Color::Grey)?;
+
+        self.taskinfo.current_task_details_len = cursor::position()?.1 as u64;
 
         Ok(())
     }
