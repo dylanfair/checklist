@@ -435,6 +435,18 @@ impl Renderer {
 
         self.taskinfo.current_task_details_len = cursor::position()?.1 as u64;
 
+        row = cursor::position()?.1; // reorient since could be anywhere after line wraaps
+        row += 2;
+        let displayable_task_length = self.taskwindow.tasks_that_can_fit;
+        let scrollable_height = self.height - (self.box_padding * 2) - 2;
+
+        self.stdout.queue(cursor::MoveTo(column, row))?;
+        let variables = format!(
+            "tasks_that_can_fit: {} - scrollable_height - {}",
+            displayable_task_length, scrollable_height
+        );
+        self.stdout.queue(Print(variables))?;
+
         Ok(())
     }
 
@@ -496,29 +508,50 @@ impl Renderer {
     }
 
     fn render_task_scroll_bar(&mut self) -> Result<()> {
-        // Goal is the have a scroll bar to the right of the tasks so you know how many of them
-        // You are seeing of your total tasks
+        // The worst attempt at a scrollbar you've ever laid eyes on
+        // Genuinely no idea what I'm doing
+
+        // Goal is to have a scroll bar to the right of the tasks so you know how many of them
+        // you are seeing relative to all total tasks
         if self.taskinfo.display_tasklist.len() < self.taskwindow.tasks_that_can_fit as usize {
             return Ok(());
         }
 
-        // need to get height of main_box
-        let scrollbar_height = self.taskwindow.tasks_that_can_fit * self.task_height;
+        // Total height that the scrollbar can take up
+        let scrollable_height = self.height - (self.box_padding * 2) - 2;
+        //let scrollbar_ratio = scrollable_height as f64 / amount_of_tasks as f64;
+        //let reverse_ratio = amount_of_tasks as f64 / scrollable_height as f64;
+        //let fix = scrollbar_ratio * self.taskwindow.tasks_that_can_fit as f64;
+        let extra_space = scrollable_height as i64
+            - (self.taskinfo.display_tasklist.len() as i64 * self.task_height as i64);
 
-        let bar_start = self.detail_box_start.1 + self.taskwindow.window_start as u16;
-        let bar_end = bar_start + scrollbar_height as u16;
+        let bar_start = self.taskwindow.window_start as i64;
+        let bar_end = bar_start
+            + (self.taskwindow.tasks_that_can_fit as i64 * self.task_height as i64)
+            - extra_space;
 
         // Move to one space over from detail_box_start
         let scroll_start = (self.detail_box_start.0 - 1, self.detail_box_start.1);
         // Now render our scroll bar
-        for i in bar_start..=bar_end {
-            // let adjustment = i * fraction;
+        for i in bar_start..bar_end {
+            if i > scrollable_height as i64 {
+                // minor stopgap until I figure this out...
+                continue;
+            }
             self.stdout
-                .queue(cursor::MoveTo(scroll_start.0, i as u16))?;
+                .queue(cursor::MoveTo(scroll_start.0, scroll_start.1 + i as u16))?;
             self.stdout.queue(PrintStyledContent("█".magenta()))?;
         }
+        //for i in 0..=scrollable_height {
+        //    // let adjustment = i * fraction;
+        //    self.stdout.queue(cursor::MoveTo(
+        //        scroll_start.0 - 1,
+        //        self.detail_box_start.1 + i as u16,
+        //    ))?;
+        //    self.stdout.queue(PrintStyledContent("█".green()))?;
+        //}
 
-        return Ok(());
+        Ok(())
     }
 
     fn resize_tasks_window(&mut self) {
