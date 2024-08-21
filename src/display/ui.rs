@@ -435,78 +435,78 @@ impl Renderer {
 
         self.taskinfo.current_task_details_len = cursor::position()?.1 as u64;
 
-        row = cursor::position()?.1; // reorient since could be anywhere after line wraaps
-        row += 2;
-        let displayable_task_length = self.taskinfo.display_tasklist.len();
-        let scrollable_height = self.height - (self.box_padding * 2) - 2;
-
-        self.stdout.queue(cursor::MoveTo(column, row))?;
-        let variables = format!(
-            "display_tasklist_length: {} - scrollable_height: {} - total_tasklist_len: {}",
-            displayable_task_length,
-            self.detail_box_start.1 + scrollable_height,
-            self.taskinfo.total_tasklist.len()
-        );
-        self.stdout.queue(Print(variables))?;
-
-        row += 1;
-        self.stdout.queue(cursor::MoveTo(column, row))?;
-        let scrollable_height = self.height - (self.box_padding * 2) - 2;
-        let display_ratio = (self.taskinfo.display_tasklist.len() as f64)
-            / self.taskinfo.total_tasklist.len() as f64;
-        //let scrollbar_ratio = scrollable_height as f64 / amount_of_tasks as f64;
-        //let reverse_ratio = amount_of_tasks as f64 / scrollable_height as f64;
-        //let fix = scrollbar_ratio * self.taskwindow.tasks_that_can_fit as f64;
-        let extra_space = scrollable_height as i64
-            - (self.taskinfo.display_tasklist.len() as i64 * self.task_height as i64)
-            + 2;
-        let ratio_w_height = scrollable_height as f64 * display_ratio;
-        let scrollbar_ratiod = (scrollable_height as f64 - extra_space as f64) * display_ratio;
-        let new_variables = format!(
-            "display_ratio: {} - ratio_w_height: {}",
-            display_ratio, ratio_w_height
-        );
-        self.stdout.queue(Print(new_variables))?;
-
-        row += 1;
-
-        let extra_space = scrollable_height as i64
-            - (self.taskinfo.display_tasklist.len() as i64 * self.task_height as i64)
-            + 2;
-        self.stdout.queue(cursor::MoveTo(column, row))?;
-        self.stdout.queue(Print(format!(
-            "ratio_w_height as i64: {} - extra_space: {}",
-            ratio_w_height as i64, extra_space
-        )))?;
-
-        row += 1;
-        let bar_start = self.detail_box_start.1 as i64 + self.taskwindow.window_start as i64;
-        //let bar_end = bar_start + (scrollbar_ratiod as i64) + extra_space;
-        let bar_end = bar_start + scrollbar_ratiod as i64 + extra_space;
-        self.stdout.queue(cursor::MoveTo(column, row))?;
-        self.stdout.queue(Print(format!(
-            "bar_start: {} - bar_end: {}",
-            bar_start, bar_end
-        )))?;
-
-        let scrollbar_height_to_tasks =
-            scrollable_height as f64 / self.taskinfo.display_tasklist.len() as f64;
-        row += 1;
-        self.stdout.queue(cursor::MoveTo(column, row))?;
-        self.stdout.queue(Print(format!(
-            "scrollbar_height_to_tasks: {}",
-            scrollbar_height_to_tasks
-        )))?;
-
-        let hidden_tasks =
-            self.taskinfo.total_tasklist.len() - self.taskinfo.display_tasklist.len();
-        let scrollbar = scrollable_height - (hidden_tasks as u16 * self.task_height as u16);
-        row += 1;
-        self.stdout.queue(cursor::MoveTo(column, row))?;
-        self.stdout.queue(Print(format!(
-            "scrollbar: {} - hidden_tasks: {}",
-            scrollbar, hidden_tasks
-        )))?;
+        //row = cursor::position()?.1; // reorient since could be anywhere after line wraaps
+        //row += 2;
+        //let displayable_task_length = self.taskinfo.display_tasklist.len();
+        //let scrollable_height = self.height - (self.box_padding * 2) - 2;
+        //
+        //self.stdout.queue(cursor::MoveTo(column, row))?;
+        //let variables = format!(
+        //    "display_tasklist_length: {} - scrollable_height: {} - total_tasklist_len: {}",
+        //    displayable_task_length,
+        //    self.detail_box_start.1 + scrollable_height,
+        //    self.taskinfo.total_tasklist.len()
+        //);
+        //self.stdout.queue(Print(variables))?;
+        //
+        //row += 1;
+        //self.stdout.queue(cursor::MoveTo(column, row))?;
+        //let scrollable_height = self.height - (self.box_padding * 2) - 2;
+        //let display_ratio = (self.taskinfo.display_tasklist.len() as f64)
+        //    / self.taskinfo.total_tasklist.len() as f64;
+        ////let scrollbar_ratio = scrollable_height as f64 / amount_of_tasks as f64;
+        ////let reverse_ratio = amount_of_tasks as f64 / scrollable_height as f64;
+        ////let fix = scrollbar_ratio * self.taskwindow.tasks_that_can_fit as f64;
+        //let extra_space = scrollable_height as i64
+        //    - (self.taskinfo.display_tasklist.len() as i64 * self.task_height as i64)
+        //    + 2;
+        //let ratio_w_height = scrollable_height as f64 * display_ratio;
+        //let scrollbar_ratiod = (scrollable_height as f64 - extra_space as f64) * display_ratio;
+        //let new_variables = format!(
+        //    "display_ratio: {} - ratio_w_height: {}",
+        //    display_ratio, ratio_w_height
+        //);
+        //self.stdout.queue(Print(new_variables))?;
+        //
+        //row += 1;
+        //
+        //let extra_space = scrollable_height as i64
+        //    - (self.taskinfo.display_tasklist.len() as i64 * self.task_height as i64)
+        //    + 2;
+        //self.stdout.queue(cursor::MoveTo(column, row))?;
+        //self.stdout.queue(Print(format!(
+        //    "ratio_w_height as i64: {} - extra_space: {}",
+        //    ratio_w_height as i64, extra_space
+        //)))?;
+        //
+        //row += 1;
+        //let bar_start = self.detail_box_start.1 as i64 + self.taskwindow.window_start as i64;
+        ////let bar_end = bar_start + (scrollbar_ratiod as i64) + extra_space;
+        //let bar_end = bar_start + scrollbar_ratiod as i64 + extra_space;
+        //self.stdout.queue(cursor::MoveTo(column, row))?;
+        //self.stdout.queue(Print(format!(
+        //    "bar_start: {} - bar_end: {}",
+        //    bar_start, bar_end
+        //)))?;
+        //
+        //let scrollbar_height_to_tasks =
+        //    scrollable_height as f64 / self.taskinfo.display_tasklist.len() as f64;
+        //row += 1;
+        //self.stdout.queue(cursor::MoveTo(column, row))?;
+        //self.stdout.queue(Print(format!(
+        //    "scrollbar_height_to_tasks: {}",
+        //    scrollbar_height_to_tasks
+        //)))?;
+        //
+        //let hidden_tasks =
+        //    self.taskinfo.total_tasklist.len() - self.taskinfo.display_tasklist.len();
+        //let scrollbar = scrollable_height - (hidden_tasks as u16 * self.task_height as u16);
+        //row += 1;
+        //self.stdout.queue(cursor::MoveTo(column, row))?;
+        //self.stdout.queue(Print(format!(
+        //    "scrollbar: {} - hidden_tasks: {}",
+        //    scrollbar, hidden_tasks
+        //)))?;
 
         Ok(())
     }
@@ -577,39 +577,37 @@ impl Renderer {
         if self.taskinfo.display_tasklist.len() < self.taskwindow.tasks_that_can_fit as usize {
             return Ok(());
         }
-        let hidden_tasks_len =
-            self.taskinfo.total_tasklist.len() - self.taskinfo.display_tasklist.len();
-        let hidden_tasks_size = hidden_tasks_len * self.task_height as usize;
-        let total_tasks_size = self.taskinfo.total_tasklist.len() * self.task_height as usize;
-        let total_over_hidden = total_tasks_size as f64 / hidden_tasks_size as f64;
+        //let hidden_tasks_len =
+        //    self.taskinfo.total_tasklist.len() - self.taskinfo.display_tasklist.len();
+        //let hidden_tasks_size = hidden_tasks_len * self.task_height as usize;
+        //let total_tasks_size = self.taskinfo.total_tasklist.len() * self.task_height as usize;
+        //let total_over_hidden = total_tasks_size as f64 / hidden_tasks_size as f64;
 
         // Total height that the scrollbar can take up
         let scrollable_height = self.height - (self.box_padding * 2) - 2;
 
-        let scrollbar_height_to_tasks =
-            scrollable_height as f64 / self.taskinfo.display_tasklist.len() as f64;
-        let display_ratio = (self.taskinfo.display_tasklist.len() as f64)
-            / self.taskinfo.total_tasklist.len() as f64;
+        //let scrollbar_height_to_tasks =
+        //scrollable_height as f64 / self.taskinfo.display_tasklist.len() as f64;
+        //let display_ratio = (self.taskinfo.display_tasklist.len() as f64)
+        //    / self.taskinfo.total_tasklist.len() as f64;
         //let scrollbar_ratio = scrollable_height as f64 / amount_of_tasks as f64;
         //let reverse_ratio = amount_of_tasks as f64 / scrollable_height as f64;
         //let fix = scrollbar_ratio * self.taskwindow.tasks_that_can_fit as f64;
-        let extra_space = scrollable_height as i64
-            - (self.taskinfo.display_tasklist.len() as i64 * self.task_height as i64)
-            + 2;
+        //let extra_space = scrollable_height as i64
+        //    - (self.taskinfo.display_tasklist.len() as i64 * self.task_height as i64)
+        //    + 2;
 
-        let scrollbar_ratiod = (scrollable_height as f64 - extra_space as f64) * display_ratio;
-        let movement_ratiod = scrollbar_height_to_tasks * self.task_height as f64;
+        //let scrollbar_ratiod = (scrollable_height as f64 - extra_space as f64) * display_ratio;
+        //let movement_ratiod = scrollbar_height_to_tasks * self.task_height as f64;
+        //
+        //let extra_space = scrollable_height as i64
+        //    - (self.taskinfo.display_tasklist.len() as i64 * self.task_height as i64)
+        //    + 2;
+        //
+        //let scrollbar = scrollable_height - hidden_tasks_size as u16;
 
-        let extra_space = scrollable_height as i64
-            - (self.taskinfo.display_tasklist.len() as i64 * self.task_height as i64)
-            + 2;
-
-        let scrollbar = scrollable_height - hidden_tasks_size as u16;
-
-        let bar_start = self.detail_box_start.1 as i64
-            + (self.taskwindow.window_start as f64 * display_ratio as f64) as i64;
-        let bar_end = self.detail_box_start.1 as i64
-            + (self.taskwindow.window_end as f64 * display_ratio as f64) as i64;
+        let bar_start = self.detail_box_start.1 as i64 + self.taskwindow.window_start;
+        let bar_end = self.detail_box_start.1 as i64 + self.taskwindow.window_end;
 
         // Move to one space over from detail_box_start
         // Now render our scroll bar

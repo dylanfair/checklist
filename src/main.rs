@@ -12,7 +12,10 @@ use backend::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db
 use backend::task::{Display, Status, Task, Urgency};
 use backend::wipe::wipe_tasks;
 
+use display::list_example::list_example;
+use display::tui::run_tui;
 use display::ui::run_ui;
+use rusqlite::Params;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -93,7 +96,15 @@ enum Commands {
     },
 
     /// Displays tasks in an interactive terminal
-    Display {},
+    Display {
+        /// For testing, switches between ratatui or my hand-rolled interface
+        #[arg(long)]
+        display: bool,
+
+        /// For displays the ratatui list example
+        #[arg(long)]
+        example: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -149,8 +160,14 @@ fn main() -> Result<()> {
             wipe_tasks(&conn, yes, hard)?
         }
 
-        Some(Commands::Display {}) => {
-            run_ui(cli.memory, cli.test)?;
+        Some(Commands::Display { display, example }) => {
+            if display {
+                run_ui(cli.memory, cli.test)?;
+            } else if example {
+                list_example().unwrap();
+            } else {
+                run_tui(cli.memory, cli.test)?;
+            }
         }
 
         None => {}

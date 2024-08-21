@@ -6,6 +6,7 @@ use std::string::ToString;
 use chrono::prelude::*;
 use clap::ValueEnum;
 use crossterm::style::Stylize;
+use ratatui::widgets::ListState;
 use rusqlite::{types::FromSql, types::ValueRef, ToSql};
 use uuid::Uuid;
 
@@ -231,6 +232,43 @@ impl Task {
             completed_on,
         }
     }
+
+    pub fn display_task(&self) -> String {
+        // Pull out some attributes
+        // Tags
+        let task_tags = self.tags.clone().unwrap_or(HashSet::new());
+        let mut task_tags_vec: Vec<&String> = task_tags.iter().collect();
+        task_tags_vec.sort_by(|a, b| a.cmp(b));
+        let mut tags_string = String::from("");
+        for tag in task_tags_vec {
+            tags_string += &format!(" {}", tag.clone().blue());
+        }
+        // Completed date
+        let mut completed_date_string = String::from("");
+        match self.completed_on {
+            Some(date) => {
+                completed_date_string = format!(" {}", date.date_naive().to_string().green());
+            }
+            None => {}
+        }
+
+        // Create our base string
+        let info_string = format!(
+            "Made on: {}
+            Completed on: {}
+
+            Status: {}
+            Urgency : {}
+            Tags {}",
+            self.date_added.date_naive().to_string().cyan(),
+            completed_date_string,
+            self.status.to_colored_string(),
+            self.urgency.to_colored_string(),
+            tags_string,
+        );
+
+        format!("{}", info_string)
+    }
 }
 
 fn urgency_desc(a: &Task, b: &Task) -> Ordering {
@@ -262,16 +300,23 @@ fn urgency_asc(a: &Task, b: &Task) -> Ordering {
 #[derive(Clone, Debug)]
 pub struct TaskList {
     pub tasks: Vec<Task>,
+    pub state: ListState,
 }
 
 impl TaskList {
     pub fn new() -> Self {
-        TaskList { tasks: vec![] }
+        TaskList {
+            tasks: vec![],
+            state: ListState::default(),
+        }
     }
 
     #[allow(dead_code)]
     pub fn from(tasks: Vec<Task>) -> Self {
-        TaskList { tasks }
+        TaskList {
+            tasks,
+            state: ListState::default(),
+        }
     }
 
     pub fn sort_by_urgency(&mut self, descending: bool) {
