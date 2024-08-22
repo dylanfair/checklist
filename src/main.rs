@@ -15,7 +15,6 @@ use backend::wipe::wipe_tasks;
 use display::list_example::list_example;
 use display::tui::run_tui;
 use display::ui::run_ui;
-use rusqlite::Params;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
