@@ -1,4 +1,7 @@
+use std::collections::HashSet;
+
 use anyhow::{Context, Result};
+use chrono::{DateTime, Local};
 use crossterm::event::KeyModifiers;
 use ratatui::layout::Alignment;
 use ratatui::symbols::scrollbar;
@@ -153,7 +156,6 @@ impl Task {
 pub fn run_tui(memory: bool, testing: bool) -> color_eyre::Result<(), anyhow::Error> {
     install_hooks()?;
     //let _clean_up = CleanUp;
-    let conn = get_db(memory, testing).context("Errored out making a database connection")?;
     let terminal = init_terminal()?;
 
     let mut app = App::new(memory, testing)?;
@@ -180,6 +182,18 @@ impl TaskInfo {
     }
 }
 
+#[derive(Default)]
+struct AddInputs {
+    name: String,
+    description: Option<String>,
+    latest: Option<String>,
+    urgency: Urgency,
+    status: Status,
+    tags: Option<HashSet<String>>,
+    date_added: DateTime<Local>,
+    completed_on: Option<DateTime<Local>>,
+}
+
 struct App {
     // Exit condition
     should_exit: bool,
@@ -195,6 +209,9 @@ struct App {
     list_box_sizing: u16,
     // Popup related
     delete_popup: bool,
+    // Add related
+    add_popup: bool,
+    add_inputs: AddInputs,
 }
 
 impl App {
@@ -212,6 +229,8 @@ impl App {
             vertical_scroll: 0,
             list_box_sizing: 30,
             delete_popup: false,
+            add_popup: false,
+            add_inputs: AddInputs::default(),
         })
     }
 
@@ -255,16 +274,23 @@ impl App {
                 KeyCode::Char('n')
                 | KeyCode::Char('N')
                 | KeyCode::Char('x')
+                | KeyCode::Esc
                 | KeyCode::Backspace => self.delete_popup = !self.delete_popup,
                 _ => {}
             }
             return Ok(());
         }
 
+        if self.add_popup {
+            todo!()
+        }
+
         match key.modifiers {
             KeyModifiers::CONTROL => match key.code {
                 KeyCode::Right => self.adjust_listbox_sizing_right(),
                 KeyCode::Left => self.adjust_listbox_sizing_left(),
+                KeyCode::Up => self.select_first(),
+                KeyCode::Down => self.select_last(),
                 _ => {}
             },
             KeyModifiers::NONE => {
@@ -285,6 +311,7 @@ impl App {
                         Some(_) => self.delete_popup = !self.delete_popup,
                         None => {}
                     },
+                    KeyCode::Char('a') => self.add_popup = !self.add_popup,
                     //KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
                     //    self.toggle_status();
                     //}

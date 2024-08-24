@@ -17,8 +17,11 @@ pub enum Display {
     NotCompleted,
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum, strum_macros::Display)]
+#[derive(
+    Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum, strum_macros::Display, Default,
+)]
 pub enum Urgency {
+    #[default]
     Low,
     Medium,
     High,
@@ -63,8 +66,9 @@ impl FromSql for Urgency {
     }
 }
 
-#[derive(Clone, Debug, Copy, ValueEnum, strum_macros::Display, PartialEq, Eq)]
+#[derive(Clone, Debug, Copy, ValueEnum, strum_macros::Display, PartialEq, Eq, Default)]
 pub enum Status {
+    #[default]
     Open,
     Working,
     Paused,
