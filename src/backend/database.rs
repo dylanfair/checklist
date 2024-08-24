@@ -146,9 +146,8 @@ pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
     Ok(())
 }
 
-#[allow(dead_code)]
 pub fn delete_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
-    println!("Deleting task from db");
+    // println!("Deleting task from db");
     conn.execute("DELETE FROM task WHERE id = ?1", [&task.get_id()]).context("Failed to delete task from the database")?;
     Ok(())
 }

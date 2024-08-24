@@ -7,18 +7,20 @@ use ratatui::Frame;
 use ratatui::{
     backend::Backend,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-    layout::{Constraint, Layout},
+    layout::{Constraint, Layout, Rect},
     style::{
         palette::tailwind::{BLUE, GREEN, SLATE},
         Color, Modifier, Style, Stylize,
     },
     text::{Line, Span, Text},
-    widgets::{Block, Borders, HighlightSpacing, List, ListItem, Paragraph, Scrollbar, Wrap},
+    widgets::{
+        Block, Borders, Clear, HighlightSpacing, List, ListItem, Paragraph, Scrollbar, Wrap,
+    },
     Terminal,
 };
 use rusqlite::Connection;
 
-use crate::backend::database::{get_all_db_contents, get_db};
+use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
 use crate::backend::task::{self, Status, Task, TaskList, Urgency};
 
 use self::common::{init_terminal, install_hooks, restore_terminal};
@@ -179,13 +181,20 @@ impl TaskInfo {
 }
 
 struct App {
+    // Exit condition
     should_exit: bool,
+    // DB connection
     conn: Connection,
+    // Task related
     tasklist: TaskList,
     taskinfo: TaskInfo,
+    // Scrollbar related
     vertical_scroll_state: ScrollbarState,
     vertical_scroll: usize,
+    // Sizing related
     list_box_sizing: u16,
+    // Popup related
+    delete_popup: bool,
 }
 
 impl App {
@@ -202,24 +211,56 @@ impl App {
             vertical_scroll_state: ScrollbarState::default(),
             vertical_scroll: 0,
             list_box_sizing: 30,
+            delete_popup: false,
         })
     }
 
     fn run(&mut self, mut terminal: Terminal<impl Backend>) -> std::io::Result<()> {
-        self.update_tasklist().unwrap();
+        match self.update_tasklist() {
+            Ok(()) => {}
+            Err(e) => panic!("Got an error dealing with update_tasklist(): {e:?}"),
+        }
         while !self.should_exit {
             terminal.draw(|f| ui(f, &mut *self))?;
             if let Event::Key(key) = event::read()? {
-                self.handle_key(key);
+                match self.handle_key(key) {
+                    Ok(()) => {}
+                    Err(e) => panic!("Got an error handling key: {key:?} - {e:?}"),
+                }
             };
         }
         Ok(())
     }
 
-    fn handle_key(&mut self, key: KeyEvent) {
+    fn handle_key(&mut self, key: KeyEvent) -> Result<()> {
         if key.kind != KeyEventKind::Press {
-            return;
+            return Ok(());
         }
+
+        if self.delete_popup {
+            match key.code {
+                KeyCode::Char('y') | KeyCode::Char('Y') => {
+                    let current_selection = self.tasklist.state.selected().unwrap();
+                    delete_task_in_db(&self.conn, &self.tasklist.tasks[current_selection])?;
+                    self.update_tasklist()?;
+
+                    // Sets selector to where it would have been
+                    if current_selection == 0 {
+                        self.tasklist.state.select(Some(current_selection));
+                    } else {
+                        self.tasklist.state.select(Some(current_selection - 1));
+                    }
+                    self.delete_popup = !self.delete_popup
+                }
+                KeyCode::Char('n')
+                | KeyCode::Char('N')
+                | KeyCode::Char('x')
+                | KeyCode::Backspace => self.delete_popup = !self.delete_popup,
+                _ => {}
+            }
+            return Ok(());
+        }
+
         match key.modifiers {
             KeyModifiers::CONTROL => match key.code {
                 KeyCode::Right => self.adjust_listbox_sizing_right(),
@@ -240,6 +281,10 @@ impl App {
                     }
                     KeyCode::Char('g') | KeyCode::Home => self.select_first(),
                     KeyCode::Char('G') | KeyCode::End => self.select_last(),
+                    KeyCode::Char('d') => match self.tasklist.state.selected() {
+                        Some(_) => self.delete_popup = !self.delete_popup,
+                        None => {}
+                    },
                     //KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
                     //    self.toggle_status();
                     //}
@@ -248,6 +293,7 @@ impl App {
             }
             _ => {}
         }
+        Ok(())
     }
 
     fn adjust_scrollbar_down(&mut self) {
@@ -349,7 +395,7 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     let footer_text = Text::from(vec![
         Line::from("Actions: (a)dd (u)pdate (d)elete e(x)it"),
-        Line::from("Adjust screen: CTRL-LEFT or CTRL-RIGHT"),
+        Line::from("Adjust screen: CTRL ← or CTRL →"),
     ]);
     let footer = Paragraph::new(footer_text).centered();
     f.render_widget(footer, chunks[2]);
@@ -426,6 +472,37 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     //self.render_list(list_area, buf);
     //self.render_selected_item(item_area, buf);
+    if app.delete_popup {
+        let delete_block = Block::bordered().title("Delete current task?");
+        let blurb = Paragraph::new(Text::from(vec![
+            Line::from("Are you sure you want to delete this task?"),
+            Line::from("(y)es (n)o"),
+        ]));
+        let delete_popup_contents = blurb
+            .block(delete_block)
+            .wrap(Wrap { trim: false })
+            .alignment(Alignment::Center);
+        let delete_popup_area = centered_rect(60, 10, area);
+        f.render_widget(Clear, delete_popup_area);
+        f.render_widget(delete_popup_contents, delete_popup_area);
+    }
+}
+
+/// helper function to create a centered rect using up certain percentage of the available rect `r`
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::vertical([
+        Constraint::Percentage((100 - percent_y) / 2),
+        Constraint::Percentage(percent_y),
+        Constraint::Percentage((100 - percent_y) / 2),
+    ])
+    .split(r);
+
+    Layout::horizontal([
+        Constraint::Percentage((100 - percent_x) / 2),
+        Constraint::Percentage(percent_x),
+        Constraint::Percentage((100 - percent_x) / 2),
+    ])
+    .split(popup_layout[1])[1]
 }
 
 mod common {
