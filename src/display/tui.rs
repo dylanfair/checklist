@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use crossterm::event::KeyModifiers;
 use ratatui::layout::Alignment;
 use ratatui::symbols::scrollbar;
 use ratatui::widgets::{ScrollbarOrientation, ScrollbarState};
@@ -11,7 +12,7 @@ use ratatui::{
         palette::tailwind::{BLUE, GREEN, SLATE},
         Color, Modifier, Style, Stylize,
     },
-    text::{Line, Span},
+    text::{Line, Span, Text},
     widgets::{Block, Borders, HighlightSpacing, List, ListItem, Paragraph, Scrollbar, Wrap},
     Terminal,
 };
@@ -52,6 +53,22 @@ impl Urgency {
 }
 
 impl Task {
+    fn span_tags(&self) -> Span {
+        match &self.tags {
+            Some(tags) => {
+                let mut task_tags_vec = Vec::from_iter(tags);
+                task_tags_vec.sort_by(|a, b| a.cmp(b));
+
+                let mut tags_string = String::new();
+                for tag in task_tags_vec {
+                    tags_string.push_str(&format!("{} ", tag));
+                }
+                Span::from(tags_string.blue())
+            }
+            None => Span::from("".to_string()),
+        }
+    }
+
     fn to_listitem(&self) -> ListItem {
         let line = match self.status {
             Status::Completed => {
@@ -77,7 +94,57 @@ impl Task {
     }
 
     fn to_paragraph(&self) -> Paragraph {
-        todo!()
+        let completion_date = match self.completed_on {
+            Some(date) => format!(" - {}", date.date_naive().to_string()),
+            None => String::from(""),
+        };
+        let text = vec![
+            Line::from(vec![
+                Span::styled("Title: ", Style::default()),
+                Span::styled(&self.name, Style::default().fg(Color::Magenta)),
+            ]),
+            Line::from(vec![
+                Span::styled("Created: ", Style::default()),
+                Span::styled(
+                    self.date_added.date_naive().to_string(),
+                    Style::default().fg(Color::Cyan),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("Status: ", Style::default()),
+                self.status.to_colored_span(),
+                Span::styled(completion_date, Style::default().fg(Color::Green)),
+            ]),
+            Line::from(vec![
+                Span::styled("Urgency: ", Style::default()),
+                self.urgency.to_colored_span(),
+            ]),
+            Line::from(vec![
+                Span::styled("Tags: ", Style::default()),
+                self.span_tags(),
+            ]),
+            Line::from(vec![Span::styled("", Style::default())]),
+            Line::from(vec![Span::styled(
+                "Latest: ",
+                Style::default().underlined(),
+            )]),
+            Line::from(vec![Span::styled(
+                self.latest.clone().unwrap_or("".to_string()),
+                Style::default().fg(Color::Blue),
+            )]),
+            Line::from(vec![Span::styled("", Style::default())]),
+            Line::from(vec![Span::styled(
+                "Description: ",
+                Style::default().underlined(),
+            )]),
+            Line::from(vec![Span::styled(
+                self.description.clone().unwrap_or("".to_string()),
+                Style::default().fg(Color::Magenta),
+            )]),
+        ];
+
+        // let text = Text::from(lines);
+        Paragraph::new(text)
     }
 }
 
@@ -118,6 +185,7 @@ struct App {
     taskinfo: TaskInfo,
     vertical_scroll_state: ScrollbarState,
     vertical_scroll: usize,
+    list_box_sizing: u16,
 }
 
 impl App {
@@ -133,6 +201,7 @@ impl App {
             taskinfo,
             vertical_scroll_state: ScrollbarState::default(),
             vertical_scroll: 0,
+            list_box_sizing: 30,
         })
     }
 
@@ -151,22 +220,32 @@ impl App {
         if key.kind != KeyEventKind::Press {
             return;
         }
-        match key.code {
-            KeyCode::Char('x') | KeyCode::Esc => self.should_exit = true,
-            KeyCode::Char('h') | KeyCode::Left => self.select_none(),
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.select_next();
-                self.adjust_scrollbar_down();
+        match key.modifiers {
+            KeyModifiers::CONTROL => match key.code {
+                KeyCode::Right => self.adjust_listbox_sizing_right(),
+                KeyCode::Left => self.adjust_listbox_sizing_left(),
+                _ => {}
+            },
+            KeyModifiers::NONE => {
+                match key.code {
+                    KeyCode::Char('x') | KeyCode::Esc => self.should_exit = true,
+                    KeyCode::Char('h') | KeyCode::Left => self.select_none(),
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        self.select_next();
+                        self.adjust_scrollbar_down();
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        self.select_previous();
+                        self.adjust_scrollbar_up();
+                    }
+                    KeyCode::Char('g') | KeyCode::Home => self.select_first(),
+                    KeyCode::Char('G') | KeyCode::End => self.select_last(),
+                    //KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
+                    //    self.toggle_status();
+                    //}
+                    _ => {}
+                }
             }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.select_previous();
-                self.adjust_scrollbar_up();
-            }
-            KeyCode::Char('g') | KeyCode::Home => self.select_first(),
-            KeyCode::Char('G') | KeyCode::End => self.select_last(),
-            //KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
-            //    self.toggle_status();
-            //}
             _ => {}
         }
     }
@@ -217,6 +296,24 @@ impl App {
 
         Ok(())
     }
+
+    fn adjust_listbox_sizing_left(&mut self) {
+        let new_size = self.list_box_sizing as i16 - 5;
+        if new_size <= 20 {
+            self.list_box_sizing = 20
+        } else {
+            self.list_box_sizing = new_size as u16
+        }
+    }
+
+    fn adjust_listbox_sizing_right(&mut self) {
+        let new_size = self.list_box_sizing as i16 + 5;
+        if new_size >= 80 {
+            self.list_box_sizing = 80
+        } else {
+            self.list_box_sizing = new_size as u16
+        }
+    }
 }
 
 const fn alternate_colors(i: usize) -> Color {
@@ -237,8 +334,11 @@ fn ui(f: &mut Frame, app: &mut App) {
     ])
     .split(area);
 
-    let information = Layout::horizontal([Constraint::Percentage(30), Constraint::Percentage(70)])
-        .split(chunks[1]);
+    let information = Layout::horizontal([
+        Constraint::Percentage(app.list_box_sizing),
+        Constraint::Percentage(100 - app.list_box_sizing),
+    ])
+    .split(chunks[1]);
 
     app.vertical_scroll_state = app.vertical_scroll_state.content_length(app.tasklist.len());
 
@@ -247,7 +347,11 @@ fn ui(f: &mut Frame, app: &mut App) {
         .title("Welcome to your Checklist!");
     f.render_widget(title, chunks[0]);
 
-    let footer = Paragraph::new("Actions: (a)dd    (u)pdate    (d)elete    e(x)it").centered();
+    let footer_text = Text::from(vec![
+        Line::from("Actions: (a)dd (u)pdate (d)elete e(x)it"),
+        Line::from("Adjust screen: CTRL-LEFT or CTRL-RIGHT"),
+    ]);
+    let footer = Paragraph::new(footer_text).centered();
     f.render_widget(footer, chunks[2]);
 
     // Now render our tasks
@@ -297,35 +401,10 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     let info = if let Some(i) = app.tasklist.state.selected() {
         match app.tasklist.tasks[i].status {
-            _ => "Some text".to_string(), //Status::Completed => format!(
-                                          //    "✓ DONE: {}\n\nLatest Update: {}",
-                                          //    app.tasklist.tasks[i]
-                                          //        .description
-                                          //        .clone()
-                                          //        .unwrap_or("".to_string())
-                                          //        .blue(),
-                                          //    app.tasklist.tasks[i]
-                                          //        .latest
-                                          //        .clone()
-                                          //        .unwrap_or("".to_string())
-                                          //        .magenta()
-                                          //),
-                                          //_ => format!(
-                                          //    "☐ TODO: {}\n\nLatest Update: {}",
-                                          //    app.tasklist.tasks[i]
-                                          //        .description
-                                          //        .clone()
-                                          //        .unwrap_or("".to_string())
-                                          //        .blue(),
-                                          //    app.tasklist.tasks[i]
-                                          //        .latest
-                                          //        .clone()
-                                          //        .unwrap_or("".to_string())
-                                          //        .magenta()
-                                          //),
+            _ => app.tasklist.tasks[i].to_paragraph(),
         }
     } else {
-        "Nothing selected...".to_string()
+        Paragraph::new("Nothing selected...")
     };
 
     // We show the list item's info under the list in this paragraph
@@ -338,7 +417,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     //.padding(Padding::horizontal(1));
 
     // We can now render the item info
-    let task_details = Paragraph::new(info)
+    let task_details = info
         .block(task_block)
         //.scroll((app.vertical_scroll as u16, 0))
         //.fg(TEXT_FG_COLOR)

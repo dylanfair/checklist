@@ -29,4 +29,5 @@
 * Only show slice of tasks that fit within the main window
 * Let user be able to "scroll" through those
 * Have a bar on the side to show user how many of their tasks they are seeing
+* Back to where I was but with Ratatui now
 
