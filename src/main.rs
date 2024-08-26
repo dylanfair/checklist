@@ -99,10 +99,6 @@ enum Commands {
         /// For testing, switches between ratatui or my hand-rolled interface
         #[arg(long)]
         display: bool,
-
-        /// For displays the ratatui list example
-        #[arg(long)]
-        example: bool,
     },
 }
 
@@ -159,12 +155,9 @@ fn main() -> Result<()> {
             wipe_tasks(&conn, yes, hard)?
         }
 
-        Some(Commands::Display { display, example }) => {
+        Some(Commands::Display { display }) => {
             if display {
                 run_ui(cli.memory, cli.test)?;
-            } else if example {
-                todo!();
-                // list_example().unwrap();
             } else {
                 run_tui(cli.memory, cli.test)?;
             }

@@ -2,6 +2,7 @@ use std::collections::HashSet;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local};
+use color_eyre::owo_colors::OwoColorize;
 use crossterm::event::KeyModifiers;
 use ratatui::layout::Alignment;
 use ratatui::symbols::scrollbar;
@@ -502,17 +503,37 @@ fn ui(f: &mut Frame, app: &mut App) {
     if app.delete_popup {
         let delete_block = Block::bordered().title("Delete current task?");
         let blurb = Paragraph::new(Text::from(vec![
-            Line::from("Are you sure you want to delete this task?"),
-            Line::from("(y)es (n)o"),
+            Line::from("Are you sure you want to delete this task? (y)es (n)o"),
+            //Line::from("(y)es (n)o"),
         ]));
+
         let delete_popup_contents = blurb
             .block(delete_block)
             .wrap(Wrap { trim: false })
-            .alignment(Alignment::Center);
-        let delete_popup_area = centered_rect(60, 10, area);
+            .alignment(Alignment::Center)
+            .bg(Color::Black);
+        let delete_popup_area = centered_ratio_rect(2, 3, area);
         f.render_widget(Clear, delete_popup_area);
         f.render_widget(delete_popup_contents, delete_popup_area);
     }
+}
+
+/// function that relies more on ratios to keep a centered rectangle
+/// consitently sized based on terminal size
+fn centered_ratio_rect(x_ratio: u32, y_ratio: u32, r: Rect) -> Rect {
+    let popup_layout = Layout::vertical([
+        Constraint::Ratio(1, y_ratio * 2),
+        Constraint::Ratio(1, y_ratio),
+        Constraint::Ratio(1, y_ratio * 2),
+    ])
+    .split(r);
+
+    Layout::horizontal([
+        Constraint::Ratio(1, x_ratio * 2),
+        Constraint::Ratio(1, x_ratio),
+        Constraint::Ratio(1, x_ratio * 2),
+    ])
+    .split(popup_layout[1])[1]
 }
 
 /// helper function to create a centered rect using up certain percentage of the available rect `r`
