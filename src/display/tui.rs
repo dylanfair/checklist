@@ -19,13 +19,13 @@ use ratatui::{
 };
 use rusqlite::Connection;
 
-use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
+use crate::backend::database::{add_to_db, delete_task_in_db, get_all_db_contents, get_db};
 use crate::backend::task::{self, Status, Task, TaskList, Urgency};
 use crate::display::add::{get_name, AddInputs, Stage};
 
 use self::common::{init_terminal, install_hooks, restore_terminal};
 
-use super::add::{get_description, get_latest, get_status, get_urgency};
+use super::add::{get_description, get_latest, get_status, get_tags, get_urgency};
 
 //const TODO_HEADER_STYLE: Style = Style::new().fg(SLATE.c100).bg(BLUE.c800);
 const NORMAL_ROW_BG: Color = SLATE.c950;
@@ -279,7 +279,35 @@ impl App {
                 Stage::Status => self.handle_keys_for_status(key),
                 Stage::Description => self.handle_keys_for_text_inputs(key),
                 Stage::Latest => self.handle_keys_for_text_inputs(key),
-                Stage::Tags => {}
+                Stage::Tags => self.handle_keys_for_tags(key),
+                Stage::Finished => {
+                    let description = if self.add_inputs.description == "" {
+                        None
+                    } else {
+                        Some(self.add_inputs.description.clone())
+                    };
+                    let latest = if self.add_inputs.latest == "" {
+                        None
+                    } else {
+                        Some(self.add_inputs.latest.clone())
+                    };
+                    let tags = if self.add_inputs.tags.is_empty() {
+                        None
+                    } else {
+                        Some(self.add_inputs.tags.clone())
+                    };
+
+                    let task = Task::new(
+                        self.add_inputs.name.clone(),
+                        description,
+                        latest,
+                        Some(self.add_inputs.urgency),
+                        Some(self.add_inputs.status),
+                        tags,
+                    );
+                    add_to_db(&self.conn, &task)?;
+                    self.add_popup = !self.add_popup
+                }
             }
             return Ok(());
         }
@@ -525,7 +553,8 @@ fn ui(f: &mut Frame, app: &mut App) {
             Stage::Status => get_status(f, app, area),
             Stage::Description => get_description(f, app, area),
             Stage::Latest => get_latest(f, app, area),
-            Stage::Tags => {}
+            Stage::Tags => get_tags(f, app, area),
+            Stage::Finished => {}
         }
     }
 }

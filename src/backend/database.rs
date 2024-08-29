@@ -89,7 +89,6 @@ pub fn get_db(memory: bool, testing: bool) -> Result<Connection> {
 }
 
 pub fn add_to_db(conn: &Connection, task: &Task) -> Result<()> {
-    println!("Adding to db");
     // Handle inserting tags
     let mut tags_insert = None;
     match &task.tags {

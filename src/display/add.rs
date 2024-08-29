@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use chrono::{DateTime, Local};
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Text};
@@ -20,6 +20,7 @@ pub enum Stage {
     Description,
     Latest,
     Tags,
+    Finished,
 }
 
 impl Stage {
@@ -35,6 +36,22 @@ impl Stage {
         } else if *self == Stage::Latest {
             Stage::Tags
         } else {
+            Stage::Finished
+        }
+    }
+
+    pub fn back(&self) -> Self {
+        if *self == Stage::Finished {
+            Stage::Tags
+        } else if *self == Stage::Tags {
+            Stage::Latest
+        } else if *self == Stage::Latest {
+            Stage::Description
+        } else if *self == Stage::Description {
+            Stage::Status
+        } else if *self == Stage::Status {
+            Stage::Urgency
+        } else {
             Stage::Name
         }
     }
@@ -47,7 +64,8 @@ pub struct AddInputs {
     pub status: Status,
     pub description: String,
     pub latest: String,
-    pub tags: Option<HashSet<String>>,
+    pub tags: HashSet<String>,
+    pub tags_input: String,
     pub date_added: DateTime<Local>,
     pub completed_on: Option<DateTime<Local>>,
 }
@@ -165,7 +183,40 @@ impl App {
             KeyCode::Esc => self.add_popup = !self.add_popup,
             KeyCode::Enter => self.add_stage = self.add_stage.next(),
             KeyCode::Backspace => self.delete_char(),
-            KeyCode::Left => self.move_cursor_left(),
+            KeyCode::Left => {
+                if key.modifiers == KeyModifiers::CONTROL {
+                    self.add_stage = self.add_stage.back();
+                } else {
+                    self.move_cursor_left()
+                }
+            }
+            KeyCode::Right => self.move_cursor_right(),
+            KeyCode::Char(ch) => self.enter_char(ch),
+            _ => {}
+        }
+    }
+
+    pub fn handle_keys_for_tags(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => self.add_popup = !self.add_popup,
+            KeyCode::Enter => {
+                if self.add_inputs.tags_input == "".to_string() {
+                    self.add_stage = self.add_stage.next();
+                } else {
+                    self.add_inputs
+                        .tags
+                        .insert(self.add_inputs.tags_input.to_string());
+                    self.add_inputs.tags_input = "".to_string();
+                }
+            }
+            KeyCode::Backspace => self.delete_char(),
+            KeyCode::Left => {
+                if key.modifiers == KeyModifiers::CONTROL {
+                    self.add_stage = self.add_stage.back();
+                } else {
+                    self.move_cursor_left()
+                }
+            }
             KeyCode::Right => self.move_cursor_right(),
             KeyCode::Char(ch) => self.enter_char(ch),
             _ => {}
@@ -174,6 +225,11 @@ impl App {
 
     pub fn handle_keys_for_urgency(&mut self, key: KeyEvent) {
         match key.code {
+            KeyCode::Left => {
+                if key.modifiers == KeyModifiers::CONTROL {
+                    self.add_stage = self.add_stage.back();
+                }
+            }
             KeyCode::Esc => self.add_popup = !self.add_popup,
             KeyCode::Char(ch) => {
                 if ch == '1' {
@@ -199,6 +255,11 @@ impl App {
 
     pub fn handle_keys_for_status(&mut self, key: KeyEvent) {
         match key.code {
+            KeyCode::Left => {
+                if key.modifiers == KeyModifiers::CONTROL {
+                    self.add_stage = self.add_stage.back();
+                }
+            }
             KeyCode::Esc => self.add_popup = !self.add_popup,
             KeyCode::Char(ch) => {
                 if ch == '1' {
@@ -360,4 +421,45 @@ pub fn get_status(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, chunks[0]);
     f.render_widget(status_list, chunks[1]);
+}
+
+pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
+    let block = Block::new()
+        .borders(Borders::LEFT | Borders::TOP | Borders::RIGHT)
+        .title("New task - Tags");
+    let blurb = Paragraph::new(Text::from(vec![
+        Line::from("Feel free to add any tags here"),
+        Line::from("If there is any text, pressing enter will turn it into a tag"),
+        Line::from(
+            "If there is no text, pressing enter will finish the process and create your task!",
+        ),
+        Line::from(""),
+        Line::from(app.add_inputs.tags_input.as_str()),
+    ]));
+    let popup_contents = blurb
+        .block(block)
+        .wrap(Wrap { trim: false })
+        .alignment(Alignment::Left)
+        .bg(Color::Black);
+
+    let mut task_tags_vec = Vec::from_iter(app.add_inputs.tags.clone());
+    task_tags_vec.sort_by(|a, b| a.cmp(b));
+    let mut tags = vec![];
+
+    for tag in task_tags_vec {
+        let list_item = ListItem::from(Line::from(tag.blue()));
+        tags.push(list_item);
+    }
+
+    let tags_list = List::new(tags)
+        .block(Block::new().borders(Borders::LEFT | Borders::BOTTOM | Borders::RIGHT))
+        .bg(Color::Black);
+
+    let popup_area = centered_ratio_rect(2, 3, area);
+    let chunks =
+        Layout::vertical([Constraint::Ratio(1, 3), Constraint::Ratio(2, 3)]).split(popup_area);
+
+    f.render_widget(Clear, popup_area);
+    f.render_widget(popup_contents, chunks[0]);
+    f.render_widget(tags_list, chunks[1]);
 }
