@@ -1,24 +1,19 @@
-use std::collections::HashSet;
-
 use anyhow::{Context, Result};
-use chrono::{DateTime, Local};
-use color_eyre::owo_colors::OwoColorize;
 use crossterm::event::KeyModifiers;
-use ratatui::layout::Alignment;
 use ratatui::symbols::scrollbar;
-use ratatui::widgets::{ScrollbarOrientation, ScrollbarState};
 use ratatui::Frame;
 use ratatui::{
     backend::Backend,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-    layout::{Constraint, Layout, Rect},
+    layout::{Alignment, Constraint, Layout, Rect},
     style::{
         palette::tailwind::{BLUE, GREEN, SLATE},
         Color, Modifier, Style, Stylize,
     },
     text::{Line, Span, Text},
     widgets::{
-        Block, Borders, Clear, HighlightSpacing, List, ListItem, Paragraph, Scrollbar, Wrap,
+        Block, Borders, Clear, HighlightSpacing, List, ListItem, Paragraph, Scrollbar,
+        ScrollbarOrientation, ScrollbarState, Wrap,
     },
     Terminal,
 };
@@ -26,8 +21,11 @@ use rusqlite::Connection;
 
 use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
 use crate::backend::task::{self, Status, Task, TaskList, Urgency};
+use crate::display::add::{get_name, AddInputs, Stage};
 
 use self::common::{init_terminal, install_hooks, restore_terminal};
+
+use super::add::{get_description, get_latest, get_status, get_urgency};
 
 //const TODO_HEADER_STYLE: Style = Style::new().fg(SLATE.c100).bg(BLUE.c800);
 const NORMAL_ROW_BG: Color = SLATE.c950;
@@ -37,7 +35,7 @@ const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).add_modifier(Modifier:
 //const COMPLETED_TEXT_FG_COLOR: Color = GREEN.c500;
 
 impl Status {
-    fn to_colored_span(&self) -> Span<'_> {
+    pub fn to_colored_span(&self) -> Span<'_> {
         match self {
             Status::Open => String::from("Open").cyan(),
             Status::Working => String::from("Working").blue(),
@@ -48,7 +46,7 @@ impl Status {
 }
 
 impl Urgency {
-    fn to_colored_span(&self) -> Span<'_> {
+    pub fn to_colored_span(&self) -> Span<'_> {
         match self {
             Urgency::Low => String::from("Low").green(),
             Urgency::Medium => String::from("Medium").light_yellow(),
@@ -183,19 +181,7 @@ impl TaskInfo {
     }
 }
 
-#[derive(Default)]
-struct AddInputs {
-    name: String,
-    description: Option<String>,
-    latest: Option<String>,
-    urgency: Urgency,
-    status: Status,
-    tags: Option<HashSet<String>>,
-    date_added: DateTime<Local>,
-    completed_on: Option<DateTime<Local>>,
-}
-
-struct App {
+pub struct App {
     // Exit condition
     should_exit: bool,
     // DB connection
@@ -211,8 +197,10 @@ struct App {
     // Popup related
     delete_popup: bool,
     // Add related
-    add_popup: bool,
-    add_inputs: AddInputs,
+    pub add_popup: bool,
+    pub add_stage: Stage,
+    pub add_inputs: AddInputs,
+    pub character_index: usize,
 }
 
 impl App {
@@ -231,7 +219,9 @@ impl App {
             list_box_sizing: 30,
             delete_popup: false,
             add_popup: false,
+            add_stage: Stage::default(),
             add_inputs: AddInputs::default(),
+            character_index: 0,
         })
     }
 
@@ -283,7 +273,15 @@ impl App {
         }
 
         if self.add_popup {
-            todo!()
+            match self.add_stage {
+                Stage::Name => self.handle_keys_for_text_inputs(key),
+                Stage::Urgency => self.handle_keys_for_urgency(key),
+                Stage::Status => self.handle_keys_for_status(key),
+                Stage::Description => self.handle_keys_for_text_inputs(key),
+                Stage::Latest => self.handle_keys_for_text_inputs(key),
+                Stage::Tags => {}
+            }
+            return Ok(());
         }
 
         match key.modifiers {
@@ -312,7 +310,10 @@ impl App {
                         Some(_) => self.delete_popup = !self.delete_popup,
                         None => {}
                     },
-                    KeyCode::Char('a') => self.add_popup = !self.add_popup,
+                    KeyCode::Char('a') => {
+                        self.add_popup = !self.add_popup;
+                        self.add_inputs = AddInputs::default();
+                    }
                     //KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
                     //    self.toggle_status();
                     //}
@@ -516,11 +517,22 @@ fn ui(f: &mut Frame, app: &mut App) {
         f.render_widget(Clear, delete_popup_area);
         f.render_widget(delete_popup_contents, delete_popup_area);
     }
+
+    if app.add_popup {
+        match app.add_stage {
+            Stage::Name => get_name(f, app, area),
+            Stage::Urgency => get_urgency(f, app, area),
+            Stage::Status => get_status(f, app, area),
+            Stage::Description => get_description(f, app, area),
+            Stage::Latest => get_latest(f, app, area),
+            Stage::Tags => {}
+        }
+    }
 }
 
 /// function that relies more on ratios to keep a centered rectangle
 /// consitently sized based on terminal size
-fn centered_ratio_rect(x_ratio: u32, y_ratio: u32, r: Rect) -> Rect {
+pub fn centered_ratio_rect(x_ratio: u32, y_ratio: u32, r: Rect) -> Rect {
     let popup_layout = Layout::vertical([
         Constraint::Ratio(1, y_ratio * 2),
         Constraint::Ratio(1, y_ratio),
