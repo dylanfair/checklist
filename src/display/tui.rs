@@ -306,6 +306,7 @@ impl App {
                         tags,
                     );
                     add_to_db(&self.conn, &task)?;
+                    self.update_tasklist()?;
                     self.add_popup = !self.add_popup
                 }
             }
