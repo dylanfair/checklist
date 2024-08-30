@@ -5,12 +5,11 @@
 ### Display
 * Let user move cursor over into detailed box if they need to scroll into details (should the description be exceptionally long)
 * Should set a certain window size that the program just won't display for
+* Display cursor when needing to input text
 
 ### Actions
 * Need to set up what happens in the GUI when performing the following actions: 
-  * Add
-  * Update
-  * Delete
+  * Ability to delete tags
   * Filter (by Tag)
   * Filter (by Completion type)
   * Sort (by Urgency)
@@ -30,4 +29,6 @@
 * Let user be able to "scroll" through those
 * Have a bar on the side to show user how many of their tasks they are seeing
 * Back to where I was but with Ratatui now
-
+* TUI Add
+* TUI Update
+* TUI Delete

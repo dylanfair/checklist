@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 
-use chrono::{DateTime, Local};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Stylize};
@@ -9,12 +8,13 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
 use ratatui::Frame;
 
-use crate::backend::database::add_to_db;
+use crate::backend::database::{add_to_db, update_task_in_db};
 use crate::backend::task::{Status, Task, Urgency};
 use crate::display::tui::{centered_ratio_rect, App};
 
 #[derive(PartialEq, PartialOrd, Eq, Ord, Default)]
 pub enum Stage {
+    Staging,
     #[default]
     Name,
     Urgency,
@@ -23,6 +23,12 @@ pub enum Stage {
     Latest,
     Tags,
     Finished,
+}
+
+#[derive(PartialEq, Eq)]
+pub enum EntryMode {
+    Add,
+    Update,
 }
 
 impl Stage {
@@ -60,7 +66,7 @@ impl Stage {
 }
 
 #[derive(Default)]
-pub struct AddInputs {
+pub struct Inputs {
     pub name: String,
     pub urgency: Urgency,
     pub status: Status,
@@ -68,53 +74,72 @@ pub struct AddInputs {
     pub latest: String,
     pub tags: HashSet<String>,
     pub tags_input: String,
-    pub date_added: DateTime<Local>,
-    pub completed_on: Option<DateTime<Local>>,
+}
+
+impl Inputs {
+    pub fn from_task(&mut self, task: &Task) {
+        self.name = task.name.clone();
+        self.urgency = task.urgency;
+        self.status = task.status;
+        self.description = task.description.clone().unwrap_or("".to_string());
+        self.latest = task.latest.clone().unwrap_or("".to_string());
+        self.tags = task.tags.clone().unwrap_or(HashSet::new());
+    }
 }
 
 impl App {
     fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
-        match self.add_stage {
-            Stage::Name => new_cursor_pos.clamp(0, self.add_inputs.name.chars().count()),
-            Stage::Description => {
-                new_cursor_pos.clamp(0, self.add_inputs.description.chars().count())
-            }
-            Stage::Latest => new_cursor_pos.clamp(0, self.add_inputs.latest.chars().count()),
-            Stage::Tags => new_cursor_pos.clamp(0, self.add_inputs.tags_input.chars().count()),
+        let stage = if self.entry_mode == EntryMode::Add {
+            &self.add_stage
+        } else {
+            &self.update_stage
+        };
+
+        match stage {
+            Stage::Name => new_cursor_pos.clamp(0, self.inputs.name.chars().count()),
+            Stage::Description => new_cursor_pos.clamp(0, self.inputs.description.chars().count()),
+            Stage::Latest => new_cursor_pos.clamp(0, self.inputs.latest.chars().count()),
+            Stage::Tags => new_cursor_pos.clamp(0, self.inputs.tags_input.chars().count()),
             _ => 0,
         }
     }
 
     fn byte_index(&self) -> usize {
-        match self.add_stage {
+        let stage = if self.entry_mode == EntryMode::Add {
+            &self.add_stage
+        } else {
+            &self.update_stage
+        };
+
+        match stage {
             Stage::Name => self
-                .add_inputs
+                .inputs
                 .name
                 .char_indices()
                 .map(|(i, _)| i)
                 .nth(self.character_index)
-                .unwrap_or(self.add_inputs.name.len()),
+                .unwrap_or(self.inputs.name.len()),
             Stage::Description => self
-                .add_inputs
+                .inputs
                 .description
                 .char_indices()
                 .map(|(i, _)| i)
                 .nth(self.character_index)
-                .unwrap_or(self.add_inputs.description.len()),
+                .unwrap_or(self.inputs.description.len()),
             Stage::Latest => self
-                .add_inputs
+                .inputs
                 .latest
                 .char_indices()
                 .map(|(i, _)| i)
                 .nth(self.character_index)
-                .unwrap_or(self.add_inputs.latest.len()),
+                .unwrap_or(self.inputs.latest.len()),
             Stage::Tags => self
-                .add_inputs
+                .inputs
                 .tags_input
                 .char_indices()
                 .map(|(i, _)| i)
                 .nth(self.character_index)
-                .unwrap_or(self.add_inputs.tags_input.len()),
+                .unwrap_or(self.inputs.tags_input.len()),
             _ => 0,
         }
     }
@@ -135,11 +160,18 @@ impl App {
 
     fn enter_char(&mut self, new_char: char) {
         let index = self.byte_index();
-        match self.add_stage {
-            Stage::Name => self.add_inputs.name.insert(index, new_char),
-            Stage::Description => self.add_inputs.description.insert(index, new_char),
-            Stage::Latest => self.add_inputs.latest.insert(index, new_char),
-            Stage::Tags => self.add_inputs.tags_input.insert(index, new_char),
+
+        let stage = if self.entry_mode == EntryMode::Add {
+            &self.add_stage
+        } else {
+            &self.update_stage
+        };
+
+        match stage {
+            Stage::Name => self.inputs.name.insert(index, new_char),
+            Stage::Description => self.inputs.description.insert(index, new_char),
+            Stage::Latest => self.inputs.latest.insert(index, new_char),
+            Stage::Tags => self.inputs.tags_input.insert(index, new_char),
             _ => {}
         }
         self.move_cursor_right();
@@ -151,47 +183,44 @@ impl App {
             let current_index = self.character_index;
             let from_left_to_current_index = current_index - 1;
 
-            match self.add_stage {
+            let stage = if self.entry_mode == EntryMode::Add {
+                &self.add_stage
+            } else {
+                &self.update_stage
+            };
+
+            match stage {
                 Stage::Name => {
-                    let before_char_to_delete = self
-                        .add_inputs
-                        .name
-                        .chars()
-                        .take(from_left_to_current_index);
-                    let after_char_to_delete = self.add_inputs.name.chars().skip(current_index);
-                    self.add_inputs.name =
-                        before_char_to_delete.chain(after_char_to_delete).collect();
+                    let before_char_to_delete =
+                        self.inputs.name.chars().take(from_left_to_current_index);
+                    let after_char_to_delete = self.inputs.name.chars().skip(current_index);
+                    self.inputs.name = before_char_to_delete.chain(after_char_to_delete).collect();
                 }
                 Stage::Description => {
                     let before_char_to_delete = self
-                        .add_inputs
+                        .inputs
                         .description
                         .chars()
                         .take(from_left_to_current_index);
-                    let after_char_to_delete =
-                        self.add_inputs.description.chars().skip(current_index);
-                    self.add_inputs.description =
+                    let after_char_to_delete = self.inputs.description.chars().skip(current_index);
+                    self.inputs.description =
                         before_char_to_delete.chain(after_char_to_delete).collect();
                 }
                 Stage::Latest => {
-                    let before_char_to_delete = self
-                        .add_inputs
-                        .latest
-                        .chars()
-                        .take(from_left_to_current_index);
-                    let after_char_to_delete = self.add_inputs.latest.chars().skip(current_index);
-                    self.add_inputs.latest =
+                    let before_char_to_delete =
+                        self.inputs.latest.chars().take(from_left_to_current_index);
+                    let after_char_to_delete = self.inputs.latest.chars().skip(current_index);
+                    self.inputs.latest =
                         before_char_to_delete.chain(after_char_to_delete).collect();
                 }
                 Stage::Tags => {
                     let before_char_to_delete = self
-                        .add_inputs
+                        .inputs
                         .tags_input
                         .chars()
                         .take(from_left_to_current_index);
-                    let after_char_to_delete =
-                        self.add_inputs.tags_input.chars().skip(current_index);
-                    self.add_inputs.tags_input =
+                    let after_char_to_delete = self.inputs.tags_input.chars().skip(current_index);
+                    self.inputs.tags_input =
                         before_char_to_delete.chain(after_char_to_delete).collect();
                 }
                 _ => {}
@@ -200,18 +229,76 @@ impl App {
         }
     }
 
+    pub fn handle_update_staging(&mut self, key: KeyEvent) {
+        let current_index = self.tasklist.state.selected().unwrap();
+        match key.code {
+            KeyCode::Esc => self.update_popup = !self.update_popup,
+            KeyCode::Char(ch) => {
+                if ch == '1' {
+                    self.update_stage = Stage::Name;
+                    self.character_index = self.tasklist.tasks[current_index].name.len();
+                }
+                if ch == '2' {
+                    self.update_stage = Stage::Status;
+                }
+                if ch == '3' {
+                    self.update_stage = Stage::Urgency;
+                }
+                if ch == '4' {
+                    self.update_stage = Stage::Description;
+                    self.character_index = self.tasklist.tasks[current_index]
+                        .description
+                        .clone()
+                        .unwrap_or("".to_string())
+                        .len();
+                }
+                if ch == '5' {
+                    self.update_stage = Stage::Latest;
+                    self.character_index = self.tasklist.tasks[current_index]
+                        .latest
+                        .clone()
+                        .unwrap_or("".to_string())
+                        .len();
+                }
+                if ch == '6' {
+                    self.update_stage = Stage::Tags;
+                }
+            }
+            _ => {}
+        }
+    }
+
     pub fn handle_keys_for_text_inputs(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Esc => self.add_popup = !self.add_popup,
-            KeyCode::Enter => self.add_stage.next(),
-            KeyCode::Backspace => self.delete_char(),
+            KeyCode::Esc => {
+                if self.entry_mode == EntryMode::Add {
+                    self.add_popup = !self.add_popup;
+                }
+                if self.entry_mode == EntryMode::Update {
+                    self.update_popup = !self.update_popup;
+                }
+            }
+            KeyCode::Enter => {
+                if self.entry_mode == EntryMode::Add {
+                    self.add_stage.next();
+                }
+                if self.entry_mode == EntryMode::Update {
+                    self.update_stage = Stage::Finished;
+                }
+            }
             KeyCode::Left => {
                 if key.modifiers == KeyModifiers::CONTROL {
-                    self.add_stage.back();
+                    if self.entry_mode == EntryMode::Add {
+                        self.add_stage.back();
+                    }
+                    if self.entry_mode == EntryMode::Update {
+                        self.update_stage = Stage::Staging;
+                    }
                 } else {
                     self.move_cursor_left()
                 }
             }
+            KeyCode::Backspace => self.delete_char(),
             KeyCode::Right => self.move_cursor_right(),
             KeyCode::Char(ch) => self.enter_char(ch),
             _ => {}
@@ -220,25 +307,40 @@ impl App {
 
     pub fn handle_keys_for_tags(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Esc => self.add_popup = !self.add_popup,
-            KeyCode::Enter => {
-                if self.add_inputs.tags_input == "".to_string() {
-                    self.add_stage.next();
-                } else {
-                    self.add_inputs
-                        .tags
-                        .insert(self.add_inputs.tags_input.to_string());
-                    self.add_inputs.tags_input = "".to_string();
+            KeyCode::Esc => {
+                if self.entry_mode == EntryMode::Add {
+                    self.add_popup = !self.add_popup;
+                }
+                if self.entry_mode == EntryMode::Update {
+                    self.update_popup = !self.update_popup;
                 }
             }
-            KeyCode::Backspace => self.delete_char(),
+            KeyCode::Enter => {
+                if self.inputs.tags_input == "".to_string() {
+                    if self.entry_mode == EntryMode::Add {
+                        self.add_stage.next();
+                    }
+                    if self.entry_mode == EntryMode::Update {
+                        self.update_stage = Stage::Finished;
+                    }
+                } else {
+                    self.inputs.tags.insert(self.inputs.tags_input.to_string());
+                    self.inputs.tags_input = "".to_string();
+                }
+            }
             KeyCode::Left => {
                 if key.modifiers == KeyModifiers::CONTROL {
-                    self.add_stage.back();
+                    if self.entry_mode == EntryMode::Add {
+                        self.add_stage.back();
+                    }
+                    if self.entry_mode == EntryMode::Update {
+                        self.update_stage = Stage::Staging;
+                    }
                 } else {
                     self.move_cursor_left()
                 }
             }
+            KeyCode::Backspace => self.delete_char(),
             KeyCode::Right => self.move_cursor_right(),
             KeyCode::Char(ch) => self.enter_char(ch),
             _ => {}
@@ -247,28 +349,40 @@ impl App {
 
     pub fn handle_keys_for_urgency(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Left => {
-                if key.modifiers == KeyModifiers::CONTROL {
-                    self.add_stage.back();
+            KeyCode::Esc => {
+                if self.entry_mode == EntryMode::Add {
+                    self.add_popup = !self.add_popup;
+                }
+                if self.entry_mode == EntryMode::Update {
+                    self.update_popup = !self.update_popup;
                 }
             }
-            KeyCode::Esc => self.add_popup = !self.add_popup,
+            KeyCode::Left => {
+                if self.entry_mode == EntryMode::Add {
+                    self.add_stage.back();
+                }
+                if self.entry_mode == EntryMode::Update {
+                    self.update_stage = Stage::Staging;
+                }
+            }
             KeyCode::Char(ch) => {
                 if ch == '1' {
-                    self.add_inputs.urgency = Urgency::Low;
+                    self.inputs.urgency = Urgency::Low;
+                } else if ch == '2' {
+                    self.inputs.urgency = Urgency::Medium;
+                } else if ch == '3' {
+                    self.inputs.urgency = Urgency::High;
+                } else if ch == '4' {
+                    self.inputs.urgency = Urgency::Critical;
+                } else {
+                    return;
+                }
+
+                if self.entry_mode == EntryMode::Add {
                     self.add_stage.next();
                 }
-                if ch == '2' {
-                    self.add_inputs.urgency = Urgency::Medium;
-                    self.add_stage.next();
-                }
-                if ch == '3' {
-                    self.add_inputs.urgency = Urgency::High;
-                    self.add_stage.next();
-                }
-                if ch == '4' {
-                    self.add_inputs.urgency = Urgency::Critical;
-                    self.add_stage.next();
+                if self.entry_mode == EntryMode::Update {
+                    self.update_stage = Stage::Finished;
                 }
             }
             _ => {}
@@ -277,28 +391,40 @@ impl App {
 
     pub fn handle_keys_for_status(&mut self, key: KeyEvent) {
         match key.code {
-            KeyCode::Left => {
-                if key.modifiers == KeyModifiers::CONTROL {
-                    self.add_stage.back();
+            KeyCode::Esc => {
+                if self.entry_mode == EntryMode::Add {
+                    self.add_popup = !self.add_popup;
+                }
+                if self.entry_mode == EntryMode::Update {
+                    self.update_popup = !self.update_popup;
                 }
             }
-            KeyCode::Esc => self.add_popup = !self.add_popup,
+            KeyCode::Left => {
+                if self.entry_mode == EntryMode::Add {
+                    self.add_stage.back();
+                }
+                if self.entry_mode == EntryMode::Update {
+                    self.update_stage = Stage::Staging;
+                }
+            }
             KeyCode::Char(ch) => {
                 if ch == '1' {
-                    self.add_inputs.status = Status::Open;
+                    self.inputs.status = Status::Open;
+                } else if ch == '2' {
+                    self.inputs.status = Status::Working;
+                } else if ch == '3' {
+                    self.inputs.status = Status::Paused;
+                } else if ch == '4' {
+                    self.inputs.status = Status::Completed;
+                } else {
+                    return;
+                }
+
+                if self.entry_mode == EntryMode::Add {
                     self.add_stage.next();
                 }
-                if ch == '2' {
-                    self.add_inputs.status = Status::Working;
-                    self.add_stage.next();
-                }
-                if ch == '3' {
-                    self.add_inputs.status = Status::Paused;
-                    self.add_stage.next();
-                }
-                if ch == '4' {
-                    self.add_inputs.status = Status::Completed;
-                    self.add_stage.next();
+                if self.entry_mode == EntryMode::Update {
+                    self.update_stage = Stage::Finished;
                 }
             }
             _ => {}
@@ -306,28 +432,28 @@ impl App {
     }
 
     pub fn add_new_task_in(&mut self) -> Result<()> {
-        let description = if self.add_inputs.description == "" {
+        let description = if self.inputs.description == "" {
             None
         } else {
-            Some(self.add_inputs.description.clone())
+            Some(self.inputs.description.clone())
         };
-        let latest = if self.add_inputs.latest == "" {
+        let latest = if self.inputs.latest == "" {
             None
         } else {
-            Some(self.add_inputs.latest.clone())
+            Some(self.inputs.latest.clone())
         };
-        let tags = if self.add_inputs.tags.is_empty() {
+        let tags = if self.inputs.tags.is_empty() {
             None
         } else {
-            Some(self.add_inputs.tags.clone())
+            Some(self.inputs.tags.clone())
         };
 
         let new_task = Task::new(
-            self.add_inputs.name.clone(),
+            self.inputs.name.clone(),
             description,
             latest,
-            Some(self.add_inputs.urgency),
-            Some(self.add_inputs.status),
+            Some(self.inputs.urgency),
+            Some(self.inputs.status),
             tags,
         );
 
@@ -343,14 +469,78 @@ impl App {
 
         Ok(())
     }
+
+    pub fn update_selected_task(&mut self) -> Result<()> {
+        let current_selection = self.tasklist.state.selected().unwrap();
+        let current_uuid = self.tasklist.tasks[current_selection].get_id();
+
+        let description = if self.inputs.description == "" {
+            None
+        } else {
+            Some(self.inputs.description.clone())
+        };
+        let latest = if self.inputs.latest == "" {
+            None
+        } else {
+            Some(self.inputs.latest.clone())
+        };
+        let tags = if self.inputs.tags.is_empty() {
+            None
+        } else {
+            Some(self.inputs.tags.clone())
+        };
+
+        self.tasklist.tasks[current_selection].name = self.inputs.name.clone();
+        self.tasklist.tasks[current_selection].urgency = self.inputs.urgency;
+        self.tasklist.tasks[current_selection].status = self.inputs.status;
+        self.tasklist.tasks[current_selection].description = description;
+        self.tasklist.tasks[current_selection].latest = latest;
+        self.tasklist.tasks[current_selection].tags = tags;
+
+        update_task_in_db(&self.conn, &self.tasklist.tasks[current_selection])
+            .context("Failed to update task in the database")?;
+        self.update_tasklist()
+            .context("Failed to update the tasklist after adding the new task in")?;
+
+        for (i, task) in self.tasklist.tasks.iter().enumerate() {
+            if current_uuid == task.get_id() {
+                self.tasklist.state.select(Some(i))
+            }
+        }
+
+        Ok(())
+    }
+}
+
+pub fn get_stage(f: &mut Frame, area: Rect) {
+    let block = Block::bordered().title("Updating task");
+    let blurb = Paragraph::new(Text::from(vec![
+        Line::from("What do you want to update?"),
+        Line::from(""),
+        Line::from("1. Name"),
+        Line::from("2. Status"),
+        Line::from("3. Urgency"),
+        Line::from("4. Description"),
+        Line::from("5. Latest"),
+        Line::from("6. Tags"),
+    ]));
+
+    let popup_contents = blurb
+        .block(block)
+        .wrap(Wrap { trim: false })
+        .alignment(Alignment::Left)
+        .bg(Color::Black);
+    let popup_area = centered_ratio_rect(2, 3, area);
+    f.render_widget(Clear, popup_area);
+    f.render_widget(popup_contents, popup_area);
 }
 
 pub fn get_name(f: &mut Frame, app: &mut App, area: Rect) {
-    let block = Block::bordered().title("New task - Name");
+    let block = Block::bordered().title("Name");
     let blurb = Paragraph::new(Text::from(vec![
         Line::from("What do you want to name your task?"),
         Line::from(""),
-        Line::from(app.add_inputs.name.as_str()),
+        Line::from(app.inputs.name.as_str()),
     ]));
 
     let popup_contents = blurb
@@ -364,11 +554,11 @@ pub fn get_name(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 pub fn get_description(f: &mut Frame, app: &mut App, area: Rect) {
-    let block = Block::bordered().title("New task - Description");
+    let block = Block::bordered().title("Description");
     let blurb = Paragraph::new(Text::from(vec![
         Line::from("Feel free to add a description of your task"),
         Line::from(""),
-        Line::from(app.add_inputs.description.as_str()),
+        Line::from(app.inputs.description.as_str()),
     ]));
 
     let popup_contents = blurb
@@ -382,11 +572,11 @@ pub fn get_description(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 pub fn get_latest(f: &mut Frame, app: &mut App, area: Rect) {
-    let block = Block::bordered().title("New task - Latest Updates");
+    let block = Block::bordered().title("Latest Updates");
     let blurb = Paragraph::new(Text::from(vec![
         Line::from("Feel free to add an update if there is one"),
         Line::from(""),
-        Line::from(app.add_inputs.latest.as_str()),
+        Line::from(app.inputs.latest.as_str()),
     ]));
 
     let popup_contents = blurb
@@ -402,7 +592,7 @@ pub fn get_latest(f: &mut Frame, app: &mut App, area: Rect) {
 pub fn get_urgency(f: &mut Frame, area: Rect) {
     let block = Block::new()
         .borders(Borders::LEFT | Borders::RIGHT | Borders::TOP)
-        .title("New task - Urgency");
+        .title("Urgency");
     let blurb = Paragraph::new(Text::from(vec![Line::from("What's the urgency level?")]));
     let popup_contents = blurb
         .block(block)
@@ -445,7 +635,7 @@ pub fn get_urgency(f: &mut Frame, area: Rect) {
 pub fn get_status(f: &mut Frame, area: Rect) {
     let block = Block::new()
         .borders(Borders::LEFT | Borders::TOP | Borders::RIGHT)
-        .title("New task - Status");
+        .title("Status");
     let blurb = Paragraph::new(Text::from(vec![Line::from("What's the current status?")]));
     let popup_contents = blurb
         .block(block)
@@ -487,15 +677,12 @@ pub fn get_status(f: &mut Frame, area: Rect) {
 pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::new()
         .borders(Borders::LEFT | Borders::TOP | Borders::RIGHT)
-        .title("New task - Tags");
+        .title("Tags");
     let blurb = Paragraph::new(Text::from(vec![
         Line::from("Feel free to add any tags here"),
         Line::from("If there is any text, pressing enter will turn it into a tag"),
-        Line::from(
-            "If there is no text, pressing enter will finish the process and create your task!",
-        ),
         Line::from(""),
-        Line::from(app.add_inputs.tags_input.as_str()),
+        Line::from(app.inputs.tags_input.as_str()),
     ]));
     let popup_contents = blurb
         .block(block)
@@ -504,7 +691,7 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
         .bg(Color::Black);
 
     let mut tags_span_vec = vec![];
-    let mut task_tags_vec = Vec::from_iter(app.add_inputs.tags.clone());
+    let mut task_tags_vec = Vec::from_iter(app.inputs.tags.clone());
     task_tags_vec.sort_by(|a, b| a.cmp(b));
 
     for tag in task_tags_vec {

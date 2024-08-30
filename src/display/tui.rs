@@ -21,11 +21,13 @@ use rusqlite::Connection;
 
 use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
 use crate::backend::task::{self, Status, Task, TaskList, Urgency};
-use crate::display::add::{get_name, AddInputs, Stage};
+use crate::display::add::{get_name, Inputs, Stage};
 
 use self::common::{init_terminal, install_hooks, restore_terminal};
 
-use super::add::{get_description, get_latest, get_status, get_tags, get_urgency};
+use super::add::{
+    get_description, get_latest, get_stage, get_status, get_tags, get_urgency, EntryMode,
+};
 
 //const TODO_HEADER_STYLE: Style = Style::new().fg(SLATE.c100).bg(BLUE.c800);
 const NORMAL_ROW_BG: Color = SLATE.c950;
@@ -192,11 +194,16 @@ pub struct App {
     list_box_sizing: u16,
     // Popup related
     delete_popup: bool,
+    // Entry related (add or update)
+    pub entry_mode: EntryMode,
     // Add related
     pub add_popup: bool,
     pub add_stage: Stage,
-    pub add_inputs: AddInputs,
+    pub inputs: Inputs,
     pub character_index: usize,
+    // Update related
+    pub update_popup: bool,
+    pub update_stage: Stage,
 }
 
 impl App {
@@ -214,10 +221,13 @@ impl App {
             vertical_scroll: 0,
             list_box_sizing: 30,
             delete_popup: false,
+            entry_mode: EntryMode::Add,
             add_popup: false,
             add_stage: Stage::default(),
-            add_inputs: AddInputs::default(),
+            inputs: Inputs::default(),
             character_index: 0,
+            update_popup: false,
+            update_stage: Stage::default(),
         })
     }
 
@@ -275,15 +285,30 @@ impl App {
                 Stage::Status => self.handle_keys_for_status(key),
                 Stage::Description => self.handle_keys_for_text_inputs(key),
                 Stage::Latest => self.handle_keys_for_text_inputs(key),
-                Stage::Tags => {
-                    self.handle_keys_for_tags(key);
-                    if self.add_stage == Stage::Finished {
-                        self.add_new_task_in()?;
+                Stage::Tags => self.handle_keys_for_tags(key),
+                _ => {}
+            }
+            if self.add_stage == Stage::Finished {
+                self.add_new_task_in()?;
+                self.add_popup = !self.add_popup;
+            }
+            return Ok(());
+        }
 
-                        self.add_popup = !self.add_popup;
-                    }
-                }
-                Stage::Finished => {}
+        if self.update_popup {
+            match self.update_stage {
+                Stage::Staging => self.handle_update_staging(key),
+                Stage::Name => self.handle_keys_for_text_inputs(key),
+                Stage::Urgency => self.handle_keys_for_urgency(key),
+                Stage::Status => self.handle_keys_for_status(key),
+                Stage::Description => self.handle_keys_for_text_inputs(key),
+                Stage::Latest => self.handle_keys_for_text_inputs(key),
+                Stage::Tags => self.handle_keys_for_tags(key),
+                _ => {}
+            }
+            if self.update_stage == Stage::Finished {
+                self.update_selected_task()?;
+                self.update_popup = !self.update_popup;
             }
             return Ok(());
         }
@@ -296,35 +321,40 @@ impl App {
                 KeyCode::Down => self.select_last(),
                 _ => {}
             },
-            KeyModifiers::NONE => {
-                match key.code {
-                    KeyCode::Char('x') | KeyCode::Esc => self.should_exit = true,
-                    KeyCode::Char('h') | KeyCode::Left => self.select_none(),
-                    KeyCode::Char('j') | KeyCode::Down => {
-                        self.select_next();
-                        self.adjust_scrollbar_down();
-                    }
-                    KeyCode::Char('k') | KeyCode::Up => {
-                        self.select_previous();
-                        self.adjust_scrollbar_up();
-                    }
-                    KeyCode::Char('g') | KeyCode::Home => self.select_first(),
-                    KeyCode::Char('G') | KeyCode::End => self.select_last(),
-                    KeyCode::Char('d') => match self.tasklist.state.selected() {
-                        Some(_) => self.delete_popup = !self.delete_popup,
-                        None => {}
-                    },
-                    KeyCode::Char('a') => {
-                        self.add_popup = !self.add_popup;
-                        self.add_inputs = AddInputs::default();
-                        self.add_stage = Stage::Name;
-                    }
-                    //KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
-                    //    self.toggle_status();
-                    //}
-                    _ => {}
+            KeyModifiers::NONE => match key.code {
+                KeyCode::Char('x') | KeyCode::Esc => self.should_exit = true,
+                KeyCode::Char('h') | KeyCode::Left => self.select_none(),
+                KeyCode::Char('j') | KeyCode::Down => {
+                    self.select_next();
+                    self.adjust_scrollbar_down();
                 }
-            }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.select_previous();
+                    self.adjust_scrollbar_up();
+                }
+                KeyCode::Char('g') | KeyCode::Home => self.select_first(),
+                KeyCode::Char('G') | KeyCode::End => self.select_last(),
+                KeyCode::Char('d') => match self.tasklist.state.selected() {
+                    Some(_) => self.delete_popup = !self.delete_popup,
+                    None => {}
+                },
+                KeyCode::Char('a') => {
+                    self.add_popup = !self.add_popup;
+                    self.inputs = Inputs::default();
+                    self.add_stage = Stage::Name;
+                    self.entry_mode = EntryMode::Add;
+                }
+                KeyCode::Char('u') => match self.tasklist.state.selected() {
+                    Some(current_index) => {
+                        self.update_popup = !self.update_popup;
+                        self.entry_mode = EntryMode::Update;
+                        self.update_stage = Stage::Staging;
+                        self.inputs.from_task(&self.tasklist.tasks[current_index])
+                    }
+                    None => {}
+                },
+                _ => {}
+            },
             _ => {}
         }
         Ok(())
@@ -531,7 +561,20 @@ fn ui(f: &mut Frame, app: &mut App) {
             Stage::Description => get_description(f, app, area),
             Stage::Latest => get_latest(f, app, area),
             Stage::Tags => get_tags(f, app, area),
-            Stage::Finished => {}
+            _ => {}
+        }
+    }
+
+    if app.update_popup {
+        match app.update_stage {
+            Stage::Staging => get_stage(f, area),
+            Stage::Name => get_name(f, app, area),
+            Stage::Urgency => get_urgency(f, area),
+            Stage::Status => get_status(f, area),
+            Stage::Description => get_description(f, app, area),
+            Stage::Latest => get_latest(f, app, area),
+            Stage::Tags => get_tags(f, app, area),
+            _ => {}
         }
     }
 }

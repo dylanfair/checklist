@@ -118,9 +118,7 @@ pub fn add_to_db(conn: &Connection, task: &Task) -> Result<()> {
     Ok(())
 }
 
-#[allow(dead_code)]
 pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
-    println!("Updating task in db");
     let mut tags_insert = None;
     match &task.tags {
         Some(tags) => {
