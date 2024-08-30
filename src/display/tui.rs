@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use crossterm::event::KeyModifiers;
 use ratatui::symbols::scrollbar;
 use ratatui::Frame;
@@ -19,7 +19,7 @@ use ratatui::{
 };
 use rusqlite::Connection;
 
-use crate::backend::database::{add_to_db, delete_task_in_db, get_all_db_contents, get_db};
+use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
 use crate::backend::task::{self, Status, Task, TaskList, Urgency};
 use crate::display::add::{get_name, AddInputs, Stage};
 
@@ -57,19 +57,21 @@ impl Urgency {
 }
 
 impl Task {
-    fn span_tags(&self) -> Span {
+    fn span_tags(&self) -> Vec<Span> {
+        let mut tags_span_vec = vec![Span::from("Tags:".to_string())];
         match &self.tags {
             Some(tags) => {
                 let mut task_tags_vec = Vec::from_iter(tags);
                 task_tags_vec.sort_by(|a, b| a.cmp(b));
 
-                let mut tags_string = String::new();
                 for tag in task_tags_vec {
-                    tags_string.push_str(&format!("{} ", tag));
+                    tags_span_vec.push(Span::from(format!(" {} ", tag).blue()));
+                    tags_span_vec.push(Span::from("|"));
                 }
-                Span::from(tags_string.blue())
+                tags_span_vec.pop(); // removing the extra | at the end
+                tags_span_vec
             }
-            None => Span::from("".to_string()),
+            None => tags_span_vec,
         }
     }
 
@@ -123,22 +125,16 @@ impl Task {
                 Span::styled("Urgency: ", Style::default()),
                 self.urgency.to_colored_span(),
             ]),
-            Line::from(vec![
-                Span::styled("Tags: ", Style::default()),
-                self.span_tags(),
-            ]),
+            Line::from(self.span_tags()),
             Line::from(vec![Span::styled("", Style::default())]),
-            Line::from(vec![Span::styled(
-                "Latest: ",
-                Style::default().underlined(),
-            )]),
+            Line::from(vec![Span::styled("Latest:", Style::default().underlined())]),
             Line::from(vec![Span::styled(
                 self.latest.clone().unwrap_or("".to_string()),
                 Style::default().fg(Color::Blue),
             )]),
             Line::from(vec![Span::styled("", Style::default())]),
             Line::from(vec![Span::styled(
-                "Description: ",
+                "Description:",
                 Style::default().underlined(),
             )]),
             Line::from(vec![Span::styled(
@@ -185,9 +181,9 @@ pub struct App {
     // Exit condition
     should_exit: bool,
     // DB connection
-    conn: Connection,
+    pub conn: Connection,
     // Task related
-    tasklist: TaskList,
+    pub tasklist: TaskList,
     taskinfo: TaskInfo,
     // Scrollbar related
     vertical_scroll_state: ScrollbarState,
@@ -279,36 +275,15 @@ impl App {
                 Stage::Status => self.handle_keys_for_status(key),
                 Stage::Description => self.handle_keys_for_text_inputs(key),
                 Stage::Latest => self.handle_keys_for_text_inputs(key),
-                Stage::Tags => self.handle_keys_for_tags(key),
-                Stage::Finished => {
-                    let description = if self.add_inputs.description == "" {
-                        None
-                    } else {
-                        Some(self.add_inputs.description.clone())
-                    };
-                    let latest = if self.add_inputs.latest == "" {
-                        None
-                    } else {
-                        Some(self.add_inputs.latest.clone())
-                    };
-                    let tags = if self.add_inputs.tags.is_empty() {
-                        None
-                    } else {
-                        Some(self.add_inputs.tags.clone())
-                    };
+                Stage::Tags => {
+                    self.handle_keys_for_tags(key);
+                    if self.add_stage == Stage::Finished {
+                        self.add_new_task_in()?;
 
-                    let task = Task::new(
-                        self.add_inputs.name.clone(),
-                        description,
-                        latest,
-                        Some(self.add_inputs.urgency),
-                        Some(self.add_inputs.status),
-                        tags,
-                    );
-                    add_to_db(&self.conn, &task)?;
-                    self.update_tasklist()?;
-                    self.add_popup = !self.add_popup
+                        self.add_popup = !self.add_popup;
+                    }
                 }
+                Stage::Finished => {}
             }
             return Ok(());
         }
@@ -342,6 +317,7 @@ impl App {
                     KeyCode::Char('a') => {
                         self.add_popup = !self.add_popup;
                         self.add_inputs = AddInputs::default();
+                        self.add_stage = Stage::Name;
                     }
                     //KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
                     //    self.toggle_status();
@@ -383,7 +359,7 @@ impl App {
         self.tasklist.state.select_last();
     }
 
-    fn update_tasklist(&mut self) -> Result<()> {
+    pub fn update_tasklist(&mut self) -> Result<()> {
         // Get data
         let task_list = get_all_db_contents(&self.conn).unwrap();
         self.tasklist = task_list;
@@ -550,8 +526,8 @@ fn ui(f: &mut Frame, app: &mut App) {
     if app.add_popup {
         match app.add_stage {
             Stage::Name => get_name(f, app, area),
-            Stage::Urgency => get_urgency(f, app, area),
-            Stage::Status => get_status(f, app, area),
+            Stage::Urgency => get_urgency(f, area),
+            Stage::Status => get_status(f, area),
             Stage::Description => get_description(f, app, area),
             Stage::Latest => get_latest(f, app, area),
             Stage::Tags => get_tags(f, app, area),
