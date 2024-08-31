@@ -323,6 +323,14 @@ impl App {
             },
             KeyModifiers::NONE => match key.code {
                 KeyCode::Char('x') | KeyCode::Esc => self.should_exit = true,
+                KeyCode::Char('s') => {
+                    self.taskinfo.urgency_sort_desc = !self.taskinfo.urgency_sort_desc;
+                    self.update_tasklist()?;
+                }
+                KeyCode::Char('f') => {
+                    self.taskinfo.display_filter.next();
+                    self.update_tasklist()?;
+                }
                 KeyCode::Char('h') | KeyCode::Left => self.select_none(),
                 KeyCode::Char('j') | KeyCode::Down => {
                     self.select_next();
@@ -457,8 +465,16 @@ fn ui(f: &mut Frame, app: &mut App) {
         .title("Welcome to your Checklist!");
     f.render_widget(title, chunks[0]);
 
+    let urgency_sort_string = match app.taskinfo.urgency_sort_desc {
+        true => "descending".to_string(),
+        false => "ascending".to_string(),
+    };
+
     let footer_text = Text::from(vec![
-        Line::from("Actions: (a)dd (u)pdate (d)elete e(x)it"),
+        Line::from(format!(
+            "Actions: (a)dd (u)pdate (d)elete e(x)it | current (f)ilter: {} | urgency (s)ort: {}",
+            app.taskinfo.display_filter, urgency_sort_string
+        )),
         Line::from("Adjust screen: CTRL ← or CTRL →"),
     ]);
     let footer = Paragraph::new(footer_text).centered();
@@ -519,7 +535,7 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     // We show the list item's info under the list in this paragraph
     let task_block = Block::new()
-        .title(Line::raw("Task Info").centered())
+        .title(Line::raw("Task Info"))
         .borders(Borders::ALL)
         //.border_set(symbols::border::EMPTY)
         //.border_style(TODO_HEADER_STYLE)

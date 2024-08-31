@@ -33,34 +33,26 @@ pub enum EntryMode {
 
 impl Stage {
     pub fn next(&mut self) {
-        if *self == Stage::Name {
-            *self = Stage::Urgency
-        } else if *self == Stage::Urgency {
-            *self = Stage::Status
-        } else if *self == Stage::Status {
-            *self = Stage::Description
-        } else if *self == Stage::Description {
-            *self = Stage::Latest
-        } else if *self == Stage::Latest {
-            *self = Stage::Tags
-        } else if *self == Stage::Tags {
-            *self = Stage::Finished
+        match self {
+            Stage::Name => *self = Stage::Urgency,
+            Stage::Urgency => *self = Stage::Status,
+            Stage::Status => *self = Stage::Description,
+            Stage::Description => *self = Stage::Latest,
+            Stage::Latest => *self = Stage::Tags,
+            Stage::Tags => *self = Stage::Finished,
+            _ => {}
         }
     }
 
     pub fn back(&mut self) {
-        if *self == Stage::Finished {
-            *self = Stage::Tags
-        } else if *self == Stage::Tags {
-            *self = Stage::Latest
-        } else if *self == Stage::Latest {
-            *self = Stage::Description
-        } else if *self == Stage::Description {
-            *self = Stage::Status
-        } else if *self == Stage::Status {
-            *self = Stage::Urgency
-        } else if *self == Stage::Urgency {
-            *self = Stage::Name
+        match self {
+            Stage::Finished => *self = Stage::Tags,
+            Stage::Tags => *self = Stage::Latest,
+            Stage::Latest => *self = Stage::Description,
+            Stage::Description => *self = Stage::Status,
+            Stage::Status => *self = Stage::Urgency,
+            Stage::Urgency => *self = Stage::Name,
+            _ => {}
         }
     }
 }

@@ -17,6 +17,16 @@ pub enum Display {
     NotCompleted,
 }
 
+impl Display {
+    pub fn next(&mut self) {
+        match self {
+            Display::All => *self = Display::Completed,
+            Display::Completed => *self = Display::NotCompleted,
+            Display::NotCompleted => *self = Display::All,
+        }
+    }
+}
+
 #[derive(
     Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum, strum_macros::Display, Default,
 )]
