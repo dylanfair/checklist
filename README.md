@@ -11,8 +11,12 @@
 * Need to set up what happens in the GUI when performing the following actions: 
   * Ability to delete tags
   * Filter (by Tag)
-  * Filter (by Completion type)
-  * Sort (by Urgency)
+* Quick actions?
+  * Quick-add
+  * Quick-complete
+
+### Backend
+* Config to keep last settings used?
 
 ## Done
 
@@ -32,3 +36,6 @@
 * TUI Add
 * TUI Update
 * TUI Delete
+* Filter (by Completion type)
+* Sort (by Urgency)
+* Urgency is showcased on list item better

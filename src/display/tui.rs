@@ -51,9 +51,18 @@ impl Urgency {
     pub fn to_colored_span(&self) -> Span<'_> {
         match self {
             Urgency::Low => String::from("Low").green(),
-            Urgency::Medium => String::from("Medium").light_yellow(),
-            Urgency::High => String::from("High").yellow(),
+            Urgency::Medium => String::from("Medium").yellow(),
+            Urgency::High => String::from("High").magenta(),
             Urgency::Critical => String::from("Critical").red(),
+        }
+    }
+
+    pub fn to_colored_exclamation_marks(&self) -> Span<'_> {
+        match self {
+            Urgency::Low => String::from("   ").green(),
+            Urgency::Medium => String::from("!  ").yellow(),
+            Urgency::High => String::from("!! ").magenta(),
+            Urgency::Critical => String::from("!!!").red(),
         }
     }
 }
@@ -81,7 +90,7 @@ impl Task {
         let line = match self.status {
             Status::Completed => {
                 let spans = vec![
-                    "✓ - ".green(),
+                    "✓   | ".green(),
                     self.status.to_colored_span().clone(),
                     " - ".into(),
                     self.name.clone().into(),
@@ -90,7 +99,9 @@ impl Task {
             }
             _ => {
                 let spans = vec![
-                    "☐ - ".white(),
+                    //"☐ - ".white(),
+                    self.urgency.to_colored_exclamation_marks(),
+                    " | ".into(),
                     self.status.to_colored_span().clone(),
                     " - ".into(),
                     self.name.clone().into(),
@@ -614,21 +625,21 @@ pub fn centered_ratio_rect(x_ratio: u32, y_ratio: u32, r: Rect) -> Rect {
 }
 
 /// helper function to create a centered rect using up certain percentage of the available rect `r`
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::vertical([
-        Constraint::Percentage((100 - percent_y) / 2),
-        Constraint::Percentage(percent_y),
-        Constraint::Percentage((100 - percent_y) / 2),
-    ])
-    .split(r);
-
-    Layout::horizontal([
-        Constraint::Percentage((100 - percent_x) / 2),
-        Constraint::Percentage(percent_x),
-        Constraint::Percentage((100 - percent_x) / 2),
-    ])
-    .split(popup_layout[1])[1]
-}
+//fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+//    let popup_layout = Layout::vertical([
+//        Constraint::Percentage((100 - percent_y) / 2),
+//        Constraint::Percentage(percent_y),
+//        Constraint::Percentage((100 - percent_y) / 2),
+//    ])
+//    .split(r);
+//
+//    Layout::horizontal([
+//        Constraint::Percentage((100 - percent_x) / 2),
+//        Constraint::Percentage(percent_x),
+//        Constraint::Percentage((100 - percent_x) / 2),
+//    ])
+//    .split(popup_layout[1])[1]
+//}
 
 mod common {
     use std::{
