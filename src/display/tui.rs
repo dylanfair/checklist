@@ -6,10 +6,7 @@ use ratatui::{
     backend::Backend,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     layout::{Alignment, Constraint, Layout, Rect},
-    style::{
-        palette::tailwind::{BLUE, GREEN, SLATE},
-        Color, Modifier, Style, Stylize,
-    },
+    style::{palette::tailwind::SLATE, Color, Modifier, Style, Stylize},
     text::{Line, Span, Text},
     widgets::{
         Block, Borders, Clear, HighlightSpacing, List, ListItem, Paragraph, Scrollbar,
@@ -215,6 +212,9 @@ pub struct App {
     // Update related
     pub update_popup: bool,
     pub update_stage: Stage,
+    // Tags related
+    pub highlight_tags: bool,
+    pub tags_highlight_value: usize,
 }
 
 impl App {
@@ -239,6 +239,8 @@ impl App {
             character_index: 0,
             update_popup: false,
             update_stage: Stage::default(),
+            highlight_tags: false,
+            tags_highlight_value: 0,
         })
     }
 
@@ -362,12 +364,16 @@ impl App {
                     self.inputs = Inputs::default();
                     self.add_stage = Stage::Name;
                     self.entry_mode = EntryMode::Add;
+                    self.highlight_tags = false;
+                    self.tags_highlight_value = 0;
                 }
                 KeyCode::Char('u') => match self.tasklist.state.selected() {
                     Some(current_index) => {
                         self.update_popup = !self.update_popup;
                         self.entry_mode = EntryMode::Update;
                         self.update_stage = Stage::Staging;
+                        self.highlight_tags = false;
+                        self.tags_highlight_value = 0;
                         self.inputs.from_task(&self.tasklist.tasks[current_index])
                     }
                     None => {}

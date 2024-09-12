@@ -320,22 +320,90 @@ impl App {
                     self.inputs.tags_input = "".to_string();
                 }
             }
-            KeyCode::Left => {
-                if key.modifiers == KeyModifiers::CONTROL {
-                    if self.entry_mode == EntryMode::Add {
-                        self.add_stage.back();
-                    }
-                    if self.entry_mode == EntryMode::Update {
-                        self.update_stage = Stage::Staging;
-                    }
-                } else {
-                    self.move_cursor_left()
-                }
-            }
-            KeyCode::Backspace => self.delete_char(),
-            KeyCode::Right => self.move_cursor_right(),
-            KeyCode::Char(ch) => self.enter_char(ch),
             _ => {}
+        }
+        if self.highlight_tags {
+            match key.code {
+                KeyCode::Left => {
+                    if key.modifiers == KeyModifiers::CONTROL {
+                        if self.entry_mode == EntryMode::Add {
+                            self.add_stage.back();
+                        }
+                        if self.entry_mode == EntryMode::Update {
+                            self.update_stage = Stage::Staging;
+                        }
+                    } else {
+                        self.move_tags_highlight_left()
+                    }
+                }
+                KeyCode::Right => {
+                    // Move highlight to the right
+                    self.move_tags_highlight_right()
+                }
+                KeyCode::Up => {
+                    // Unhighlight tags and place cursor back to character_index
+                    self.highlight_tags = !self.highlight_tags
+                }
+                KeyCode::Char('d') => {
+                    // Remove the highlighted tag
+                    self.remove_tag();
+                }
+                _ => {}
+            }
+        } else {
+            match key.code {
+                KeyCode::Left => {
+                    if key.modifiers == KeyModifiers::CONTROL {
+                        if self.entry_mode == EntryMode::Add {
+                            self.add_stage.back();
+                        }
+                        if self.entry_mode == EntryMode::Update {
+                            self.update_stage = Stage::Staging;
+                        }
+                    } else {
+                        self.move_cursor_left()
+                    }
+                }
+                KeyCode::Right => {
+                    self.move_cursor_right();
+                }
+                KeyCode::Down => {
+                    if self.inputs.tags.len() > 0 {
+                        self.highlight_tags = !self.highlight_tags;
+                    }
+                }
+                KeyCode::Char(ch) => self.enter_char(ch),
+                KeyCode::Backspace => self.delete_char(),
+                _ => {}
+            }
+        }
+    }
+
+    fn move_tags_highlight_left(&mut self) {
+        if self.tags_highlight_value > 0 {
+            self.tags_highlight_value -= 1;
+        }
+    }
+
+    fn move_tags_highlight_right(&mut self) {
+        if self.tags_highlight_value < self.inputs.tags.len() - 1 {
+            self.tags_highlight_value += 1;
+        }
+    }
+
+    fn remove_tag(&mut self) {
+        // Match what our displayed vectors are
+        let mut task_tags_vec = Vec::from_iter(self.inputs.tags.clone());
+        task_tags_vec.sort_by(|a, b| a.cmp(b));
+
+        // Get the value that is highlighted
+        let tags_value = &task_tags_vec[self.tags_highlight_value];
+        // Remove said value from our hashset
+        self.inputs.tags.remove(tags_value);
+        self.move_tags_highlight_left();
+
+        if self.inputs.tags.len() == 0 {
+            self.highlight_tags = false
         }
     }
 
@@ -673,6 +741,8 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
     let blurb = Paragraph::new(Text::from(vec![
         Line::from("Feel free to add any tags here"),
         Line::from("If there is any text, pressing enter will turn it into a tag"),
+        Line::from("Pressing Down (↓) will highlight a tag, which you can delete with 'd'"),
+        Line::from("Pressing Up (↑) will return you to text editing"),
         Line::from(""),
         Line::from(app.inputs.tags_input.as_str()),
     ]));
@@ -686,8 +756,12 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
     let mut task_tags_vec = Vec::from_iter(app.inputs.tags.clone());
     task_tags_vec.sort_by(|a, b| a.cmp(b));
 
-    for tag in task_tags_vec {
-        tags_span_vec.push(Span::from(format!(" {} ", tag).blue()));
+    for (i, tag) in task_tags_vec.iter().enumerate() {
+        let mut span_object = Span::from(format!(" {} ", tag).blue());
+        if i == app.tags_highlight_value && app.highlight_tags {
+            span_object = span_object.underlined();
+        }
+        tags_span_vec.push(span_object);
         tags_span_vec.push(Span::from("|"));
     }
     tags_span_vec.pop(); // removing the extra | at the end
