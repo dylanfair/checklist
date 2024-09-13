@@ -16,6 +16,7 @@ use ratatui::{
 };
 use rusqlite::Connection;
 
+use crate::backend::config::{read_config, Config};
 use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
 use crate::backend::task::{self, Status, Task, TaskList, Urgency};
 use crate::display::add::{get_name, Inputs, Stage};
@@ -158,12 +159,16 @@ impl Task {
     }
 }
 
-pub fn run_tui(memory: bool, testing: bool) -> color_eyre::Result<(), anyhow::Error> {
+pub fn run_tui(
+    memory: bool,
+    testing: bool,
+    config: Config,
+) -> color_eyre::Result<(), anyhow::Error> {
     install_hooks()?;
     //let _clean_up = CleanUp;
     let terminal = init_terminal()?;
 
-    let mut app = App::new(memory, testing)?;
+    let mut app = App::new(memory, testing, config)?;
     app.run(terminal)?;
 
     restore_terminal()?;
@@ -172,19 +177,19 @@ pub fn run_tui(memory: bool, testing: bool) -> color_eyre::Result<(), anyhow::Er
 }
 
 struct TaskInfo {
-    display_filter: task::Display,
-    urgency_sort_desc: bool,
     tags_filter: Option<Vec<String>>,
 }
 
 impl TaskInfo {
     fn new() -> Self {
-        Self {
-            display_filter: task::Display::All,
-            urgency_sort_desc: true,
-            tags_filter: None,
-        }
+        Self { tags_filter: None }
     }
+}
+
+enum Runtime {
+    Memory,
+    Test,
+    Real,
 }
 
 pub struct App {
@@ -192,6 +197,10 @@ pub struct App {
     should_exit: bool,
     // DB connection
     pub conn: Connection,
+    // What type of database connection we have
+    runtime: Runtime,
+    // Config
+    pub config: Config,
     // Task related
     pub tasklist: TaskList,
     taskinfo: TaskInfo,
@@ -218,14 +227,24 @@ pub struct App {
 }
 
 impl App {
-    fn new(memory: bool, testing: bool) -> Result<Self> {
+    fn new(memory: bool, testing: bool, config: Config) -> Result<Self> {
         let conn = get_db(memory, testing)?;
         let tasklist = TaskList::new();
         let taskinfo = TaskInfo::new();
 
+        let runtime = if memory {
+            Runtime::Memory
+        } else if testing {
+            Runtime::Test
+        } else {
+            Runtime::Real
+        };
+
         Ok(Self {
             should_exit: false,
             conn,
+            runtime,
+            config,
             tasklist,
             taskinfo,
             vertical_scroll_state: ScrollbarState::default(),
@@ -257,6 +276,11 @@ impl App {
                     Err(e) => panic!("Got an error handling key: {key:?} - {e:?}"),
                 }
             };
+            match self.runtime {
+                Runtime::Test => self.config.save(true).unwrap(),
+                Runtime::Real => self.config.save(false).unwrap(),
+                _ => {}
+            }
         }
         Ok(())
     }
@@ -337,11 +361,11 @@ impl App {
             KeyModifiers::NONE => match key.code {
                 KeyCode::Char('x') | KeyCode::Esc => self.should_exit = true,
                 KeyCode::Char('s') => {
-                    self.taskinfo.urgency_sort_desc = !self.taskinfo.urgency_sort_desc;
+                    self.config.urgency_sort_desc = !self.config.urgency_sort_desc;
                     self.update_tasklist()?;
                 }
                 KeyCode::Char('f') => {
-                    self.taskinfo.display_filter.next();
+                    self.config.display_filter.next();
                     self.update_tasklist()?;
                 }
                 KeyCode::Char('h') | KeyCode::Left => self.select_none(),
@@ -421,13 +445,12 @@ impl App {
 
         // Filter tasks
         self.tasklist.filter_tasks(
-            Some(self.taskinfo.display_filter),
+            Some(self.config.display_filter),
             self.taskinfo.tags_filter.clone(),
         );
 
         // Order tasks here
-        self.tasklist
-            .sort_by_urgency(self.taskinfo.urgency_sort_desc);
+        self.tasklist.sort_by_urgency(self.config.urgency_sort_desc);
 
         Ok(())
     }
@@ -482,7 +505,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         .title("Welcome to your Checklist!");
     f.render_widget(title, chunks[0]);
 
-    let urgency_sort_string = match app.taskinfo.urgency_sort_desc {
+    let urgency_sort_string = match app.config.urgency_sort_desc {
         true => "descending".to_string(),
         false => "ascending".to_string(),
     };
@@ -490,7 +513,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     let footer_text = Text::from(vec![
         Line::from(format!(
             "Actions: (a)dd (u)pdate (d)elete e(x)it | current (f)ilter: {} | urgency (s)ort: {}",
-            app.taskinfo.display_filter, urgency_sort_string
+            app.config.display_filter, urgency_sort_string
         )),
         Line::from("Adjust screen: CTRL ← or CTRL →"),
     ]);

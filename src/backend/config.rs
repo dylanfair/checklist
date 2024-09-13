@@ -6,14 +6,25 @@ use anyhow::{Context, Result};
 use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 
+use crate::backend::task::Display;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub db_path: PathBuf,
+    pub display_filter: Display,
+    pub urgency_sort_desc: bool,
 }
 
 impl Config {
     pub fn new(db_path: PathBuf) -> Self {
-        Self { db_path }
+        let urgency_sort_desc = true;
+        let display_filter = Display::All;
+
+        Self {
+            db_path,
+            display_filter,
+            urgency_sort_desc,
+        }
     }
 
     pub fn save(&self, testing: bool) -> Result<()> {

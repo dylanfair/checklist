@@ -8,9 +8,10 @@ use clap::ValueEnum;
 use crossterm::style::Stylize;
 use ratatui::widgets::ListState;
 use rusqlite::{types::FromSql, types::ValueRef, ToSql};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Clone, Copy, Debug, ValueEnum, strum_macros::Display)]
+#[derive(Clone, Copy, Debug, ValueEnum, strum_macros::Display, Serialize, Deserialize)]
 pub enum Display {
     All,
     Completed,
@@ -28,7 +29,18 @@ impl Display {
 }
 
 #[derive(
-    Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum, strum_macros::Display, Default,
+    Clone,
+    Debug,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    ValueEnum,
+    strum_macros::Display,
+    Default,
+    Serialize,
+    Deserialize,
 )]
 pub enum Urgency {
     #[default]

@@ -9,14 +9,12 @@
 
 ### Actions
 * Need to set up what happens in the GUI when performing the following actions: 
-  * Ability to delete tags
   * Filter (by Tag)
 * Quick actions?
   * Quick-add
   * Quick-complete
 
 ### Backend
-* Config to keep last settings used?
 
 ## Done
 
@@ -39,3 +37,5 @@
 * Filter (by Completion type)
 * Sort (by Urgency)
 * Urgency is showcased on list item better
+* Ability to delete tags
+* Config to keep last settings used?

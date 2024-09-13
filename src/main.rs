@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 mod backend;
 mod display;
 
-use backend::config::set_new_path;
+use backend::config::{read_config, set_new_path};
 use backend::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
 use backend::task::{Display, Status, Task, Urgency};
 use backend::wipe::wipe_tasks;
@@ -156,10 +156,11 @@ fn main() -> Result<()> {
         }
 
         Some(Commands::Display { display }) => {
+            let config = read_config(cli.test)?;
             if display {
                 run_ui(cli.memory, cli.test)?;
             } else {
-                run_tui(cli.memory, cli.test)?;
+                run_tui(cli.memory, cli.test, config)?;
             }
         }
 
