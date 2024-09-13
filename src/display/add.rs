@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use chrono::Local;
 use std::collections::HashSet;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -553,6 +554,11 @@ impl App {
         self.tasklist.tasks[current_selection].name = self.inputs.name.clone();
         self.tasklist.tasks[current_selection].urgency = self.inputs.urgency;
         self.tasklist.tasks[current_selection].status = self.inputs.status;
+        if self.tasklist.tasks[current_selection].status == Status::Completed {
+            self.tasklist.tasks[current_selection].completed_on = Some(Local::now());
+        } else {
+            self.tasklist.tasks[current_selection].completed_on = None;
+        }
         self.tasklist.tasks[current_selection].description = description;
         self.tasklist.tasks[current_selection].latest = latest;
         self.tasklist.tasks[current_selection].tags = tags;
