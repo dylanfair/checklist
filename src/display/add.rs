@@ -30,6 +30,7 @@ pub enum Stage {
 pub enum EntryMode {
     Add,
     Update,
+    QuickAdd,
 }
 
 impl Stage {
@@ -147,10 +148,6 @@ impl App {
         self.character_index = self.clamp_cursor(cursor_moved_right)
     }
 
-    fn reset_cursor(&mut self) {
-        self.character_index = 0;
-    }
-
     fn enter_char(&mut self, new_char: char) {
         let index = self.byte_index();
 
@@ -264,7 +261,7 @@ impl App {
     pub fn handle_keys_for_text_inputs(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => {
-                if self.entry_mode == EntryMode::Add {
+                if self.entry_mode == EntryMode::Add || self.entry_mode == EntryMode::QuickAdd {
                     self.add_popup = !self.add_popup;
                 }
                 if self.entry_mode == EntryMode::Update {
@@ -277,6 +274,9 @@ impl App {
                 }
                 if self.entry_mode == EntryMode::Update {
                     self.update_stage = Stage::Finished;
+                }
+                if self.entry_mode == EntryMode::QuickAdd {
+                    self.add_stage = Stage::Finished;
                 }
             }
             KeyCode::Left => {

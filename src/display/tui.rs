@@ -16,9 +16,9 @@ use ratatui::{
 };
 use rusqlite::Connection;
 
-use crate::backend::config::{read_config, Config};
+use crate::backend::config::Config;
 use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
-use crate::backend::task::{self, Status, Task, TaskList, Urgency};
+use crate::backend::task::{Status, Task, TaskList, Urgency};
 use crate::display::add::{get_name, Inputs, Stage};
 
 use self::common::{init_terminal, install_hooks, restore_terminal};
@@ -224,6 +224,8 @@ pub struct App {
     // Tags related
     pub highlight_tags: bool,
     pub tags_highlight_value: usize,
+    // Quick actions
+    quick_action: bool,
 }
 
 impl App {
@@ -260,6 +262,7 @@ impl App {
             update_stage: Stage::default(),
             highlight_tags: false,
             tags_highlight_value: 0,
+            quick_action: false,
         })
     }
 
@@ -290,9 +293,28 @@ impl App {
             return Ok(());
         }
 
+        if self.quick_action {
+            match key.code {
+                KeyCode::Char('a') => {
+                    // Let user choose a name, then make task
+                    self.quick_add();
+                    self.quick_action = !self.quick_action;
+                    return Ok(());
+                }
+                KeyCode::Char('c') => {
+                    self.quick_status()?;
+                    self.quick_action = !self.quick_action;
+                    return Ok(());
+                }
+                _ => {
+                    self.quick_action = !self.quick_action;
+                }
+            }
+        }
+
         if self.delete_popup {
             match key.code {
-                KeyCode::Char('y') | KeyCode::Char('Y') => {
+                KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Char('d') => {
                     let current_selection = self.tasklist.state.selected().unwrap();
                     delete_task_in_db(&self.conn, &self.tasklist.tasks[current_selection])?;
                     self.update_tasklist()?;
@@ -402,6 +424,9 @@ impl App {
                     }
                     None => {}
                 },
+                KeyCode::Char('q') => {
+                    self.quick_action = !self.quick_action;
+                }
                 _ => {}
             },
             _ => {}

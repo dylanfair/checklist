@@ -6,13 +6,11 @@
 * Let user move cursor over into detailed box if they need to scroll into details (should the description be exceptionally long)
 * Should set a certain window size that the program just won't display for
 * Display cursor when needing to input text
+* Rearrange where actions are shown
 
 ### Actions
 * Need to set up what happens in the GUI when performing the following actions: 
   * Filter (by Tag)
-* Quick actions?
-  * Quick-add
-  * Quick-complete
 
 ### Backend
 
@@ -39,3 +37,6 @@
 * Urgency is showcased on list item better
 * Ability to delete tags
 * Config to keep last settings used?
+* Quick actions?
+  * Quick-add
+  * Quick-complete
