@@ -3,10 +3,8 @@
 ## Todo
 
 ### Display
-* Let user move cursor over into detailed box if they need to scroll into details (should the description be exceptionally long)
-* Should set a certain window size that the program just won't display for
 * Display cursor when needing to input text
-* Rearrange where actions are shown
+* Should set a certain window size that the program just won't display for
 
 ### Actions
 * Need to set up what happens in the GUI when performing the following actions: 
@@ -40,3 +38,6 @@
 * Quick actions?
   * Quick-add
   * Quick-complete
+* Rearrange where actions are shown
+* Task Info can be scrolled now
+* Keys can be scrolled now

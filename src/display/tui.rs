@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use anyhow::Result;
 use crossterm::event::KeyModifiers;
 use ratatui::symbols::scrollbar;
@@ -594,8 +592,8 @@ fn render_keys(f: &mut Frame, app: &mut App, rectangle: &Rect) {
         Line::from("CTRL →   - Adjust screen right"),
         Line::from("CTRL ↓   - Scroll Task Info down"),
         Line::from("CTRL ↑   - Scroll Task Info up"),
-        Line::from("ALT ↓   - Scroll Keys down"),
-        Line::from("ALT ↑   - Scroll Keys up"),
+        Line::from("ALT ↓    - Scroll Keys down"),
+        Line::from("ALT ↑    - Scroll Keys up"),
     ];
     let key_vec_lines_len = key_vec_lines.len();
 
