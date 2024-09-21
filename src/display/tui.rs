@@ -207,6 +207,8 @@ pub struct App {
     // Scrollbar related
     vertical_scroll_state: ScrollbarState,
     vertical_scroll: usize,
+    vertical_task_info_scroll_state: ScrollbarState,
+    vertical_task_info_scroll: usize,
     // Sizing related
     list_box_sizing: u16,
     // Popup related
@@ -251,6 +253,8 @@ impl App {
             taskinfo,
             vertical_scroll_state: ScrollbarState::default(),
             vertical_scroll: 0,
+            vertical_task_info_scroll_state: ScrollbarState::default(),
+            vertical_task_info_scroll: 0,
             list_box_sizing: 30,
             delete_popup: false,
             entry_mode: EntryMode::Add,
@@ -376,8 +380,8 @@ impl App {
             KeyModifiers::CONTROL => match key.code {
                 KeyCode::Right => self.adjust_listbox_sizing_right(),
                 KeyCode::Left => self.adjust_listbox_sizing_left(),
-                KeyCode::Up => self.select_first(),
-                KeyCode::Down => self.select_last(),
+                KeyCode::Up => self.adjust_task_info_scrollbar_up(),
+                KeyCode::Down => self.adjust_task_info_scrollbar_down(),
                 _ => {}
             },
             KeyModifiers::NONE => match key.code {
@@ -442,6 +446,20 @@ impl App {
     fn adjust_scrollbar_up(&mut self) {
         self.vertical_scroll = self.vertical_scroll.saturating_sub(1);
         self.vertical_scroll_state = self.vertical_scroll_state.position(self.vertical_scroll);
+    }
+
+    fn adjust_task_info_scrollbar_down(&mut self) {
+        self.vertical_task_info_scroll = self.vertical_task_info_scroll.saturating_add(1);
+        self.vertical_task_info_scroll_state = self
+            .vertical_task_info_scroll_state
+            .position(self.vertical_task_info_scroll);
+    }
+
+    fn adjust_task_info_scrollbar_up(&mut self) {
+        self.vertical_task_info_scroll = self.vertical_task_info_scroll.saturating_sub(1);
+        self.vertical_task_info_scroll_state = self
+            .vertical_task_info_scroll_state
+            .position(self.vertical_task_info_scroll);
     }
 
     fn select_none(&mut self) {
@@ -524,6 +542,9 @@ fn ui(f: &mut Frame, app: &mut App) {
     .split(chunks[1]);
 
     app.vertical_scroll_state = app.vertical_scroll_state.content_length(app.tasklist.len());
+    app.vertical_task_info_scroll_state = app
+        .vertical_task_info_scroll_state
+        .content_length(app.tasklist.len());
 
     let title = Block::new()
         .title_alignment(Alignment::Left)
@@ -579,6 +600,12 @@ fn ui(f: &mut Frame, app: &mut App) {
         .track_symbol(None)
         .end_symbol(Some("↓"));
 
+    let task_info_scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .symbols(scrollbar::VERTICAL)
+        .begin_symbol(Some("↑"))
+        .track_symbol(None)
+        .end_symbol(Some("↓"));
+
     f.render_stateful_widget(list, information[0], &mut app.tasklist.state);
     //Now the scrollbar
     f.render_stateful_widget(
@@ -610,10 +637,18 @@ fn ui(f: &mut Frame, app: &mut App) {
     // We can now render the item info
     let task_details = info
         .block(task_block)
-        //.scroll((app.vertical_scroll as u16, 0))
+        .scroll((app.vertical_task_info_scroll as u16, 0))
         //.fg(TEXT_FG_COLOR)
         .wrap(Wrap { trim: false });
     f.render_widget(task_details, information[1]);
+    f.render_stateful_widget(
+        task_info_scrollbar,
+        information[1].inner(ratatui::layout::Margin {
+            horizontal: 0,
+            vertical: 0,
+        }),
+        &mut app.vertical_task_info_scroll_state,
+    );
 
     //self.render_list(list_area, buf);
     //self.render_selected_item(item_area, buf);
