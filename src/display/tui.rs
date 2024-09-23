@@ -209,6 +209,12 @@ struct ScrollInfo {
     keys_scroll: usize,
 }
 
+#[derive(Default)]
+pub struct CursorInfo {
+    pub x: u16,
+    pub y: u16,
+}
+
 pub struct App {
     // Exit condition
     should_exit: bool,
@@ -218,6 +224,8 @@ pub struct App {
     runtime: Runtime,
     // Config
     pub config: Config,
+    // Cursor info
+    pub cursor_info: CursorInfo,
     // Task related
     pub tasklist: TaskList,
     taskinfo: TaskInfo,
@@ -263,6 +271,7 @@ impl App {
             conn,
             runtime,
             config,
+            cursor_info: CursorInfo::default(),
             tasklist,
             taskinfo,
             scroll_info: ScrollInfo::default(),

@@ -11,6 +11,7 @@ impl App {
         self.add_stage = Stage::Name;
         self.entry_mode = EntryMode::QuickAdd;
         self.add_popup = !self.add_popup;
+        self.character_index = 0;
         self.inputs = Inputs::default();
     }
 

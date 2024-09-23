@@ -3,7 +3,7 @@ use chrono::Local;
 use std::collections::HashSet;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
@@ -140,12 +140,12 @@ impl App {
 
     fn move_cursor_left(&mut self) {
         let cursor_moved_left = self.character_index.saturating_sub(1);
-        self.character_index = self.clamp_cursor(cursor_moved_left)
+        self.character_index = self.clamp_cursor(cursor_moved_left);
     }
 
     fn move_cursor_right(&mut self) {
         let cursor_moved_right = self.character_index.saturating_add(1);
-        self.character_index = self.clamp_cursor(cursor_moved_right)
+        self.character_index = self.clamp_cursor(cursor_moved_right);
     }
 
     fn enter_char(&mut self, new_char: char) {
@@ -278,6 +278,7 @@ impl App {
                 if self.entry_mode == EntryMode::QuickAdd {
                     self.add_stage = Stage::Finished;
                 }
+                self.character_index = 0;
             }
             KeyCode::Left => {
                 if key.modifiers == KeyModifiers::CONTROL {
@@ -578,6 +579,64 @@ impl App {
     }
 }
 
+fn text_cursor_logic(
+    f: &mut Frame,
+    app: &mut App,
+    area: Rect,
+    current_string: String,
+    x_offset: u16,
+    y_offset: u16,
+) {
+    let text_start_x = area.left() + x_offset;
+    let text_end_x = area.right() - x_offset;
+    let text_start_y = area.top() + y_offset;
+
+    let text_width = text_end_x - text_start_x;
+
+    //let mut character_quotient: usize = 0;
+    let mut quotients_seen = vec![0];
+    let mut current_characters: usize = 0;
+    let mut overflow_offset: usize = 0;
+
+    let current_string_split = current_string.split_whitespace();
+    for word in current_string_split {
+        current_characters += word.chars().count();
+        let new_character_quotient = current_characters / text_width as usize;
+
+        if !quotients_seen.contains(&new_character_quotient) {
+            let correction = current_characters - text_width as usize;
+            overflow_offset = word.chars().count() - correction;
+            //+ (current_characters - text_width as usize);
+            //app.inputs.name += &format!(
+            //    " {} - {} - {} - {}",
+            //    character_quotient, new_character_quotient, overflow_offset, word
+            //);
+            //character_quotient = new_character_quotient;
+            quotients_seen.push(new_character_quotient);
+            current_characters = 0;
+            continue;
+            //current_characters = word.chars().count();
+        }
+
+        current_characters += 1;
+    }
+
+    // basically when the character index exceeds the area,
+    // we want to + 1 to our y and then "reset" our x
+    //let character_remainder = app.character_index as u16 % text_width;
+    //let character_quotient = app.character_index as u16 / text_width;
+    let character_remainder = app.character_index % text_width as usize;
+    quotients_seen.sort();
+    let max_quotient = quotients_seen.iter().max().unwrap();
+
+    // Cursor logic
+    app.cursor_info.x = text_start_x + character_remainder as u16 + overflow_offset as u16;
+    //app.cursor_info.x = text_start_x + character_remainder as u16;
+    app.cursor_info.y = text_start_y + *max_quotient as u16;
+
+    f.set_cursor_position(Position::new(app.cursor_info.x, app.cursor_info.y));
+}
+
 pub fn get_stage(f: &mut Frame, area: Rect) {
     let block = Block::bordered().title("Updating task");
     let blurb = Paragraph::new(Text::from(vec![
@@ -603,11 +662,15 @@ pub fn get_stage(f: &mut Frame, area: Rect) {
 
 pub fn get_name(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::bordered().title("Name");
-    let blurb = Paragraph::new(Text::from(vec![
+
+    let line_vec = vec![
         Line::from("What do you want to name your task?"),
         Line::from(""),
         Line::from(app.inputs.name.as_str()),
-    ]));
+    ];
+    let line_vec_len = line_vec.len();
+
+    let blurb = Paragraph::new(Text::from(line_vec));
 
     let popup_contents = blurb
         .block(block)
@@ -617,15 +680,27 @@ pub fn get_name(f: &mut Frame, app: &mut App, area: Rect) {
     let popup_area = centered_ratio_rect(2, 3, area);
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, popup_area);
+
+    text_cursor_logic(
+        f,
+        app,
+        popup_area,
+        app.inputs.name.to_string(),
+        1,
+        line_vec_len as u16,
+    );
 }
 
 pub fn get_description(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::bordered().title("Description");
-    let blurb = Paragraph::new(Text::from(vec![
+    let line_vec = vec![
         Line::from("Feel free to add a description of your task"),
         Line::from(""),
         Line::from(app.inputs.description.as_str()),
-    ]));
+    ];
+    let line_vec_len = line_vec.len();
+
+    let blurb = Paragraph::new(Text::from(line_vec));
 
     let popup_contents = blurb
         .block(block)
@@ -635,15 +710,28 @@ pub fn get_description(f: &mut Frame, app: &mut App, area: Rect) {
     let popup_area = centered_ratio_rect(2, 3, area);
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, popup_area);
+
+    text_cursor_logic(
+        f,
+        app,
+        popup_area,
+        app.inputs.description.to_string(),
+        1,
+        line_vec_len as u16,
+    );
 }
 
 pub fn get_latest(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::bordered().title("Latest Updates");
-    let blurb = Paragraph::new(Text::from(vec![
+
+    let line_vec = vec![
         Line::from("Feel free to add an update if there is one"),
         Line::from(""),
         Line::from(app.inputs.latest.as_str()),
-    ]));
+    ];
+    let line_vec_len = line_vec.len();
+
+    let blurb = Paragraph::new(Text::from(line_vec));
 
     let popup_contents = blurb
         .block(block)
@@ -653,6 +741,15 @@ pub fn get_latest(f: &mut Frame, app: &mut App, area: Rect) {
     let popup_area = centered_ratio_rect(2, 3, area);
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, popup_area);
+
+    text_cursor_logic(
+        f,
+        app,
+        popup_area,
+        app.inputs.latest.to_string(),
+        1,
+        line_vec_len as u16,
+    );
 }
 
 pub fn get_urgency(f: &mut Frame, area: Rect) {
@@ -744,14 +841,18 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::new()
         .borders(Borders::LEFT | Borders::TOP | Borders::RIGHT)
         .title("Tags");
-    let blurb = Paragraph::new(Text::from(vec![
+
+    let line_vec = vec![
         Line::from("Feel free to add any tags here"),
         Line::from("If there is any text, pressing enter will turn it into a tag"),
         Line::from("Pressing Down (↓) will highlight a tag, which you can delete with 'd'"),
         Line::from("Pressing Up (↑) will return you to text editing"),
         Line::from(""),
         Line::from(app.inputs.tags_input.as_str()),
-    ]));
+    ];
+    let line_vec_len = line_vec.len();
+
+    let blurb = Paragraph::new(Text::from(line_vec));
     let popup_contents = blurb
         .block(block)
         .wrap(Wrap { trim: false })
@@ -784,4 +885,13 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, chunks[0]);
     f.render_widget(tags_blurb, chunks[1]);
+
+    text_cursor_logic(
+        f,
+        app,
+        popup_area,
+        app.inputs.tags_input.to_string(),
+        1,
+        line_vec_len as u16,
+    );
 }
