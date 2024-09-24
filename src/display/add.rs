@@ -595,43 +595,71 @@ fn text_cursor_logic(
 
     //let mut character_quotient: usize = 0;
     let mut quotients_seen = vec![0];
-    let mut current_characters: usize = 0;
+    let mut current_line_characters: usize = 0;
+    let mut total_display_characters: usize = 1;
     let mut overflow_offset: usize = 0;
+    //let mut overall_overflow: usize = 0;
+    //let mut current_line_of_words = vec![];
 
-    let current_string_split = current_string.split_whitespace();
-    for word in current_string_split {
-        current_characters += word.chars().count();
-        let new_character_quotient = current_characters / text_width as usize;
+    //let current_string_split = current_string.split_whitespace();
+    let mut current_line_words = vec![];
+    let mut word: String = String::new();
 
-        if !quotients_seen.contains(&new_character_quotient) {
-            let correction = current_characters - text_width as usize;
-            overflow_offset = word.chars().count() - correction;
-            //+ (current_characters - text_width as usize);
-            //app.inputs.name += &format!(
-            //    " {} - {} - {} - {}",
-            //    character_quotient, new_character_quotient, overflow_offset, word
-            //);
-            //character_quotient = new_character_quotient;
-            quotients_seen.push(new_character_quotient);
-            current_characters = 0;
-            continue;
-            //current_characters = word.chars().count();
+    for character in current_string.chars() {
+        current_line_characters += 1;
+        total_display_characters += 1;
+
+        if character == ' ' {
+            current_line_words.push(word.clone());
+            word = String::new();
+        } else {
+            word.push(character.clone());
         }
 
-        current_characters += 1;
+        let new_character_quotient = total_display_characters / text_width as usize;
+
+        if !quotients_seen.contains(&new_character_quotient) {
+            if character == ' ' {
+                total_display_characters -= 1;
+            }
+            overflow_offset = word.chars().count();
+            quotients_seen.push(new_character_quotient);
+            total_display_characters += overflow_offset;
+            current_line_characters = 0;
+        }
     }
+
+    //let current_string_split = current_string.split_inclusive(" ");
+    //for word in current_string_split {
+    //    //current_line_of_words.push(word);
+    //
+    //    current_line_characters += word.chars().count();
+    //    total_display_characters += word.chars().count();
+    //    let new_character_quotient = (total_display_characters) / text_width as usize;
+    //
+    //    if !quotients_seen.contains(&new_character_quotient) {
+    //        let correction = current_line_characters - text_width as usize;
+    //        overflow_offset = word.chars().count() - correction;
+    //        //overall_overflow += overflow_offset;
+    //        //current_line_characters = overflow_offset;
+    //        //continue;
+    //        quotients_seen.push(new_character_quotient);
+    //        total_display_characters += overflow_offset;
+    //        current_line_characters = word.chars().count();
+    //    }
+    //}
 
     // basically when the character index exceeds the area,
     // we want to + 1 to our y and then "reset" our x
     //let character_remainder = app.character_index as u16 % text_width;
     //let character_quotient = app.character_index as u16 / text_width;
-    let character_remainder = app.character_index % text_width as usize;
-    quotients_seen.sort();
-    let max_quotient = quotients_seen.iter().max().unwrap();
 
     // Cursor logic
+    let character_remainder = app.character_index % text_width as usize;
     app.cursor_info.x = text_start_x + character_remainder as u16 + overflow_offset as u16;
     //app.cursor_info.x = text_start_x + character_remainder as u16;
+
+    let max_quotient = quotients_seen.iter().max().unwrap();
     app.cursor_info.y = text_start_y + *max_quotient as u16;
 
     f.set_cursor_position(Position::new(app.cursor_info.x, app.cursor_info.y));
