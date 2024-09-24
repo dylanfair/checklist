@@ -596,7 +596,7 @@ fn text_cursor_logic(
     //let mut character_quotient: usize = 0;
     let mut quotients_seen = vec![0];
     let mut current_line_characters: usize = 0;
-    let mut total_display_characters: usize = 1;
+    let mut total_display_characters: usize = 0;
     let mut overflow_offset: usize = 0;
     //let mut overall_overflow: usize = 0;
     //let mut current_line_of_words = vec![];
@@ -656,6 +656,9 @@ fn text_cursor_logic(
 
     // Cursor logic
     let character_remainder = app.character_index % text_width as usize;
+    if current_line_characters == text_width as usize {
+        overflow_offset = 0;
+    }
     app.cursor_info.x = text_start_x + character_remainder as u16 + overflow_offset as u16;
     //app.cursor_info.x = text_start_x + character_remainder as u16;
 
