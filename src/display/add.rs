@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use chrono::Local;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};
@@ -588,79 +588,71 @@ fn text_cursor_logic(
     y_offset: u16,
 ) {
     let text_start_x = area.left() + x_offset;
-    let text_end_x = area.right() - x_offset;
+    let text_end_x = area.right();
     let text_start_y = area.top() + y_offset;
 
     let text_width = text_end_x - text_start_x;
 
-    //let mut character_quotient: usize = 0;
     let mut quotients_seen = vec![0];
-    let mut current_line_characters: usize = 0;
-    let mut total_display_characters: usize = 0;
     let mut overflow_offset: usize = 0;
-    //let mut overall_overflow: usize = 0;
-    //let mut current_line_of_words = vec![];
 
-    //let current_string_split = current_string.split_whitespace();
     let mut current_line_words = vec![];
     let mut word: String = String::new();
 
-    for character in current_string.chars() {
-        current_line_characters += 1;
-        total_display_characters += 1;
+    let mut hash_lines: HashMap<usize, Vec<String>> = HashMap::from([(0, vec![])]);
+    let mut latest_quotient = 0;
 
+    for character in current_string.chars() {
         if character == ' ' {
-            current_line_words.push(word.clone());
+            current_line_words.push(String::from(" "));
             word = String::new();
         } else {
             word.push(character.clone());
+            if word.len() > 1 {
+                current_line_words.pop(); // replace last word
+            }
+            current_line_words.push(word.clone());
         }
+        hash_lines.insert(latest_quotient, current_line_words.clone());
 
-        let new_character_quotient = total_display_characters / text_width as usize;
+        let total_chars: usize = hash_lines
+            .iter()
+            .map(|(_, v)| v.iter().map(|x| x.chars().count()).sum::<usize>())
+            .sum();
+
+        let new_character_quotient = total_chars / text_width as usize;
 
         if !quotients_seen.contains(&new_character_quotient) {
             if character == ' ' {
-                total_display_characters -= 1;
+                current_line_words = vec![];
+                //current_line_words.push(String::from(" "));
+            } else {
+                // correct prior line
+                // pop off last line
+                let latest_word = current_line_words.pop().unwrap();
+                // add number of spaces based on length of word remaining
+                overflow_offset = latest_word.chars().count();
+                for _ in 0..overflow_offset {
+                    current_line_words.push(String::from(" "));
+                }
+                // insert it in
+                hash_lines.insert(latest_quotient, current_line_words.clone());
+
+                current_line_words = vec![latest_word];
             }
-            overflow_offset = word.chars().count();
+            hash_lines.insert(new_character_quotient, current_line_words.clone());
             quotients_seen.push(new_character_quotient);
-            total_display_characters += overflow_offset;
-            current_line_characters = 0;
+            latest_quotient = new_character_quotient;
         }
     }
 
-    //let current_string_split = current_string.split_inclusive(" ");
-    //for word in current_string_split {
-    //    //current_line_of_words.push(word);
-    //
-    //    current_line_characters += word.chars().count();
-    //    total_display_characters += word.chars().count();
-    //    let new_character_quotient = (total_display_characters) / text_width as usize;
-    //
-    //    if !quotients_seen.contains(&new_character_quotient) {
-    //        let correction = current_line_characters - text_width as usize;
-    //        overflow_offset = word.chars().count() - correction;
-    //        //overall_overflow += overflow_offset;
-    //        //current_line_characters = overflow_offset;
-    //        //continue;
-    //        quotients_seen.push(new_character_quotient);
-    //        total_display_characters += overflow_offset;
-    //        current_line_characters = word.chars().count();
-    //    }
-    //}
-
-    // basically when the character index exceeds the area,
-    // we want to + 1 to our y and then "reset" our x
-    //let character_remainder = app.character_index as u16 % text_width;
-    //let character_quotient = app.character_index as u16 / text_width;
-
+    let latest_line = hash_lines.get(&latest_quotient).unwrap();
+    let latest_line_chars: usize = latest_line.iter().map(|x| x.chars().count()).sum();
     // Cursor logic
-    let character_remainder = app.character_index % text_width as usize;
-    if current_line_characters == text_width as usize {
-        overflow_offset = 0;
-    }
-    app.cursor_info.x = text_start_x + character_remainder as u16 + overflow_offset as u16;
-    //app.cursor_info.x = text_start_x + character_remainder as u16;
+    let character_remainder = latest_line_chars % text_width as usize;
+
+    app.cursor_info.x = text_start_x + character_remainder as u16; // + overflow_offset as u16;
+                                                                   //app.cursor_info.x = text_start_x + character_remainder as u16;
 
     let max_quotient = quotients_seen.iter().max().unwrap();
     app.cursor_info.y = text_start_y + *max_quotient as u16;
