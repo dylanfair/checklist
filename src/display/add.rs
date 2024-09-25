@@ -594,7 +594,6 @@ fn text_cursor_logic(
     let text_width = text_end_x - text_start_x;
 
     let mut quotients_seen = vec![0];
-    let mut overflow_offset: usize = 0;
 
     let mut current_line_words = vec![];
     let mut word: String = String::new();
@@ -617,47 +616,91 @@ fn text_cursor_logic(
 
         let total_chars: usize = hash_lines
             .iter()
-            .map(|(_, v)| v.iter().map(|x| x.chars().count()).sum::<usize>())
+            .map(|(_, v)| {
+                v.iter()
+                    .map(|x| {
+                        if x == "OVER FLOW" {
+                            return 1;
+                        }
+                        x.chars().count()
+                    })
+                    .sum::<usize>()
+            })
             .sum();
 
         let new_character_quotient = total_chars / text_width as usize;
 
         if !quotients_seen.contains(&new_character_quotient) {
             if character == ' ' {
+                // space gets "absorbed" in the box, so can use a blank vec
                 current_line_words = vec![];
-                //current_line_words.push(String::from(" "));
             } else {
                 // correct prior line
                 // pop off last line
                 let latest_word = current_line_words.pop().unwrap();
                 // add number of spaces based on length of word remaining
-                overflow_offset = latest_word.chars().count();
+                let overflow_offset = latest_word.chars().count();
                 for _ in 0..overflow_offset {
-                    current_line_words.push(String::from(" "));
+                    current_line_words.push(String::from("OVER FLOW"));
                 }
-                // insert it in
+                // insert it back in
                 hash_lines.insert(latest_quotient, current_line_words.clone());
 
+                // start a new curent_line with our word that overflowed
                 current_line_words = vec![latest_word];
             }
+            // insert newest into our hashmap
             hash_lines.insert(new_character_quotient, current_line_words.clone());
             quotients_seen.push(new_character_quotient);
             latest_quotient = new_character_quotient;
         }
     }
 
+    // todos, as user moves left and right, move the cursor with them
+    // biggest challenge, moving back up, but I think setting our overflow
+    // elements as OVER FLOW makes it easy for us to handle
+
+    // get length of our line
     let latest_line = hash_lines.get(&latest_quotient).unwrap();
-    let latest_line_chars: usize = latest_line.iter().map(|x| x.chars().count()).sum();
-    // Cursor logic
+    let latest_line_chars: usize = latest_line
+        .iter()
+        .map(|x| {
+            if x == "OVER FLOW" {
+                return 1;
+            }
+            x.chars().count()
+        })
+        .sum();
+
+    // Cursor logic - initial placement
     let character_remainder = latest_line_chars % text_width as usize;
+    app.cursor_info.x = text_start_x + character_remainder as u16;
+    app.cursor_info.y = text_start_y + latest_quotient as u16;
 
-    app.cursor_info.x = text_start_x + character_remainder as u16; // + overflow_offset as u16;
-                                                                   //app.cursor_info.x = text_start_x + character_remainder as u16;
+    // Cursor logic - adjustment
+    let mut x_adjustment = 0;
+    let mut y_adjustment = 0;
+    if app.character_index != 0 {
+        let total_chars_no_overflow: usize = hash_lines
+            .iter()
+            .map(|(_, v)| {
+                v.iter()
+                    .map(|x| {
+                        if x == "OVER FLOW" {
+                            return 1;
+                        }
+                        x.chars().count()
+                    })
+                    .sum::<usize>()
+            })
+            .sum();
+        y_adjustment = (total_chars_no_overflow / app.character_index) - 1;
+    }
 
-    let max_quotient = quotients_seen.iter().max().unwrap();
-    app.cursor_info.y = text_start_y + *max_quotient as u16;
-
-    f.set_cursor_position(Position::new(app.cursor_info.x, app.cursor_info.y));
+    f.set_cursor_position(Position::new(
+        app.cursor_info.x,
+        app.cursor_info.y - y_adjustment as u16,
+    ));
 }
 
 pub fn get_stage(f: &mut Frame, area: Rect) {
