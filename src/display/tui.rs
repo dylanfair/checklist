@@ -437,6 +437,7 @@ impl App {
                 KeyCode::Char('a') => {
                     self.add_popup = !self.add_popup;
                     self.inputs = Inputs::default();
+                    self.character_index = 0;
                     self.add_stage = Stage::Name;
                     self.entry_mode = EntryMode::Add;
                     self.highlight_tags = false;

@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use chrono::Local;
-use std::collections::{HashMap, HashSet};
+use clap::Parser;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};
@@ -82,12 +83,17 @@ impl Inputs {
 }
 
 impl App {
-    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
-        let stage = if self.entry_mode == EntryMode::Add {
-            &self.add_stage
-        } else {
-            &self.update_stage
+    fn get_stage_off_entry_mode(&self) -> &Stage {
+        let stage = match self.entry_mode {
+            EntryMode::Add => &self.add_stage,
+            EntryMode::QuickAdd => &self.add_stage,
+            EntryMode::Update => &self.update_stage,
         };
+        stage
+    }
+
+    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
+        let stage = self.get_stage_off_entry_mode();
 
         match stage {
             Stage::Name => new_cursor_pos.clamp(0, self.inputs.name.chars().count()),
@@ -99,11 +105,7 @@ impl App {
     }
 
     fn byte_index(&self) -> usize {
-        let stage = if self.entry_mode == EntryMode::Add {
-            &self.add_stage
-        } else {
-            &self.update_stage
-        };
+        let stage = self.get_stage_off_entry_mode();
 
         match stage {
             Stage::Name => self
@@ -151,11 +153,7 @@ impl App {
     fn enter_char(&mut self, new_char: char) {
         let index = self.byte_index();
 
-        let stage = if self.entry_mode == EntryMode::Add {
-            &self.add_stage
-        } else {
-            &self.update_stage
-        };
+        let stage = self.get_stage_off_entry_mode();
 
         match stage {
             Stage::Name => self.inputs.name.insert(index, new_char),
@@ -173,11 +171,7 @@ impl App {
             let current_index = self.character_index;
             let from_left_to_current_index = current_index - 1;
 
-            let stage = if self.entry_mode == EntryMode::Add {
-                &self.add_stage
-            } else {
-                &self.update_stage
-            };
+            let stage = self.get_stage_off_entry_mode();
 
             match stage {
                 Stage::Name => {
@@ -251,6 +245,7 @@ impl App {
                         .len();
                 }
                 if ch == '6' {
+                    self.character_index = 0;
                     self.update_stage = Stage::Tags;
                 }
             }
@@ -321,6 +316,7 @@ impl App {
                     self.inputs.tags.insert(self.inputs.tags_input.to_string());
                     self.inputs.tags_input = "".to_string();
                 }
+                self.character_index = 0;
             }
             _ => {}
         }
@@ -587,6 +583,13 @@ fn text_cursor_logic(
     x_offset: u16,
     y_offset: u16,
 ) {
+    // Idea: create a BtreeMap where
+    // keys - the line row
+    // values - the line contents as a vector of strings (words)
+    //
+    // afterwards, we can use it to calculate where our cursor
+    // needs to be based on app.character_index
+
     let text_start_x = area.left() + x_offset;
     let text_end_x = area.right();
     let text_start_y = area.top() + y_offset;
@@ -594,11 +597,10 @@ fn text_cursor_logic(
     let text_width = text_end_x - text_start_x;
 
     let mut quotients_seen = vec![0];
-
     let mut current_line_words = vec![];
     let mut word: String = String::new();
 
-    let mut hash_lines: HashMap<usize, Vec<String>> = HashMap::from([(0, vec![])]);
+    let mut hash_lines: BTreeMap<usize, Vec<String>> = BTreeMap::from([(0, vec![])]);
     let mut latest_quotient = 0;
 
     for character in current_string.chars() {
@@ -656,51 +658,33 @@ fn text_cursor_logic(
         }
     }
 
-    // todos, as user moves left and right, move the cursor with them
-    // biggest challenge, moving back up, but I think setting our overflow
-    // elements as OVER FLOW makes it easy for us to handle
-
-    // get length of our line
-    let latest_line = hash_lines.get(&latest_quotient).unwrap();
-    let latest_line_chars: usize = latest_line
-        .iter()
-        .map(|x| {
-            if x == "OVER FLOW" {
-                return 1;
-            }
-            x.chars().count()
-        })
-        .sum();
-
-    // Cursor logic - initial placement
-    let character_remainder = latest_line_chars % text_width as usize;
-    app.cursor_info.x = text_start_x + character_remainder as u16;
-    app.cursor_info.y = text_start_y + latest_quotient as u16;
-
     // Cursor logic - adjustment
-    let mut x_adjustment = 0;
-    let mut y_adjustment = 0;
-    if app.character_index != 0 {
-        let total_chars_no_overflow: usize = hash_lines
-            .iter()
-            .map(|(_, v)| {
-                v.iter()
-                    .map(|x| {
-                        if x == "OVER FLOW" {
-                            return 1;
-                        }
-                        x.chars().count()
-                    })
-                    .sum::<usize>()
-            })
-            .sum();
-        y_adjustment = (total_chars_no_overflow / app.character_index) - 1;
+    let mut x = app.character_index;
+    let mut row = 0;
+
+    if app.character_index > 0 {
+        for (k, v) in hash_lines.iter() {
+            let line_length: usize = v
+                .iter()
+                .map(|x| {
+                    if x == "OVER FLOW" {
+                        return 0;
+                    }
+                    x.chars().count()
+                })
+                .sum();
+            row = *k;
+
+            if x <= line_length {
+                break;
+            }
+            x -= line_length;
+        }
     }
 
-    f.set_cursor_position(Position::new(
-        app.cursor_info.x,
-        app.cursor_info.y - y_adjustment as u16,
-    ));
+    app.cursor_info.x = text_start_x + x as u16;
+    app.cursor_info.y = text_start_y + row as u16;
+    f.set_cursor_position(Position::new(app.cursor_info.x, app.cursor_info.y));
 }
 
 pub fn get_stage(f: &mut Frame, area: Rect) {
@@ -729,13 +713,15 @@ pub fn get_stage(f: &mut Frame, area: Rect) {
 pub fn get_name(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::bordered().title("Name");
 
+    let instructions = "What do you want to name your task?";
+    let instructions_len = instructions.chars().count();
+
     let line_vec = vec![
-        Line::from("What do you want to name your task?"),
+        Line::from(instructions),
         Line::from(""),
         Line::from(app.inputs.name.as_str()),
     ];
     let line_vec_len = line_vec.len();
-
     let blurb = Paragraph::new(Text::from(line_vec));
 
     let popup_contents = blurb
@@ -747,20 +733,28 @@ pub fn get_name(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, popup_area);
 
+    // If our text wraps, we want to start our cursor accordingly
+    let text_width = popup_area.right() - popup_area.left() - 1;
+    let y_offset = instructions_len as u16 / text_width;
+
     text_cursor_logic(
         f,
         app,
         popup_area,
         app.inputs.name.to_string(),
         1,
-        line_vec_len as u16,
+        line_vec_len as u16 + y_offset,
     );
 }
 
 pub fn get_description(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::bordered().title("Description");
+
+    let instructions = "Feel free to add a description of your task";
+    let instructions_len = instructions.chars().count();
+
     let line_vec = vec![
-        Line::from("Feel free to add a description of your task"),
+        Line::from(instructions),
         Line::from(""),
         Line::from(app.inputs.description.as_str()),
     ];
@@ -777,21 +771,27 @@ pub fn get_description(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, popup_area);
 
+    // If our text wraps, we want to start our cursor accordingly
+    let text_width = popup_area.right() - popup_area.left() - 1;
+    let y_offset = instructions_len as u16 / text_width;
+
     text_cursor_logic(
         f,
         app,
         popup_area,
         app.inputs.description.to_string(),
         1,
-        line_vec_len as u16,
+        line_vec_len as u16 + y_offset,
     );
 }
 
 pub fn get_latest(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::bordered().title("Latest Updates");
 
+    let instructions = "Feel free to add an update if there is one";
+    let instructions_len = instructions.chars().count();
     let line_vec = vec![
-        Line::from("Feel free to add an update if there is one"),
+        Line::from(instructions),
         Line::from(""),
         Line::from(app.inputs.latest.as_str()),
     ];
@@ -808,13 +808,17 @@ pub fn get_latest(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, popup_area);
 
+    // If our text wraps, we want to start our cursor accordingly
+    let text_width = popup_area.right() - popup_area.left() - 1;
+    let y_offset = instructions_len as u16 / text_width;
+
     text_cursor_logic(
         f,
         app,
         popup_area,
         app.inputs.latest.to_string(),
         1,
-        line_vec_len as u16,
+        line_vec_len as u16 + y_offset,
     );
 }
 
@@ -907,15 +911,31 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::new()
         .borders(Borders::LEFT | Borders::TOP | Borders::RIGHT)
         .title("Tags");
+    let popup_area = centered_ratio_rect(2, 2, area);
+    let chunks =
+        Layout::vertical([Constraint::Ratio(3, 4), Constraint::Ratio(1, 4)]).split(popup_area);
 
-    let line_vec = vec![
-        Line::from("Feel free to add any tags here"),
-        Line::from("If there is any text, pressing enter will turn it into a tag"),
-        Line::from("Pressing Down (↓) will highlight a tag, which you can delete with 'd'"),
-        Line::from("Pressing Up (↑) will return you to text editing"),
-        Line::from(""),
-        Line::from(app.inputs.tags_input.as_str()),
+    let text_width = popup_area.right() - popup_area.left() - 1;
+
+    let instructions = vec![
+        //"Feel free to add any tags here",
+        "ENTER (with text) - create a tag",
+        "ENTER (no text) - finish",
+        "Pressing Down (↓) will highlight a tag, which you can delete with 'd'",
+        "Pressing Up (↑) will return you to text editing",
     ];
+
+    let mut line_vec = vec![];
+    let mut y_offset = 0;
+    for instruction in instructions {
+        let char_count = instruction.chars().count();
+        y_offset += char_count as u16 / text_width;
+
+        line_vec.push(Line::from(instruction))
+    }
+
+    line_vec.push(Line::from(""));
+    line_vec.push(Line::from(app.inputs.tags_input.as_str()));
     let line_vec_len = line_vec.len();
 
     let blurb = Paragraph::new(Text::from(line_vec));
@@ -942,11 +962,8 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
     let tags_line = Line::from(tags_span_vec);
     let tags_blurb = Paragraph::new(Text::from(vec![tags_line]))
         .block(Block::new().borders(Borders::LEFT | Borders::BOTTOM | Borders::RIGHT))
-        .bg(Color::Black);
-
-    let popup_area = centered_ratio_rect(2, 3, area);
-    let chunks =
-        Layout::vertical([Constraint::Ratio(2, 3), Constraint::Ratio(1, 3)]).split(popup_area);
+        .bg(Color::Black)
+        .alignment(Alignment::Left);
 
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, chunks[0]);
@@ -958,6 +975,6 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
         popup_area,
         app.inputs.tags_input.to_string(),
         1,
-        line_vec_len as u16,
+        line_vec_len as u16 + y_offset,
     );
 }

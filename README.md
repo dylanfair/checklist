@@ -3,8 +3,8 @@
 ## Todo
 
 ### Display
-* Display cursor when needing to input text
 * Should set a certain window size that the program just won't display for
+* Remove the older display stuff
 
 ### Actions
 * Need to set up what happens in the GUI when performing the following actions: 
@@ -41,3 +41,4 @@
 * Rearrange where actions are shown
 * Task Info can be scrolled now
 * Keys can be scrolled now
+* Display cursor when needing to input text
