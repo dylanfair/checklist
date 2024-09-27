@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use chrono::Local;
-use clap::Parser;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Alignment, Constraint, Layout, Position, Rect};

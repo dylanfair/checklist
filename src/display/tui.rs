@@ -1,17 +1,13 @@
 use anyhow::Result;
 use crossterm::event::KeyModifiers;
-use ratatui::symbols::scrollbar;
 use ratatui::Frame;
 use ratatui::{
     backend::Backend,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-    layout::{Alignment, Constraint, Layout, Rect},
-    style::{palette::tailwind::SLATE, Color, Modifier, Style, Stylize},
-    text::{Line, Span, Text},
-    widgets::{
-        Block, Borders, Clear, HighlightSpacing, List, ListItem, Paragraph, Scrollbar,
-        ScrollbarOrientation, ScrollbarState, Wrap,
-    },
+    layout::{Constraint, Layout, Rect},
+    style::{Color, Style, Stylize},
+    text::{Line, Span},
+    widgets::{ListItem, Paragraph, ScrollbarState},
     Terminal,
 };
 use rusqlite::Connection;
@@ -20,19 +16,14 @@ use crate::backend::config::Config;
 use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
 use crate::backend::task::{Status, Task, TaskList, Urgency};
 use crate::display::add::{get_name, Inputs, Stage};
+use crate::display::render::{render_delete_popup, render_keys, render_task_info, render_tasks};
 
 use self::common::{init_terminal, install_hooks, restore_terminal};
 
 use super::add::{
     get_description, get_latest, get_stage, get_status, get_tags, get_urgency, EntryMode,
 };
-
-//const TODO_HEADER_STYLE: Style = Style::new().fg(SLATE.c100).bg(BLUE.c800);
-const NORMAL_ROW_BG: Color = SLATE.c950;
-const ALT_ROW_BG_COLOR: Color = SLATE.c900;
-const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).add_modifier(Modifier::BOLD);
-//const TEXT_FG_COLOR: Color = SLATE.c200;
-//const COMPLETED_TEXT_FG_COLOR: Color = GREEN.c500;
+use super::render::render_state;
 
 impl Status {
     pub fn to_colored_span(&self) -> Span<'_> {
@@ -84,7 +75,7 @@ impl Task {
         }
     }
 
-    fn to_listitem(&self) -> ListItem {
+    pub fn to_listitem(&self) -> ListItem {
         let line = match self.status {
             Status::Completed => {
                 let spans = vec![
@@ -110,7 +101,7 @@ impl Task {
         ListItem::new(line)
     }
 
-    fn to_text_vec(&self) -> Vec<Line> {
+    pub fn to_text_vec(&self) -> Vec<Line> {
         let completion_date = match self.completed_on {
             Some(date) => format!(" - {}", date.date_naive().to_string()),
             None => String::from(""),
@@ -156,7 +147,7 @@ impl Task {
         text
     }
 
-    fn to_paragraph(&self) -> Paragraph {
+    pub fn to_paragraph(&self) -> Paragraph {
         let text = self.to_text_vec();
 
         Paragraph::new(text)
@@ -197,16 +188,16 @@ enum Runtime {
 }
 
 #[derive(Default)]
-struct ScrollInfo {
+pub struct ScrollInfo {
     // list
-    list_scroll_state: ScrollbarState,
-    list_scroll: usize,
+    pub list_scroll_state: ScrollbarState,
+    pub list_scroll: usize,
     // task info
-    task_info_scroll_state: ScrollbarState,
-    task_info_scroll: usize,
+    pub task_info_scroll_state: ScrollbarState,
+    pub task_info_scroll: usize,
     // keys info
-    keys_scroll_state: ScrollbarState,
-    keys_scroll: usize,
+    pub keys_scroll_state: ScrollbarState,
+    pub keys_scroll: usize,
 }
 
 #[derive(Default)]
@@ -230,7 +221,7 @@ pub struct App {
     pub tasklist: TaskList,
     taskinfo: TaskInfo,
     // Scrollbar related
-    scroll_info: ScrollInfo,
+    pub scroll_info: ScrollInfo,
     // Sizing related
     list_box_sizing: u16,
     // Popup related
@@ -559,222 +550,48 @@ impl App {
 
     fn adjust_listbox_sizing_right(&mut self) {
         let new_size = self.list_box_sizing as i16 + 5;
-        if new_size >= 80 {
-            self.list_box_sizing = 80
+        if new_size >= 90 {
+            self.list_box_sizing = 90
         } else {
             self.list_box_sizing = new_size as u16
         }
     }
 }
 
-const fn alternate_colors(i: usize) -> Color {
-    if i % 2 == 0 {
-        NORMAL_ROW_BG
-    } else {
-        ALT_ROW_BG_COLOR
-    }
-}
-
-fn render_keys(f: &mut Frame, app: &mut App, rectangle: &Rect) {
-    // Render actions definitions
-    let key_block = Block::new()
-        .title(Line::raw("Keys").left_aligned())
-        .borders(Borders::ALL)
-        .bg(NORMAL_ROW_BG);
-
-    let key_vec_lines = vec![
-        Line::from("Actions:".underlined()),
-        Line::from("a        - Add"),
-        Line::from("u        - Update"),
-        Line::from("d        - Delete"),
-        Line::from("x or ESC - Exit"),
-        Line::from("f        - Filter on Status"),
-        Line::from("s        - Sort on Urgency"),
-        Line::from(""),
-        Line::from("Quick Actions:".underlined()),
-        Line::from("qa       - Quick Add"),
-        Line::from("qc       - Quick Complete"),
-        Line::from(""),
-        Line::from("Move/Adjustment:".underlined()),
-        Line::from("↓ or j   - Move down task"),
-        Line::from("↑ or k   - Move up task"),
-        Line::from("CTRL ←   - Adjust screen left"),
-        Line::from("CTRL →   - Adjust screen right"),
-        Line::from("CTRL ↓   - Scroll Task Info down"),
-        Line::from("CTRL ↑   - Scroll Task Info up"),
-        Line::from("ALT ↓    - Scroll Keys down"),
-        Line::from("ALT ↑    - Scroll Keys up"),
-    ];
-    let key_vec_lines_len = key_vec_lines.len();
-
-    let key_text = Text::from(key_vec_lines);
-    let key_paragraph = Paragraph::new(key_text)
-        .block(key_block)
-        .scroll((app.scroll_info.keys_scroll as u16, 0));
-
-    f.render_widget(key_paragraph, *rectangle);
-
-    // keys scrollbar
-    app.scroll_info.keys_scroll_state = app
-        .scroll_info
-        .keys_scroll_state
-        .content_length(key_vec_lines_len);
-
-    let keys_scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-        .symbols(scrollbar::VERTICAL)
-        .begin_symbol(Some("↑"))
-        .track_symbol(None)
-        .end_symbol(Some("↓"));
-
-    f.render_stateful_widget(
-        keys_scrollbar,
-        rectangle.inner(ratatui::layout::Margin {
-            horizontal: 0,
-            vertical: 0,
-        }),
-        &mut app.scroll_info.keys_scroll_state,
-    );
-}
-
-fn render_tasks(f: &mut Frame, app: &mut App, rectangle: &Rect) {
-    // Now render our tasks
-    let list_block = Block::new()
-        .title(Line::raw("Tasks").left_aligned())
-        .borders(Borders::ALL)
-        //.border_set(symbols::border::EMPTY)
-        //.border_style(TODO_HEADER_STYLE)
-        .bg(NORMAL_ROW_BG);
-
-    // Iterate through all elements in the `items` and stylize them.
-    let items: Vec<ListItem> = app
-        .tasklist
-        .tasks
-        .iter()
-        .enumerate()
-        .map(|(i, task_item)| {
-            let color = alternate_colors(i);
-            let list_item = task_item.to_listitem();
-            list_item.bg(color)
-        })
-        .collect();
-
-    // Create a List from all list items and highlight the currently selected one
-    let list = List::new(items)
-        .block(list_block)
-        .highlight_style(SELECTED_STYLE)
-        .highlight_symbol(">")
-        .highlight_spacing(HighlightSpacing::Always);
-
-    let list_scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-        .symbols(scrollbar::VERTICAL)
-        .begin_symbol(Some("↑"))
-        .track_symbol(None)
-        .end_symbol(Some("↓"));
-
-    f.render_stateful_widget(list, *rectangle, &mut app.tasklist.state);
-
-    //Now the scrollbar
-    app.scroll_info.list_scroll_state = app
-        .scroll_info
-        .list_scroll_state
-        .content_length(app.tasklist.len());
-
-    f.render_stateful_widget(
-        list_scrollbar,
-        rectangle.inner(ratatui::layout::Margin {
-            horizontal: 0,
-            vertical: 0,
-        }),
-        &mut app.scroll_info.list_scroll_state,
-    );
-}
-
-fn render_task_info(f: &mut Frame, app: &mut App, rectangle: &Rect) {
-    let info = if let Some(i) = app.tasklist.state.selected() {
-        match app.tasklist.tasks[i].status {
-            _ => app.tasklist.tasks[i].to_paragraph(),
-        }
-    } else {
-        Paragraph::new("Nothing selected...")
-    };
-
-    let text_len = app.tasklist.tasks[app.tasklist.state.selected().unwrap_or(0)]
-        .to_text_vec()
-        .len();
-
-    // We show the list item's info under the list in this paragraph
-    let task_block = Block::new()
-        .title(Line::raw("Task Info"))
-        .borders(Borders::ALL)
-        //.border_set(symbols::border::EMPTY)
-        //.border_style(TODO_HEADER_STYLE)
-        .bg(NORMAL_ROW_BG);
-
-    // We can now render the item info
-    let task_details = info
-        .block(task_block)
-        .scroll((app.scroll_info.task_info_scroll as u16, 0))
-        //.fg(TEXT_FG_COLOR)
-        .wrap(Wrap { trim: false });
-    f.render_widget(task_details, *rectangle);
-
-    // Scrollbar
-    app.scroll_info.task_info_scroll_state = app
-        .scroll_info
-        .task_info_scroll_state
-        .content_length(text_len);
-
-    let task_info_scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-        .symbols(scrollbar::VERTICAL)
-        .begin_symbol(Some("↑"))
-        .track_symbol(None)
-        .end_symbol(Some("↓"));
-
-    f.render_stateful_widget(
-        task_info_scrollbar,
-        rectangle.inner(ratatui::layout::Margin {
-            horizontal: 0,
-            vertical: 0,
-        }),
-        &mut app.scroll_info.task_info_scroll_state,
-    );
-}
-
 fn ui(f: &mut Frame, app: &mut App) {
     let area = f.area();
 
-    let chunks = Layout::vertical([
-        Constraint::Percentage(5),  // Header/title
-        Constraint::Percentage(90), // Main
-        Constraint::Percentage(5),  // Footer
-    ])
-    .split(area);
+    //let chunks = Layout::vertical([
+    //    Constraint::Percentage(100), // Main
+    //])
+    //.split(area);
 
     let information = Layout::horizontal([
         Constraint::Percentage(app.list_box_sizing),
         Constraint::Percentage(100 - app.list_box_sizing),
         Constraint::Min(35),
+        Constraint::Min(35),
     ])
-    .split(chunks[1]);
+    .split(area);
 
     // Scroll states
 
-    let title = Block::new()
-        .title_alignment(Alignment::Left)
-        .title("Welcome to your Checklist!");
-    f.render_widget(title, chunks[0]);
+    //let title = Block::new()
+    //    .title_alignment(Alignment::Left)
+    //    .title("Welcome to your Checklist!");
+    //f.render_widget(title, chunks[0]);
 
-    let urgency_sort_string = match app.config.urgency_sort_desc {
-        true => "descending".to_string().blue(),
-        false => "ascending".to_string().red(),
-    };
-
-    let footer_text = Text::from(vec![Line::from(format!(
-        "Actions: (a)dd (u)pdate (d)elete e(x)it | current (f)ilter: {} | urgency (s)ort: {}",
-        app.config.display_filter, urgency_sort_string
-    ))]);
-    let footer = Paragraph::new(footer_text).centered();
-    f.render_widget(footer, chunks[2]);
+    //let urgency_sort_string = match app.config.urgency_sort_desc {
+    //    true => "descending".to_string().blue(),
+    //    false => "ascending".to_string().red(),
+    //};
+    //
+    //let footer_text = Text::from(vec![Line::from(format!(
+    //    "Actions: (a)dd (u)pdate (d)elete e(x)it | current (f)ilter: {} | urgency (s)ort: {}",
+    //    app.config.display_filter, urgency_sort_string
+    //))]);
+    //let footer = Paragraph::new(footer_text).centered();
+    //f.render_widget(footer, chunks[2]);
 
     // Render tasks
     render_tasks(f, app, &information[0]);
@@ -782,26 +599,16 @@ fn ui(f: &mut Frame, app: &mut App) {
     // Render task info
     render_task_info(f, app, &information[1]);
 
+    // Render task state
+    render_state(f, app, &information[2]);
+
     // Render keys block
-    render_keys(f, app, &information[2]);
+    render_keys(f, app, &information[3]);
 
     // popup renders
     // delete
     if app.delete_popup {
-        let delete_block = Block::bordered().title("Delete current task?");
-        let blurb = Paragraph::new(Text::from(vec![
-            Line::from("Are you sure you want to delete this task? (y)es (n)o"),
-            //Line::from("(y)es (n)o"),
-        ]));
-
-        let delete_popup_contents = blurb
-            .block(delete_block)
-            .wrap(Wrap { trim: false })
-            .alignment(Alignment::Center)
-            .bg(Color::Black);
-        let delete_popup_area = centered_ratio_rect(2, 3, area);
-        f.render_widget(Clear, delete_popup_area);
-        f.render_widget(delete_popup_contents, delete_popup_area);
+        render_delete_popup(f, area);
     }
 
     // add

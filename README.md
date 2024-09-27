@@ -4,7 +4,6 @@
 
 ### Display
 * Should set a certain window size that the program just won't display for
-* Remove the older display stuff
 
 ### Actions
 * Need to set up what happens in the GUI when performing the following actions: 
