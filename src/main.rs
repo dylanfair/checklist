@@ -43,7 +43,7 @@ enum Commands {
         set: Option<PathBuf>,
     },
 
-    /// List out tasks
+    /// List out not completed tasks
     List {
         /// Optional: Different display options
         /// By default will show tasks not-completed
@@ -56,7 +56,7 @@ enum Commands {
         tag: Option<Vec<String>>,
     },
 
-    /// Wipe out all tasks in the sqlite database
+    /// Wipe out all tasks
     Wipe {
         /// Bypass confirmation check
         #[arg(short)]
@@ -98,8 +98,11 @@ enum Commands {
     Display {
         /// For testing, switches between ratatui or my hand-rolled interface
         #[arg(long)]
-        display: bool,
+        old: bool,
     },
+
+    /// Tells you where the sqlite db that stores your task are
+    Where {},
 }
 
 fn main() -> Result<()> {
@@ -155,13 +158,33 @@ fn main() -> Result<()> {
             wipe_tasks(&conn, yes, hard)?
         }
 
-        Some(Commands::Display { display }) => {
-            let config = read_config(cli.test)?;
-            if display {
+        Some(Commands::Display { old }) => {
+            let config = match read_config(cli.test) {
+                Ok(config) => config,
+                Err(_) => {
+                    create_sqlite_db(cli.test)?;
+                    println!("Successfully created the database to store your items in!");
+                    read_config(cli.test).unwrap()
+                }
+            };
+            if old {
                 run_ui(cli.memory, cli.test)?;
             } else {
                 run_tui(cli.memory, cli.test, config)?;
             }
+        }
+
+        Some(Commands::Where {}) => {
+            let config = match read_config(cli.test) {
+                Ok(config) => config,
+                Err(_) => {
+                    create_sqlite_db(cli.test)?;
+                    println!("Successfully created the database to store your items in!");
+                    read_config(cli.test).unwrap()
+                }
+            };
+            println!("Your tasks are stored in the following database:");
+            println!("{}", config.db_path.to_str().unwrap());
         }
 
         None => {}

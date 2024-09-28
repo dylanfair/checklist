@@ -400,11 +400,6 @@ impl App {
                 KeyCode::Down => self.adjust_keys_scrollbar_down(),
                 _ => {}
             },
-            KeyModifiers::ALT => match key.code {
-                KeyCode::Up => self.adjust_keys_scrollbar_up(),
-                KeyCode::Down => self.adjust_keys_scrollbar_down(),
-                _ => {}
-            },
             KeyModifiers::NONE => match key.code {
                 KeyCode::Char('x') | KeyCode::Esc => self.should_exit = true,
                 KeyCode::Char('s') => {

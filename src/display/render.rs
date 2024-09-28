@@ -91,10 +91,10 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: &Rect) {
         Line::from("↑ or k   - Move up task".yellow()),
         Line::from("CTRL ←   - Adjust screen left".yellow()),
         Line::from("CTRL →   - Adjust screen right".yellow()),
-        Line::from("CTRL ↓   - Scroll Task Info down".yellow()),
         Line::from("CTRL ↑   - Scroll Task Info up".yellow()),
-        Line::from("ALT ↓    - Scroll Keys down".yellow()),
-        Line::from("ALT ↑    - Scroll Keys up".yellow()),
+        Line::from("CTRL ↓   - Scroll Task Info down".yellow()),
+        Line::from("SHIFT ↑  - Scroll Keys up".yellow()),
+        Line::from("SHIFT ↓  - Scroll Keys down".yellow()),
     ];
     let key_vec_lines_len = key_vec_lines.len();
 
