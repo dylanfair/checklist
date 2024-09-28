@@ -160,7 +160,17 @@ fn main() -> Result<()> {
             println!("{}", config.db_path.to_str().unwrap());
         }
 
-        None => {}
+        None => {
+            let config = match read_config(cli.test) {
+                Ok(config) => config,
+                Err(_) => {
+                    create_sqlite_db(cli.test)?;
+                    println!("Successfully created the database to store your items in!");
+                    read_config(cli.test).unwrap()
+                }
+            };
+            run_tui(cli.memory, cli.test, config)?;
+        }
     }
 
     Ok(())
