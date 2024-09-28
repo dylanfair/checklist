@@ -569,7 +569,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     let information = Layout::horizontal([
         Constraint::Percentage(app.list_box_sizing),
         Constraint::Percentage(100 - app.list_box_sizing),
-        Constraint::Min(35),
+        Constraint::Min(25),
         Constraint::Min(35),
     ])
     .split(area);
