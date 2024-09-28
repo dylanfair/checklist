@@ -363,6 +363,7 @@ impl TaskList {
                     None => continue 'task,
                 }
             } else {
+                // if tags_filter is empty, we just push everything
                 tasks_to_keep.push(task.clone());
             }
         }
