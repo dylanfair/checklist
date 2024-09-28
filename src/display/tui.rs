@@ -409,6 +409,7 @@ impl App {
             KeyModifiers::SHIFT => match key.code {
                 KeyCode::Up => self.adjust_keys_scrollbar_up(),
                 KeyCode::Down => self.adjust_keys_scrollbar_down(),
+                KeyCode::Char('G') => self.select_last(),
                 _ => {}
             },
             KeyModifiers::NONE => match key.code {
@@ -431,7 +432,7 @@ impl App {
                     self.adjust_list_scrollbar_up();
                 }
                 KeyCode::Char('g') | KeyCode::Home => self.select_first(),
-                KeyCode::Char('G') | KeyCode::End => self.select_last(),
+                KeyCode::End => self.select_last(),
                 KeyCode::Char('d') => match self.tasklist.state.selected() {
                     Some(_) => self.delete_popup = !self.delete_popup,
                     None => {}

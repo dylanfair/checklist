@@ -106,6 +106,8 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: &Rect) {
         Line::from("Move/Adjustment:".underlined()),
         Line::from("↓ or j   - Move down task".yellow()),
         Line::from("↑ or k   - Move up task".yellow()),
+        Line::from("g or HOME- Move to first task".yellow()),
+        Line::from("G or END - Move to last task".yellow()),
         Line::from("CTRL ←   - Adjust screen left".yellow()),
         Line::from("CTRL →   - Adjust screen right".yellow()),
         Line::from("CTRL ↑   - Scroll Task Info up".yellow()),
