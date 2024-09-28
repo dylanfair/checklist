@@ -171,16 +171,6 @@ pub fn run_tui(
     Ok(())
 }
 
-struct TaskInfo {
-    tags_filter: Option<Vec<String>>,
-}
-
-impl TaskInfo {
-    fn new() -> Self {
-        Self { tags_filter: None }
-    }
-}
-
 enum Runtime {
     Memory,
     Test,
@@ -219,14 +209,13 @@ pub struct App {
     pub cursor_info: CursorInfo,
     // Task related
     pub tasklist: TaskList,
-    taskinfo: TaskInfo,
     // Scrollbar related
     pub scroll_info: ScrollInfo,
     // Sizing related
     list_box_sizing: u16,
     // Popup related
     delete_popup: bool,
-    // Entry related (add or update)
+    // Entry related (add, quick_add, or update)
     pub entry_mode: EntryMode,
     // Add related
     pub add_popup: bool,
@@ -239,6 +228,9 @@ pub struct App {
     // Tags related
     pub highlight_tags: bool,
     pub tags_highlight_value: usize,
+    // Tags filtering
+    pub enter_tags_filter: bool,
+    pub tags_filter_value: String,
     // Quick actions
     quick_action: bool,
 }
@@ -247,7 +239,6 @@ impl App {
     fn new(memory: bool, testing: bool, config: Config) -> Result<Self> {
         let conn = get_db(memory, testing)?;
         let tasklist = TaskList::new();
-        let taskinfo = TaskInfo::new();
 
         let runtime = if memory {
             Runtime::Memory
@@ -264,7 +255,6 @@ impl App {
             config,
             cursor_info: CursorInfo::default(),
             tasklist,
-            taskinfo,
             scroll_info: ScrollInfo::default(),
             list_box_sizing: 30,
             delete_popup: false,
@@ -277,6 +267,8 @@ impl App {
             update_stage: Stage::default(),
             highlight_tags: false,
             tags_highlight_value: 0,
+            enter_tags_filter: false,
+            tags_filter_value: String::new(),
             quick_action: false,
         })
     }
@@ -308,23 +300,42 @@ impl App {
             return Ok(());
         }
 
+        if self.enter_tags_filter {
+            match key.code {
+                KeyCode::Esc => {
+                    self.enter_tags_filter = !self.enter_tags_filter;
+                    self.tags_filter_value = String::new();
+                }
+                KeyCode::Enter => self.enter_tags_filter = !self.enter_tags_filter,
+                KeyCode::Backspace => match self.tags_filter_value.pop() {
+                    Some(_) => (),
+                    None => (),
+                },
+                KeyCode::Char(ch) => {
+                    self.tags_filter_value.push_str(&ch.to_string());
+                }
+                _ => {}
+            }
+            self.update_tasklist()?;
+            return Ok(());
+        }
+
         if self.quick_action {
             match key.code {
                 KeyCode::Char('a') => {
                     // Let user choose a name, then make task
                     self.quick_add();
                     self.quick_action = !self.quick_action;
-                    return Ok(());
                 }
                 KeyCode::Char('c') => {
                     self.quick_status()?;
                     self.quick_action = !self.quick_action;
-                    return Ok(());
                 }
                 _ => {
                     self.quick_action = !self.quick_action;
                 }
             }
+            return Ok(());
         }
 
         if self.delete_popup {
@@ -448,6 +459,11 @@ impl App {
                 KeyCode::Char('q') => {
                     self.quick_action = !self.quick_action;
                 }
+                KeyCode::Char('/') => {
+                    self.enter_tags_filter = !self.enter_tags_filter;
+                    self.tags_filter_value = String::new();
+                    self.update_tasklist()?;
+                }
                 _ => {}
             },
             _ => {}
@@ -530,7 +546,7 @@ impl App {
         // Filter tasks
         self.tasklist.filter_tasks(
             Some(self.config.display_filter),
-            self.taskinfo.tags_filter.clone(),
+            self.tags_filter_value.clone(),
         );
 
         // Order tasks here

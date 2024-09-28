@@ -39,21 +39,33 @@ impl Display {
 }
 
 pub fn render_state(f: &mut Frame, app: &mut App, rectangle: &Rect) {
-    // Render actions definitions
-    let state_block = Block::new()
-        .title(Line::raw("State").left_aligned())
-        .borders(Borders::ALL)
-        .bg(NORMAL_ROW_BG);
-
     let urgency_sort_string = match app.config.urgency_sort_desc {
         true => "descending".to_string().blue(),
         false => "ascending".to_string().red(),
     };
+
+    // Render actions definitions
+    let mut state_block = Block::new()
+        .title(Line::raw("State").left_aligned())
+        .borders(Borders::ALL)
+        .bg(NORMAL_ROW_BG);
+
+    if app.enter_tags_filter {
+        state_block = state_block.border_style(Style::new().blue());
+    }
+
     let state_vec_lines = vec![
+        Line::from("Filters:".underlined()),
         Line::from(vec![
-            Span::styled("Filter: ", Style::default()),
+            Span::styled("Status: ", Style::default()),
             app.config.display_filter.to_colored_span(),
         ]),
+        Line::from(vec![
+            Span::styled("Tag: ", Style::default()),
+            app.tags_filter_value.clone().blue(),
+        ]),
+        Line::from(""),
+        Line::from("Sorts:".underlined()),
         Line::from(vec![
             Span::styled("Urgency: ", Style::default()),
             urgency_sort_string,
@@ -61,7 +73,9 @@ pub fn render_state(f: &mut Frame, app: &mut App, rectangle: &Rect) {
     ];
 
     let state_text = Text::from(state_vec_lines);
-    let state_paragraph = Paragraph::new(state_text).block(state_block);
+    let state_paragraph = Paragraph::new(state_text)
+        .block(state_block)
+        .wrap(Wrap { trim: false });
 
     f.render_widget(state_paragraph, *rectangle);
 }
@@ -80,11 +94,14 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: &Rect) {
         Line::from("d        - Delete".blue()),
         Line::from("x or ESC - Exit".blue()),
         Line::from("f        - Filter on Status".blue()),
+        Line::from("/ <TEXT> - Filter task on Tag".blue()),
+        Line::from("/ ENTER  - Remove Tag filter".blue()),
         Line::from("s        - Sort on Urgency".blue()),
         Line::from(""),
         Line::from("Quick Actions:".underlined()),
         Line::from("qa       - Quick Add".magenta()),
         Line::from("qc       - Quick Complete".magenta()),
+        Line::from("dd       - Quick Delete".magenta()),
         Line::from(""),
         Line::from("Move/Adjustment:".underlined()),
         Line::from("↓ or j   - Move down task".yellow()),

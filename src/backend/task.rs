@@ -321,11 +321,7 @@ impl TaskList {
         self.tasks.len()
     }
 
-    pub fn filter_tasks(
-        &mut self,
-        display_option: Option<Display>,
-        tags_option: Option<Vec<String>>,
-    ) {
+    pub fn filter_tasks(&mut self, display_option: Option<Display>, tags_filter: String) {
         let mut tasks_to_keep = vec![];
         'task: for task in &mut self.tasks.iter() {
             // check if fits our display needs
@@ -350,58 +346,27 @@ impl TaskList {
                 }
             }
 
-            // Check if it has tags we are looking for
-            if let Some(tags) = tags_option.clone() {
+            // Check if our tag string is within any of our tags
+            if !tags_filter.is_empty() {
                 match task.tags.clone() {
                     Some(task_tags) => {
-                        for t in tags {
-                            if task_tags.contains(&t) == false {
+                        for tag in task_tags {
+                            if tag.contains(&tags_filter) {
+                                // on first match, we can add to our tasks
+                                // to keep and move on
+                                tasks_to_keep.push(task.clone());
                                 continue 'task;
                             }
                         }
+                        continue 'task;
                     }
                     None => continue 'task,
                 }
+            } else {
+                tasks_to_keep.push(task.clone());
             }
-            tasks_to_keep.push(task.clone());
         }
         self.tasks = tasks_to_keep;
-    }
-
-    pub fn display_tasks(&self) {
-        for task in self.tasks.iter() {
-            let name = task.name.clone();
-            let description = task.description.clone().unwrap_or(String::from("None"));
-            let latest = task.latest.clone().unwrap_or(String::from("None"));
-            let task_tags = task.tags.clone().unwrap_or(HashSet::new());
-
-            // Print out tasks
-            println!("");
-            println!("{}", name.underlined());
-            print!(" Tags:");
-            for tag in task_tags {
-                print!(" {}", tag.blue());
-            }
-            print!("\n");
-            print!(
-                "   {} | {}",
-                task.urgency.to_colored_string(),
-                task.status.to_colored_string()
-            );
-            match task.completed_on {
-                Some(date) => {
-                    print!(" - {}", date.date_naive().to_string().green())
-                }
-                None => {}
-            }
-            print!("\n");
-            println!(
-                "   Date Added: {}",
-                task.date_added.date_naive().to_string().cyan()
-            );
-            println!("  Description: {}", description.blue());
-            println!("  Latest Update: {}", latest.blue());
-        }
     }
 }
 

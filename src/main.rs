@@ -8,8 +8,8 @@ mod backend;
 mod display;
 
 use backend::config::{read_config, set_new_path};
-use backend::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
-use backend::task::{Display, Status, Task, Urgency};
+use backend::database::{add_to_db, create_sqlite_db, get_db};
+use backend::task::{Status, Task, Urgency};
 use backend::wipe::wipe_tasks;
 
 // use display::list_example::list_example;
@@ -41,19 +41,6 @@ enum Commands {
         /// sqlite database as the new default
         #[arg(short, long)]
         set: Option<PathBuf>,
-    },
-
-    /// List out not completed tasks
-    List {
-        /// Optional: Different display options
-        /// By default will show tasks not-completed
-        #[arg(short, long, value_enum)]
-        display: Option<Display>,
-
-        /// Optional: Filter for tasks with the following tags
-        /// Can supply multiple
-        #[arg(short, long, num_args=1..)]
-        tag: Option<Vec<String>>,
     },
 
     /// Wipe out all tasks
@@ -137,20 +124,6 @@ fn main() -> Result<()> {
             let conn = get_db(cli.memory, cli.test)?;
             add_to_db(&conn, &new_task)?;
             println!("New task added successfully");
-        }
-
-        Some(Commands::List { display, tag }) => {
-            let conn = get_db(cli.memory, cli.test)?;
-            let mut task_list = get_all_db_contents(&conn).unwrap();
-
-            // Filter tasks
-            task_list.filter_tasks(display, tag);
-
-            // Order tasks here
-            task_list.sort_by_urgency(true);
-
-            // Print out tasks
-            task_list.display_tasks();
         }
 
         Some(Commands::Wipe { yes, hard }) => {
