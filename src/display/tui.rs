@@ -395,6 +395,11 @@ impl App {
                 KeyCode::Down => self.adjust_task_info_scrollbar_down(),
                 _ => {}
             },
+            KeyModifiers::SHIFT => match key.code {
+                KeyCode::Up => self.adjust_keys_scrollbar_up(),
+                KeyCode::Down => self.adjust_keys_scrollbar_down(),
+                _ => {}
+            },
             KeyModifiers::ALT => match key.code {
                 KeyCode::Up => self.adjust_keys_scrollbar_up(),
                 KeyCode::Down => self.adjust_keys_scrollbar_down(),

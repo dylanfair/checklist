@@ -189,9 +189,10 @@ pub fn render_task_info(f: &mut Frame, app: &mut App, rectangle: &Rect) {
         Paragraph::new("Nothing selected...")
     };
 
-    let text_len = app.tasklist.tasks[app.tasklist.state.selected().unwrap_or(0)]
-        .to_text_vec()
-        .len();
+    let selected_task_len = match app.tasklist.state.selected() {
+        Some(task) => app.tasklist.tasks[task].to_text_vec().len(),
+        None => 0,
+    };
 
     // We show the list item's info under the list in this paragraph
     let task_block = Block::new()
@@ -213,7 +214,7 @@ pub fn render_task_info(f: &mut Frame, app: &mut App, rectangle: &Rect) {
     app.scroll_info.task_info_scroll_state = app
         .scroll_info
         .task_info_scroll_state
-        .content_length(text_len);
+        .content_length(selected_task_len);
 
     let task_info_scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .symbols(scrollbar::VERTICAL)
