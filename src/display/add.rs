@@ -578,6 +578,13 @@ fn map_string_to_lines(
     string: String,
     width_of_space: u16,
 ) -> (BTreeMap<usize, Vec<String>>, usize) {
+    // Idea: create a BtreeMap where
+    // keys - the line row
+    // values - the line contents as a vector of strings (words)
+    //
+    // afterwards, we can use it to calculate where our cursor
+    // needs to be based on app.character_index
+
     let mut quotients_seen = vec![0];
     let mut current_line_words = vec![];
     let mut word: String = String::new();
@@ -921,8 +928,6 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks =
         Layout::vertical([Constraint::Ratio(3, 4), Constraint::Ratio(1, 4)]).split(popup_area);
 
-    let text_width = popup_area.right() - popup_area.left() - 1;
-
     let instructions = vec![
         //"Feel free to add any tags here",
         "ENTER (with text) - create a tag",
@@ -931,11 +936,11 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
         "Pressing Up (↑) will return you to text editing",
     ];
 
+    let text_width = popup_area.right() - popup_area.left() - 1;
     let mut line_vec = vec![];
     let mut final_y_offset = 0;
     for instruction in instructions {
         // If our text wraps, we want to start our cursor accordingly
-        let text_width = popup_area.right() - popup_area.left() - 1;
         let (_, y_offset) = map_string_to_lines(instruction.to_string(), text_width);
         final_y_offset += y_offset;
 

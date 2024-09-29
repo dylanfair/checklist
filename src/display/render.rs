@@ -11,7 +11,7 @@ use ratatui::{
 };
 
 use crate::backend::task::Display;
-use crate::display::tui::{centered_ratio_rect, App};
+use crate::display::tui::{centered_ratio_rect, App, LayoutView};
 
 const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).add_modifier(Modifier::BOLD);
 const NORMAL_ROW_BG: Color = SLATE.c950;
@@ -34,6 +34,16 @@ impl Display {
             Display::All => String::from("All").cyan(),
             Display::Completed => String::from("Completed").green(),
             Display::NotCompleted => String::from("NotCompleted").yellow(),
+        }
+    }
+}
+
+impl LayoutView {
+    pub fn to_colored_span(&self) -> Span<'_> {
+        match self {
+            LayoutView::Horizontal => String::from("Horizontal").cyan(),
+            LayoutView::Vertical => String::from("Vertical").blue(),
+            LayoutView::Smart => String::from("Smart").yellow(),
         }
     }
 }
@@ -348,19 +358,36 @@ pub fn render_delete_popup(f: &mut Frame, area: Rect) {
 }
 
 pub fn render_status_bar(f: &mut Frame, app: &mut App, area: Rect) {
-    let status_block = Block::new().bg(NORMAL_ROW_BG);
-    let blurb = if app.show_help {
-        Paragraph::new(Text::from(vec![Line::from(
-            "Press (ESC) or (h) to return back to your tasks",
-        )]))
+    let chunks =
+        Layout::horizontal([Constraint::Percentage(60), Constraint::Percentage(40)]).split(area);
+
+    let help_blurb = if app.show_help {
+        Paragraph::new(Text::from(vec![Line::from(vec![
+            "Press (".into(),
+            "ESC".cyan(),
+            ") or (".into(),
+            "h".cyan(),
+            ") to return".into(),
+        ])]))
     } else {
-        Paragraph::new(Text::from(vec![Line::from(
-            "Press (h) to see the actions menu",
-        )]))
+        Paragraph::new(Text::from(vec![Line::from(vec![
+            "Press (".into(),
+            "h".cyan(),
+            ") to see the actions menu".into(),
+        ])]))
     };
+    let help_contents = help_blurb
+        .block(Block::new().bg(NORMAL_ROW_BG))
+        .alignment(Alignment::Left);
 
-    let status_contents = blurb.block(status_block).alignment(Alignment::Left);
-    //.bg(Color::Black);
+    let layout_blurb = Paragraph::new(Text::from(vec![Line::from(vec![
+        "Layout View: ".into(),
+        app.layout_view.to_colored_span(),
+    ])]));
+    let layout_contents = layout_blurb
+        .block(Block::new().bg(NORMAL_ROW_BG))
+        .alignment(Alignment::Right);
 
-    f.render_widget(status_contents, area);
+    f.render_widget(help_contents, chunks[0]);
+    f.render_widget(layout_contents, chunks[1]);
 }

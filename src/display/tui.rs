@@ -177,6 +177,24 @@ enum Runtime {
     Real,
 }
 
+#[derive(Default, PartialEq, Eq)]
+pub enum LayoutView {
+    Horizontal,
+    Vertical,
+    #[default]
+    Smart,
+}
+
+impl LayoutView {
+    fn next(&mut self) {
+        match self {
+            LayoutView::Smart => *self = LayoutView::Horizontal,
+            LayoutView::Horizontal => *self = LayoutView::Vertical,
+            LayoutView::Vertical => *self = LayoutView::Smart,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct ScrollInfo {
     // list
@@ -205,6 +223,8 @@ pub struct App {
     runtime: Runtime,
     // Config
     pub config: Config,
+    // Layout View
+    pub layout_view: LayoutView,
     // Cursor info
     pub cursor_info: CursorInfo,
     // Task related
@@ -255,6 +275,7 @@ impl App {
             conn,
             runtime,
             config,
+            layout_view: LayoutView::default(),
             cursor_info: CursorInfo::default(),
             tasklist,
             scroll_info: ScrollInfo::default(),
@@ -428,6 +449,7 @@ impl App {
             },
             KeyModifiers::NONE => match key.code {
                 KeyCode::Char('x') | KeyCode::Esc => self.should_exit = true,
+                KeyCode::Char('v') => self.layout_view.next(),
                 KeyCode::Char('s') => {
                     self.config.urgency_sort_desc = !self.config.urgency_sort_desc;
                     self.update_tasklist()?;
@@ -620,7 +642,14 @@ fn ui(f: &mut Frame, app: &mut App) {
         render_keys(f, app, chunks[0]);
         render_status_bar(f, app, chunks[1])
     } else {
-        let information = if area.height < 32 {
+        let information = if app.layout_view == LayoutView::Vertical {
+            Layout::vertical([
+                Constraint::Percentage(app.list_box_sizing),
+                Constraint::Percentage(100 - app.list_box_sizing),
+                Constraint::Min(10),
+            ])
+            .split(chunks[0])
+        } else if area.height < 32 || app.layout_view == LayoutView::Horizontal {
             Layout::horizontal([
                 Constraint::Percentage(app.list_box_sizing),
                 Constraint::Percentage(100 - app.list_box_sizing),
