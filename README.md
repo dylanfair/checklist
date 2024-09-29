@@ -6,10 +6,10 @@
 * Should set a certain window size that the program just won't display for
 
 ### Actions
-* Need to set up what happens in the GUI when performing the following actions: 
-  * Filter (by Tag)
+* Key to hide the keys section
 
 ### Backend
+* Refactor code to make it more scaleable (adding new features) and maintainable
 
 ## Done
 
@@ -41,3 +41,4 @@
 * Task Info can be scrolled now
 * Keys can be scrolled now
 * Display cursor when needing to input text
+* Filter (by Tag)

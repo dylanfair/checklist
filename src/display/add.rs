@@ -574,26 +574,16 @@ impl App {
     }
 }
 
-fn text_cursor_logic(
-    f: &mut Frame,
-    app: &mut App,
-    area: Rect,
-    current_string: String,
-    x_offset: u16,
-    y_offset: u16,
-) {
+fn map_string_to_lines(
+    string: String,
+    width_of_space: u16,
+) -> (BTreeMap<usize, Vec<String>>, usize) {
     // Idea: create a BtreeMap where
     // keys - the line row
     // values - the line contents as a vector of strings (words)
     //
     // afterwards, we can use it to calculate where our cursor
     // needs to be based on app.character_index
-
-    let text_start_x = area.left() + x_offset;
-    let text_end_x = area.right();
-    let text_start_y = area.top() + y_offset;
-
-    let text_width = text_end_x - text_start_x;
 
     let mut quotients_seen = vec![0];
     let mut current_line_words = vec![];
@@ -602,7 +592,7 @@ fn text_cursor_logic(
     let mut hash_lines: BTreeMap<usize, Vec<String>> = BTreeMap::from([(0, vec![])]);
     let mut latest_quotient = 0;
 
-    for character in current_string.chars() {
+    for character in string.chars() {
         if character == ' ' {
             current_line_words.push(String::from(" "));
             word = String::new();
@@ -629,7 +619,7 @@ fn text_cursor_logic(
             })
             .sum();
 
-        let new_character_quotient = total_chars / text_width as usize;
+        let new_character_quotient = total_chars / width_of_space as usize;
 
         if !quotients_seen.contains(&new_character_quotient) {
             if character == ' ' {
@@ -657,12 +647,38 @@ fn text_cursor_logic(
         }
     }
 
+    (hash_lines, latest_quotient)
+}
+
+fn text_cursor_logic(
+    f: &mut Frame,
+    app: &mut App,
+    area: Rect,
+    current_string: String,
+    x_offset: u16,
+    y_offset: u16,
+) {
+    // Idea: create a BtreeMap where
+    // keys - the line row
+    // values - the line contents as a vector of strings (words)
+    //
+    // afterwards, we can use it to calculate where our cursor
+    // needs to be based on app.character_index
+
+    let text_start_x = area.left() + x_offset;
+    let text_end_x = area.right();
+    let text_start_y = area.top() + y_offset;
+
+    let text_width = text_end_x - text_start_x;
+
+    let (strings_on_lines, _) = map_string_to_lines(current_string, text_width);
+
     // Cursor logic - adjustment
     let mut x = app.character_index;
     let mut row = 0;
 
     if app.character_index > 0 {
-        for (k, v) in hash_lines.iter() {
+        for (k, v) in strings_on_lines.iter() {
             let line_length: usize = v
                 .iter()
                 .map(|x| {
@@ -713,7 +729,6 @@ pub fn get_name(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::bordered().title("Name");
 
     let instructions = "What do you want to name your task?";
-    let instructions_len = instructions.chars().count();
 
     let line_vec = vec![
         Line::from(instructions),
@@ -734,7 +749,7 @@ pub fn get_name(f: &mut Frame, app: &mut App, area: Rect) {
 
     // If our text wraps, we want to start our cursor accordingly
     let text_width = popup_area.right() - popup_area.left() - 1;
-    let y_offset = instructions_len as u16 / text_width;
+    let (_, y_offset) = map_string_to_lines(instructions.to_string(), text_width);
 
     text_cursor_logic(
         f,
@@ -742,7 +757,7 @@ pub fn get_name(f: &mut Frame, app: &mut App, area: Rect) {
         popup_area,
         app.inputs.name.to_string(),
         1,
-        line_vec_len as u16 + y_offset,
+        line_vec_len as u16 + y_offset as u16,
     );
 }
 
@@ -750,7 +765,6 @@ pub fn get_description(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::bordered().title("Description");
 
     let instructions = "Feel free to add a description of your task";
-    let instructions_len = instructions.chars().count();
 
     let line_vec = vec![
         Line::from(instructions),
@@ -772,7 +786,7 @@ pub fn get_description(f: &mut Frame, app: &mut App, area: Rect) {
 
     // If our text wraps, we want to start our cursor accordingly
     let text_width = popup_area.right() - popup_area.left() - 1;
-    let y_offset = instructions_len as u16 / text_width;
+    let (_, y_offset) = map_string_to_lines(instructions.to_string(), text_width);
 
     text_cursor_logic(
         f,
@@ -780,7 +794,7 @@ pub fn get_description(f: &mut Frame, app: &mut App, area: Rect) {
         popup_area,
         app.inputs.description.to_string(),
         1,
-        line_vec_len as u16 + y_offset,
+        line_vec_len as u16 + y_offset as u16,
     );
 }
 
@@ -914,8 +928,6 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks =
         Layout::vertical([Constraint::Ratio(3, 4), Constraint::Ratio(1, 4)]).split(popup_area);
 
-    let text_width = popup_area.right() - popup_area.left() - 1;
-
     let instructions = vec![
         //"Feel free to add any tags here",
         "ENTER (with text) - create a tag",
@@ -924,11 +936,13 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
         "Pressing Up (↑) will return you to text editing",
     ];
 
+    let text_width = popup_area.right() - popup_area.left() - 1;
     let mut line_vec = vec![];
-    let mut y_offset = 0;
+    let mut final_y_offset = 0;
     for instruction in instructions {
-        let char_count = instruction.chars().count();
-        y_offset += char_count as u16 / text_width;
+        // If our text wraps, we want to start our cursor accordingly
+        let (_, y_offset) = map_string_to_lines(instruction.to_string(), text_width);
+        final_y_offset += y_offset;
 
         line_vec.push(Line::from(instruction))
     }
@@ -962,6 +976,7 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
     let tags_blurb = Paragraph::new(Text::from(vec![tags_line]))
         .block(Block::new().borders(Borders::LEFT | Borders::BOTTOM | Borders::RIGHT))
         .bg(Color::Black)
+        .wrap(Wrap { trim: false })
         .alignment(Alignment::Left);
 
     f.render_widget(Clear, popup_area);
@@ -974,6 +989,6 @@ pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
         popup_area,
         app.inputs.tags_input.to_string(),
         1,
-        line_vec_len as u16 + y_offset,
+        line_vec_len as u16 + final_y_offset as u16,
     );
 }

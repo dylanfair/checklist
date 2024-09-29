@@ -1,4 +1,5 @@
 use anyhow::Result;
+use clap::ValueEnum;
 use crossterm::event::KeyModifiers;
 use ratatui::Frame;
 use ratatui::{
@@ -23,7 +24,7 @@ use self::common::{init_terminal, install_hooks, restore_terminal};
 use super::add::{
     get_description, get_latest, get_stage, get_status, get_tags, get_urgency, EntryMode,
 };
-use super::render::render_state;
+use super::render::{render_state, render_status_bar};
 
 impl Status {
     pub fn to_colored_span(&self) -> Span<'_> {
@@ -158,12 +159,13 @@ pub fn run_tui(
     memory: bool,
     testing: bool,
     config: Config,
+    view: Option<LayoutView>,
 ) -> color_eyre::Result<(), anyhow::Error> {
     install_hooks()?;
     //let _clean_up = CleanUp;
     let terminal = init_terminal()?;
 
-    let mut app = App::new(memory, testing, config)?;
+    let mut app = App::new(memory, testing, config, view)?;
     app.run(terminal)?;
 
     restore_terminal()?;
@@ -171,20 +173,28 @@ pub fn run_tui(
     Ok(())
 }
 
-struct TaskInfo {
-    tags_filter: Option<Vec<String>>,
-}
-
-impl TaskInfo {
-    fn new() -> Self {
-        Self { tags_filter: None }
-    }
-}
-
 enum Runtime {
     Memory,
     Test,
     Real,
+}
+
+#[derive(Default, PartialEq, Eq, Debug, Clone, ValueEnum)]
+pub enum LayoutView {
+    Horizontal,
+    Vertical,
+    #[default]
+    Smart,
+}
+
+impl LayoutView {
+    fn next(&mut self) {
+        match self {
+            LayoutView::Smart => *self = LayoutView::Horizontal,
+            LayoutView::Horizontal => *self = LayoutView::Vertical,
+            LayoutView::Vertical => *self = LayoutView::Smart,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -215,18 +225,19 @@ pub struct App {
     runtime: Runtime,
     // Config
     pub config: Config,
+    // Layout View
+    pub layout_view: LayoutView,
     // Cursor info
     pub cursor_info: CursorInfo,
     // Task related
     pub tasklist: TaskList,
-    taskinfo: TaskInfo,
     // Scrollbar related
     pub scroll_info: ScrollInfo,
     // Sizing related
     list_box_sizing: u16,
     // Popup related
     delete_popup: bool,
-    // Entry related (add or update)
+    // Entry related (add, quick_add, or update)
     pub entry_mode: EntryMode,
     // Add related
     pub add_popup: bool,
@@ -239,15 +250,19 @@ pub struct App {
     // Tags related
     pub highlight_tags: bool,
     pub tags_highlight_value: usize,
+    // Tags filtering
+    pub enter_tags_filter: bool,
+    pub tags_filter_value: String,
     // Quick actions
     quick_action: bool,
+    // Show help
+    pub show_help: bool,
 }
 
 impl App {
-    fn new(memory: bool, testing: bool, config: Config) -> Result<Self> {
+    fn new(memory: bool, testing: bool, config: Config, view: Option<LayoutView>) -> Result<Self> {
         let conn = get_db(memory, testing)?;
         let tasklist = TaskList::new();
-        let taskinfo = TaskInfo::new();
 
         let runtime = if memory {
             Runtime::Memory
@@ -257,14 +272,16 @@ impl App {
             Runtime::Real
         };
 
+        let layout_view = view.unwrap_or(LayoutView::default());
+
         Ok(Self {
             should_exit: false,
             conn,
             runtime,
             config,
+            layout_view,
             cursor_info: CursorInfo::default(),
             tasklist,
-            taskinfo,
             scroll_info: ScrollInfo::default(),
             list_box_sizing: 30,
             delete_popup: false,
@@ -277,7 +294,10 @@ impl App {
             update_stage: Stage::default(),
             highlight_tags: false,
             tags_highlight_value: 0,
+            enter_tags_filter: false,
+            tags_filter_value: String::new(),
             quick_action: false,
+            show_help: false,
         })
     }
 
@@ -308,23 +328,52 @@ impl App {
             return Ok(());
         }
 
+        if self.show_help {
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('h') => self.show_help = !self.show_help,
+                KeyCode::Up | KeyCode::Char('k') => self.adjust_keys_scrollbar_up(),
+                KeyCode::Down | KeyCode::Char('j') => self.adjust_keys_scrollbar_down(),
+                _ => {}
+            }
+            return Ok(());
+        }
+
+        if self.enter_tags_filter {
+            match key.code {
+                KeyCode::Esc => {
+                    self.enter_tags_filter = !self.enter_tags_filter;
+                    self.tags_filter_value = String::new();
+                }
+                KeyCode::Enter => self.enter_tags_filter = !self.enter_tags_filter,
+                KeyCode::Backspace => match self.tags_filter_value.pop() {
+                    Some(_) => (),
+                    None => (),
+                },
+                KeyCode::Char(ch) => {
+                    self.tags_filter_value.push_str(&ch.to_string());
+                }
+                _ => {}
+            }
+            self.update_tasklist()?;
+            return Ok(());
+        }
+
         if self.quick_action {
             match key.code {
                 KeyCode::Char('a') => {
                     // Let user choose a name, then make task
                     self.quick_add();
                     self.quick_action = !self.quick_action;
-                    return Ok(());
                 }
                 KeyCode::Char('c') => {
                     self.quick_status()?;
                     self.quick_action = !self.quick_action;
-                    return Ok(());
                 }
                 _ => {
                     self.quick_action = !self.quick_action;
                 }
             }
+            return Ok(());
         }
 
         if self.delete_popup {
@@ -396,17 +445,15 @@ impl App {
                 _ => {}
             },
             KeyModifiers::SHIFT => match key.code {
-                KeyCode::Up => self.adjust_keys_scrollbar_up(),
-                KeyCode::Down => self.adjust_keys_scrollbar_down(),
-                _ => {}
-            },
-            KeyModifiers::ALT => match key.code {
-                KeyCode::Up => self.adjust_keys_scrollbar_up(),
-                KeyCode::Down => self.adjust_keys_scrollbar_down(),
+                KeyCode::Char('G') => {
+                    self.select_last();
+                    self.adjust_list_scrollbar_last();
+                }
                 _ => {}
             },
             KeyModifiers::NONE => match key.code {
                 KeyCode::Char('x') | KeyCode::Esc => self.should_exit = true,
+                KeyCode::Char('v') => self.layout_view.next(),
                 KeyCode::Char('s') => {
                     self.config.urgency_sort_desc = !self.config.urgency_sort_desc;
                     self.update_tasklist()?;
@@ -415,7 +462,8 @@ impl App {
                     self.config.display_filter.next();
                     self.update_tasklist()?;
                 }
-                KeyCode::Char('h') | KeyCode::Left => self.select_none(),
+                KeyCode::Left => self.select_none(),
+                KeyCode::Char('h') => self.show_help = !self.show_help,
                 KeyCode::Char('j') | KeyCode::Down => {
                     self.select_next();
                     self.adjust_list_scrollbar_down();
@@ -424,8 +472,11 @@ impl App {
                     self.select_previous();
                     self.adjust_list_scrollbar_up();
                 }
-                KeyCode::Char('g') | KeyCode::Home => self.select_first(),
-                KeyCode::Char('G') | KeyCode::End => self.select_last(),
+                KeyCode::Char('g') | KeyCode::Home => {
+                    self.select_first();
+                    self.adjust_list_scrollbar_first();
+                }
+                KeyCode::End => self.select_last(),
                 KeyCode::Char('d') => match self.tasklist.state.selected() {
                     Some(_) => self.delete_popup = !self.delete_popup,
                     None => {}
@@ -453,19 +504,16 @@ impl App {
                 KeyCode::Char('q') => {
                     self.quick_action = !self.quick_action;
                 }
+                KeyCode::Char('/') => {
+                    self.enter_tags_filter = !self.enter_tags_filter;
+                    self.tags_filter_value = String::new();
+                    self.update_tasklist()?;
+                }
                 _ => {}
             },
             _ => {}
         }
         Ok(())
-    }
-
-    fn adjust_list_scrollbar_down(&mut self) {
-        self.scroll_info.list_scroll = self.scroll_info.list_scroll.saturating_add(1);
-        self.scroll_info.list_scroll_state = self
-            .scroll_info
-            .list_scroll_state
-            .position(self.scroll_info.list_scroll);
     }
 
     fn adjust_list_scrollbar_up(&mut self) {
@@ -476,12 +524,26 @@ impl App {
             .position(self.scroll_info.list_scroll);
     }
 
-    fn adjust_task_info_scrollbar_down(&mut self) {
-        self.scroll_info.task_info_scroll = self.scroll_info.task_info_scroll.saturating_add(1);
-        self.scroll_info.task_info_scroll_state = self
+    fn adjust_list_scrollbar_down(&mut self) {
+        self.scroll_info.list_scroll = self.scroll_info.list_scroll.saturating_add(1);
+        self.scroll_info.list_scroll_state = self
             .scroll_info
-            .task_info_scroll_state
-            .position(self.scroll_info.task_info_scroll);
+            .list_scroll_state
+            .position(self.scroll_info.list_scroll);
+    }
+
+    fn adjust_list_scrollbar_first(&mut self) {
+        self.scroll_info.list_scroll = 0;
+        self.scroll_info.list_scroll_state = self
+            .scroll_info
+            .list_scroll_state
+            .position(self.scroll_info.list_scroll);
+    }
+
+    fn adjust_list_scrollbar_last(&mut self) {
+        let task_len = self.tasklist.tasks.len();
+        self.scroll_info.list_scroll = task_len;
+        self.scroll_info.list_scroll_state = self.scroll_info.list_scroll_state.position(task_len);
     }
 
     fn adjust_task_info_scrollbar_up(&mut self) {
@@ -492,16 +554,24 @@ impl App {
             .position(self.scroll_info.task_info_scroll);
     }
 
-    fn adjust_keys_scrollbar_down(&mut self) {
-        self.scroll_info.keys_scroll = self.scroll_info.keys_scroll.saturating_add(1);
+    fn adjust_task_info_scrollbar_down(&mut self) {
+        self.scroll_info.task_info_scroll = self.scroll_info.task_info_scroll.saturating_add(1);
+        self.scroll_info.task_info_scroll_state = self
+            .scroll_info
+            .task_info_scroll_state
+            .position(self.scroll_info.task_info_scroll);
+    }
+
+    fn adjust_keys_scrollbar_up(&mut self) {
+        self.scroll_info.keys_scroll = self.scroll_info.keys_scroll.saturating_sub(1);
         self.scroll_info.keys_scroll_state = self
             .scroll_info
             .keys_scroll_state
             .position(self.scroll_info.keys_scroll);
     }
 
-    fn adjust_keys_scrollbar_up(&mut self) {
-        self.scroll_info.keys_scroll = self.scroll_info.keys_scroll.saturating_sub(1);
+    fn adjust_keys_scrollbar_down(&mut self) {
+        self.scroll_info.keys_scroll = self.scroll_info.keys_scroll.saturating_add(1);
         self.scroll_info.keys_scroll_state = self
             .scroll_info
             .keys_scroll_state
@@ -535,7 +605,7 @@ impl App {
         // Filter tasks
         self.tasklist.filter_tasks(
             Some(self.config.display_filter),
-            self.taskinfo.tags_filter.clone(),
+            self.tags_filter_value.clone(),
         );
 
         // Order tasks here
@@ -566,49 +636,51 @@ impl App {
 fn ui(f: &mut Frame, app: &mut App) {
     let area = f.area();
 
-    //let chunks = Layout::vertical([
-    //    Constraint::Percentage(100), // Main
-    //])
-    //.split(area);
-
-    let information = Layout::horizontal([
-        Constraint::Percentage(app.list_box_sizing),
-        Constraint::Percentage(100 - app.list_box_sizing),
-        Constraint::Min(35),
-        Constraint::Min(35),
+    let chunks = Layout::vertical([
+        Constraint::Percentage(100), // Main
+        Constraint::Length(1),       // Status bar
     ])
     .split(area);
 
-    // Scroll states
+    if app.show_help {
+        render_keys(f, app, chunks[0]);
+        render_status_bar(f, app, chunks[1])
+    } else {
+        let information = if app.layout_view == LayoutView::Vertical {
+            Layout::vertical([
+                Constraint::Percentage(app.list_box_sizing),
+                Constraint::Percentage(100 - app.list_box_sizing),
+                Constraint::Min(10),
+            ])
+            .split(chunks[0])
+        } else if area.height < 32 || app.layout_view == LayoutView::Horizontal {
+            Layout::horizontal([
+                Constraint::Percentage(app.list_box_sizing),
+                Constraint::Percentage(100 - app.list_box_sizing),
+                Constraint::Min(25),
+            ])
+            .split(chunks[0])
+        } else {
+            Layout::vertical([
+                Constraint::Percentage(app.list_box_sizing),
+                Constraint::Percentage(100 - app.list_box_sizing),
+                Constraint::Min(10),
+            ])
+            .split(chunks[0])
+        };
 
-    //let title = Block::new()
-    //    .title_alignment(Alignment::Left)
-    //    .title("Welcome to your Checklist!");
-    //f.render_widget(title, chunks[0]);
+        // Render tasks
+        render_tasks(f, app, information[0]);
 
-    //let urgency_sort_string = match app.config.urgency_sort_desc {
-    //    true => "descending".to_string().blue(),
-    //    false => "ascending".to_string().red(),
-    //};
-    //
-    //let footer_text = Text::from(vec![Line::from(format!(
-    //    "Actions: (a)dd (u)pdate (d)elete e(x)it | current (f)ilter: {} | urgency (s)ort: {}",
-    //    app.config.display_filter, urgency_sort_string
-    //))]);
-    //let footer = Paragraph::new(footer_text).centered();
-    //f.render_widget(footer, chunks[2]);
+        // Render task info
+        render_task_info(f, app, information[1]);
 
-    // Render tasks
-    render_tasks(f, app, &information[0]);
+        // Render task state
+        render_state(f, app, information[2]);
 
-    // Render task info
-    render_task_info(f, app, &information[1]);
-
-    // Render task state
-    render_state(f, app, &information[2]);
-
-    // Render keys block
-    render_keys(f, app, &information[3]);
+        // Render status bar
+        render_status_bar(f, app, chunks[1]);
+    }
 
     // popup renders
     // delete

@@ -8,12 +8,11 @@ mod backend;
 mod display;
 
 use backend::config::{read_config, set_new_path};
-use backend::database::{add_to_db, create_sqlite_db, get_all_db_contents, get_db};
-use backend::task::{Display, Status, Task, Urgency};
+use backend::database::{add_to_db, create_sqlite_db, get_db};
+use backend::task::{Status, Task, Urgency};
 use backend::wipe::wipe_tasks;
 
-// use display::list_example::list_example;
-use display::tui::run_tui;
+use display::tui::{run_tui, LayoutView};
 use display::ui::run_ui;
 
 #[derive(Parser, Debug)]
@@ -43,20 +42,7 @@ enum Commands {
         set: Option<PathBuf>,
     },
 
-    /// List out tasks
-    List {
-        /// Optional: Different display options
-        /// By default will show tasks not-completed
-        #[arg(short, long, value_enum)]
-        display: Option<Display>,
-
-        /// Optional: Filter for tasks with the following tags
-        /// Can supply multiple
-        #[arg(short, long, num_args=1..)]
-        tag: Option<Vec<String>>,
-    },
-
-    /// Wipe out all tasks in the sqlite database
+    /// Wipe out all tasks
     Wipe {
         /// Bypass confirmation check
         #[arg(short)]
@@ -98,8 +84,15 @@ enum Commands {
     Display {
         /// For testing, switches between ratatui or my hand-rolled interface
         #[arg(long)]
-        display: bool,
+        old: bool,
+
+        /// What Layout View to start with
+        #[arg(short, long, value_enum)]
+        view: Option<LayoutView>,
     },
+
+    /// Tells you where the sqlite db that stores your task are
+    Where {},
 }
 
 fn main() -> Result<()> {
@@ -136,35 +129,51 @@ fn main() -> Result<()> {
             println!("New task added successfully");
         }
 
-        Some(Commands::List { display, tag }) => {
-            let conn = get_db(cli.memory, cli.test)?;
-            let mut task_list = get_all_db_contents(&conn).unwrap();
-
-            // Filter tasks
-            task_list.filter_tasks(display, tag);
-
-            // Order tasks here
-            task_list.sort_by_urgency(true);
-
-            // Print out tasks
-            task_list.display_tasks();
-        }
-
         Some(Commands::Wipe { yes, hard }) => {
             let conn = get_db(cli.memory, cli.test)?;
             wipe_tasks(&conn, yes, hard)?
         }
 
-        Some(Commands::Display { display }) => {
-            let config = read_config(cli.test)?;
-            if display {
+        Some(Commands::Display { old, view }) => {
+            let config = match read_config(cli.test) {
+                Ok(config) => config,
+                Err(_) => {
+                    create_sqlite_db(cli.test)?;
+                    println!("Successfully created the database to store your items in!");
+                    read_config(cli.test).unwrap()
+                }
+            };
+            if old {
                 run_ui(cli.memory, cli.test)?;
             } else {
-                run_tui(cli.memory, cli.test, config)?;
+                run_tui(cli.memory, cli.test, config, view)?;
             }
         }
 
-        None => {}
+        Some(Commands::Where {}) => {
+            match read_config(cli.test) {
+                Ok(config) => {
+                    println!("Your tasks are stored in the following database:");
+                    println!("{}", config.db_path.to_str().unwrap());
+                }
+                Err(_) => {
+                    println!("Could not find a current configruation file.");
+                    println!("Try getting started with 'checklist init' or 'checklist'!");
+                }
+            };
+        }
+
+        None => {
+            let config = match read_config(cli.test) {
+                Ok(config) => config,
+                Err(_) => {
+                    create_sqlite_db(cli.test)?;
+                    println!("Successfully created the database to store your items in!");
+                    read_config(cli.test).unwrap()
+                }
+            };
+            run_tui(cli.memory, cli.test, config, Some(LayoutView::default()))?;
+        }
     }
 
     Ok(())
