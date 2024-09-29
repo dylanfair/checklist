@@ -12,8 +12,7 @@ use backend::database::{add_to_db, create_sqlite_db, get_db};
 use backend::task::{Status, Task, Urgency};
 use backend::wipe::wipe_tasks;
 
-// use display::list_example::list_example;
-use display::tui::run_tui;
+use display::tui::{run_tui, LayoutView};
 use display::ui::run_ui;
 
 #[derive(Parser, Debug)]
@@ -86,6 +85,10 @@ enum Commands {
         /// For testing, switches between ratatui or my hand-rolled interface
         #[arg(long)]
         old: bool,
+
+        /// What Layout View to start with
+        #[arg(short, long, value_enum)]
+        view: Option<LayoutView>,
     },
 
     /// Tells you where the sqlite db that stores your task are
@@ -131,7 +134,7 @@ fn main() -> Result<()> {
             wipe_tasks(&conn, yes, hard)?
         }
 
-        Some(Commands::Display { old }) => {
+        Some(Commands::Display { old, view }) => {
             let config = match read_config(cli.test) {
                 Ok(config) => config,
                 Err(_) => {
@@ -143,7 +146,7 @@ fn main() -> Result<()> {
             if old {
                 run_ui(cli.memory, cli.test)?;
             } else {
-                run_tui(cli.memory, cli.test, config)?;
+                run_tui(cli.memory, cli.test, config, view)?;
             }
         }
 
@@ -169,7 +172,7 @@ fn main() -> Result<()> {
                     read_config(cli.test).unwrap()
                 }
             };
-            run_tui(cli.memory, cli.test, config)?;
+            run_tui(cli.memory, cli.test, config, Some(LayoutView::default()))?;
         }
     }
 

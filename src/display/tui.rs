@@ -1,4 +1,5 @@
 use anyhow::Result;
+use clap::ValueEnum;
 use crossterm::event::KeyModifiers;
 use ratatui::Frame;
 use ratatui::{
@@ -158,12 +159,13 @@ pub fn run_tui(
     memory: bool,
     testing: bool,
     config: Config,
+    view: Option<LayoutView>,
 ) -> color_eyre::Result<(), anyhow::Error> {
     install_hooks()?;
     //let _clean_up = CleanUp;
     let terminal = init_terminal()?;
 
-    let mut app = App::new(memory, testing, config)?;
+    let mut app = App::new(memory, testing, config, view)?;
     app.run(terminal)?;
 
     restore_terminal()?;
@@ -177,7 +179,7 @@ enum Runtime {
     Real,
 }
 
-#[derive(Default, PartialEq, Eq)]
+#[derive(Default, PartialEq, Eq, Debug, Clone, ValueEnum)]
 pub enum LayoutView {
     Horizontal,
     Vertical,
@@ -258,7 +260,7 @@ pub struct App {
 }
 
 impl App {
-    fn new(memory: bool, testing: bool, config: Config) -> Result<Self> {
+    fn new(memory: bool, testing: bool, config: Config, view: Option<LayoutView>) -> Result<Self> {
         let conn = get_db(memory, testing)?;
         let tasklist = TaskList::new();
 
@@ -270,12 +272,14 @@ impl App {
             Runtime::Real
         };
 
+        let layout_view = view.unwrap_or(LayoutView::default());
+
         Ok(Self {
             should_exit: false,
             conn,
             runtime,
             config,
-            layout_view: LayoutView::default(),
+            layout_view,
             cursor_info: CursorInfo::default(),
             tasklist,
             scroll_info: ScrollInfo::default(),
