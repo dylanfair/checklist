@@ -620,7 +620,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         render_keys(f, app, chunks[0]);
         render_status_bar(f, app, chunks[1])
     } else {
-        let information = if area.width > area.height * 2 {
+        let information = if area.height < 32 {
             Layout::horizontal([
                 Constraint::Percentage(app.list_box_sizing),
                 Constraint::Percentage(100 - app.list_box_sizing),
