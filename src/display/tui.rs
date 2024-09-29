@@ -305,7 +305,7 @@ impl App {
 
         if self.show_help {
             match key.code {
-                KeyCode::Esc => self.show_help = !self.show_help,
+                KeyCode::Esc | KeyCode::Char('h') => self.show_help = !self.show_help,
                 KeyCode::Up | KeyCode::Char('k') => self.adjust_keys_scrollbar_up(),
                 KeyCode::Down | KeyCode::Char('j') => self.adjust_keys_scrollbar_down(),
                 _ => {}
@@ -620,13 +620,22 @@ fn ui(f: &mut Frame, app: &mut App) {
         render_keys(f, app, chunks[0]);
         render_status_bar(f, app, chunks[1])
     } else {
-        let information = Layout::horizontal([
-            Constraint::Percentage(app.list_box_sizing),
-            Constraint::Percentage(100 - app.list_box_sizing),
-            Constraint::Min(25),
-            //Constraint::Min(35),
-        ])
-        .split(chunks[0]);
+        let information = if area.width > area.height * 2 {
+            Layout::horizontal([
+                Constraint::Percentage(app.list_box_sizing),
+                Constraint::Percentage(100 - app.list_box_sizing),
+                Constraint::Min(25),
+            ])
+            .split(chunks[0])
+        } else {
+            Layout::vertical([
+                Constraint::Percentage(app.list_box_sizing),
+                Constraint::Percentage(100 - app.list_box_sizing),
+                Constraint::Min(10),
+            ])
+            .split(chunks[0])
+        };
+
         // Render tasks
         render_tasks(f, app, information[0]);
 

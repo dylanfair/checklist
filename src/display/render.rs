@@ -351,7 +351,7 @@ pub fn render_status_bar(f: &mut Frame, app: &mut App, area: Rect) {
     let status_block = Block::new().bg(NORMAL_ROW_BG);
     let blurb = if app.show_help {
         Paragraph::new(Text::from(vec![Line::from(
-            "Press (ESC) to return back to your tasks",
+            "Press (ESC) or (h) to return back to your tasks",
         )]))
     } else {
         Paragraph::new(Text::from(vec![Line::from(
