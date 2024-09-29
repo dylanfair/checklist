@@ -148,16 +148,16 @@ fn main() -> Result<()> {
         }
 
         Some(Commands::Where {}) => {
-            let config = match read_config(cli.test) {
-                Ok(config) => config,
+            match read_config(cli.test) {
+                Ok(config) => {
+                    println!("Your tasks are stored in the following database:");
+                    println!("{}", config.db_path.to_str().unwrap());
+                }
                 Err(_) => {
-                    create_sqlite_db(cli.test)?;
-                    println!("Successfully created the database to store your items in!");
-                    read_config(cli.test).unwrap()
+                    println!("Could not find a current configruation file.");
+                    println!("Try getting started with 'checklist init' or 'checklist'!");
                 }
             };
-            println!("Your tasks are stored in the following database:");
-            println!("{}", config.db_path.to_str().unwrap());
         }
 
         None => {

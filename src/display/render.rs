@@ -1,7 +1,7 @@
 use ratatui::symbols::scrollbar;
 use ratatui::Frame;
 use ratatui::{
-    layout::{Alignment, Rect},
+    layout::{Alignment, Constraint, Layout, Rect},
     style::{palette::tailwind::SLATE, Color, Modifier, Style, Stylize},
     text::{Line, Span, Text},
     widgets::{
@@ -38,7 +38,7 @@ impl Display {
     }
 }
 
-pub fn render_state(f: &mut Frame, app: &mut App, rectangle: &Rect) {
+pub fn render_state(f: &mut Frame, app: &mut App, rectangle: Rect) {
     let urgency_sort_string = match app.config.urgency_sort_desc {
         true => "descending".to_string().blue(),
         false => "ascending".to_string().red(),
@@ -77,52 +77,131 @@ pub fn render_state(f: &mut Frame, app: &mut App, rectangle: &Rect) {
         .block(state_block)
         .wrap(Wrap { trim: false });
 
-    f.render_widget(state_paragraph, *rectangle);
+    f.render_widget(state_paragraph, rectangle);
 }
 
-pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: &Rect) {
+pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: Rect) {
     // Render actions definitions
     let key_block = Block::new()
-        .title(Line::raw("Keys").left_aligned())
+        .title(Line::raw("Help Menu").alignment(Alignment::Center))
         .borders(Borders::ALL)
         .bg(NORMAL_ROW_BG);
 
-    let key_vec_lines = vec![
-        Line::from("Actions:".underlined()),
-        Line::from("a        - Add".blue()),
-        Line::from("u        - Update".blue()),
-        Line::from("d        - Delete".blue()),
-        Line::from("x or ESC - Exit".blue()),
-        Line::from("f        - Filter on Status".blue()),
-        Line::from("/ <TEXT> - Filter task on Tag".blue()),
-        Line::from("/ ENTER  - Remove Tag filter".blue()),
-        Line::from("s        - Sort on Urgency".blue()),
-        Line::from(""),
-        Line::from("Quick Actions:".underlined()),
-        Line::from("qa       - Quick Add".magenta()),
-        Line::from("qc       - Quick Complete".magenta()),
-        Line::from("dd       - Quick Delete".magenta()),
-        Line::from(""),
-        Line::from("Move/Adjustment:".underlined()),
-        Line::from("↓ or j   - Move down task".yellow()),
-        Line::from("↑ or k   - Move up task".yellow()),
-        Line::from("g or HOME- Move to first task".yellow()),
-        Line::from("G or END - Move to last task".yellow()),
-        Line::from("CTRL ←   - Adjust screen left".yellow()),
-        Line::from("CTRL →   - Adjust screen right".yellow()),
-        Line::from("CTRL ↑   - Scroll Task Info up".yellow()),
-        Line::from("CTRL ↓   - Scroll Task Info down".yellow()),
-        Line::from("SHIFT ↑  - Scroll Keys up".yellow()),
-        Line::from("SHIFT ↓  - Scroll Keys down".yellow()),
-    ];
-    let key_vec_lines_len = key_vec_lines.len();
+    f.render_widget(Paragraph::new("").block(key_block), rectangle);
 
-    let key_text = Text::from(key_vec_lines);
-    let key_paragraph = Paragraph::new(key_text)
-        .block(key_block)
+    let vertical_chunks =
+        Layout::vertical([Constraint::Length(2), Constraint::Percentage(100)]).split(rectangle);
+
+    let horizontal_chunks =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(vertical_chunks[1]);
+
+    let mappings = vec![
+        (
+            vec!["Actions:".underlined().blue(), "         ".into()],
+            "".into(),
+        ),
+        (vec!["a                ".into(), "".into()], "Add".blue()),
+        (vec!["u                ".into(), "".into()], "Update".blue()),
+        (vec!["d                ".into(), "".into()], "Delete".blue()),
+        (
+            vec!["x".into(), " or ".cyan(), "ESC         ".into(), "".into()],
+            "Exit".blue(),
+        ),
+        (
+            vec!["f                ".into(), "".into()],
+            "Filter on Status".blue(),
+        ),
+        (
+            vec!["/ <TEXT>         ".into(), "".into()],
+            "Filter task on Tag".blue(),
+        ),
+        (
+            vec!["/ ENTER          ".into(), "".into()],
+            "Remove Tag filter".blue(),
+        ),
+        (
+            vec!["s                ".into(), "".into()],
+            "Sort on Urgency".blue(),
+        ),
+        (vec!["".into(), "".into()], "".into()),
+        (
+            vec!["Quick Actions:".underlined().magenta(), "   ".into()],
+            "".into(),
+        ),
+        (
+            vec!["qa               ".into(), "".into()],
+            "Quick Add".magenta(),
+        ),
+        (
+            vec!["qc               ".into(), "".into()],
+            "Quick Complete".magenta(),
+        ),
+        (
+            vec!["dd               ".into(), "".into()],
+            "Quick Delete".magenta(),
+        ),
+        (vec!["".into(), "".into()], "".into()),
+        (
+            vec!["Move/Adjustment:".underlined().yellow(), " ".into()],
+            "".into(),
+        ),
+        (
+            vec!["↓".into(), " or ".cyan(), "j           ".into(), "".into()],
+            "Move down task".yellow(),
+        ),
+        (
+            vec!["↑".into(), " or ".cyan(), "k           ".into(), "".into()],
+            "Move up task".yellow(),
+        ),
+        (
+            vec!["g".into(), " or ".cyan(), "HOME        ".into(), "".into()],
+            "Move to first task".yellow(),
+        ),
+        (
+            vec!["G".into(), " or ".cyan(), "END         ".into(), "".into()],
+            "Move to last task".yellow(),
+        ),
+        (
+            vec!["CTRL ←           ".into(), "".into()],
+            "Adjust screen left".yellow(),
+        ),
+        (
+            vec!["CTRL →           ".into(), "".into()],
+            "Adjust screen right".yellow(),
+        ),
+        (
+            vec!["CTRL ↑           ".into(), "".into()],
+            "Scroll Task Info up".yellow(),
+        ),
+        (
+            vec!["CTRL ↓           ".into(), "".into()],
+            "Scroll Task Info down".yellow(),
+        ),
+    ];
+    let key_vec_lines_len = mappings.len();
+
+    let mut titles = vec![];
+    let mut values = vec![];
+    for map in mappings {
+        titles.push(Line::from(map.0));
+        values.push(Line::from(map.1));
+    }
+
+    let titles_text = Text::from(titles);
+    let titles_lines = Paragraph::new(titles_text)
+        .block(Block::new())
+        .alignment(Alignment::Right)
         .scroll((app.scroll_info.keys_scroll as u16, 0));
 
-    f.render_widget(key_paragraph, *rectangle);
+    let values_text = Text::from(values);
+    let values_lines = Paragraph::new(values_text)
+        .block(Block::new())
+        .alignment(Alignment::Left)
+        .scroll((app.scroll_info.keys_scroll as u16, 0));
+
+    f.render_widget(titles_lines, horizontal_chunks[0]);
+    f.render_widget(values_lines, horizontal_chunks[1]);
 
     // keys scrollbar
     app.scroll_info.keys_scroll_state = app
@@ -138,7 +217,7 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: &Rect) {
 
     f.render_stateful_widget(
         keys_scrollbar,
-        rectangle.inner(ratatui::layout::Margin {
+        horizontal_chunks[1].inner(ratatui::layout::Margin {
             horizontal: 0,
             vertical: 0,
         }),
@@ -146,7 +225,7 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: &Rect) {
     );
 }
 
-pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: &Rect) {
+pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: Rect) {
     // Now render our tasks
     let list_block = Block::new()
         .title(Line::raw("Tasks").left_aligned())
@@ -181,7 +260,7 @@ pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: &Rect) {
         .track_symbol(None)
         .end_symbol(Some("↓"));
 
-    f.render_stateful_widget(list, *rectangle, &mut app.tasklist.state);
+    f.render_stateful_widget(list, rectangle, &mut app.tasklist.state);
 
     //Now the scrollbar
     app.scroll_info.list_scroll_state = app
@@ -199,7 +278,7 @@ pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: &Rect) {
     );
 }
 
-pub fn render_task_info(f: &mut Frame, app: &mut App, rectangle: &Rect) {
+pub fn render_task_info(f: &mut Frame, app: &mut App, rectangle: Rect) {
     let info = if let Some(i) = app.tasklist.state.selected() {
         match app.tasklist.tasks[i].status {
             _ => app.tasklist.tasks[i].to_paragraph(),
@@ -227,7 +306,7 @@ pub fn render_task_info(f: &mut Frame, app: &mut App, rectangle: &Rect) {
         .scroll((app.scroll_info.task_info_scroll as u16, 0))
         //.fg(TEXT_FG_COLOR)
         .wrap(Wrap { trim: false });
-    f.render_widget(task_details, *rectangle);
+    f.render_widget(task_details, rectangle);
 
     // Scrollbar
     app.scroll_info.task_info_scroll_state = app
@@ -266,4 +345,22 @@ pub fn render_delete_popup(f: &mut Frame, area: Rect) {
     let delete_popup_area = centered_ratio_rect(2, 3, area);
     f.render_widget(Clear, delete_popup_area);
     f.render_widget(delete_popup_contents, delete_popup_area);
+}
+
+pub fn render_status_bar(f: &mut Frame, app: &mut App, area: Rect) {
+    let status_block = Block::new().bg(NORMAL_ROW_BG);
+    let blurb = if app.show_help {
+        Paragraph::new(Text::from(vec![Line::from(
+            "Press (ESC) to return back to your tasks",
+        )]))
+    } else {
+        Paragraph::new(Text::from(vec![Line::from(
+            "Press (h) to see the actions menu",
+        )]))
+    };
+
+    let status_contents = blurb.block(status_block).alignment(Alignment::Left);
+    //.bg(Color::Black);
+
+    f.render_widget(status_contents, area);
 }
