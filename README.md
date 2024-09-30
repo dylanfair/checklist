@@ -26,7 +26,7 @@ What I wanted for myself was a todo TUI that I could use in a constrained termin
 ![checklist in the corner](./images/top-right-example.png)
 *`checklist` crammed in the top right corner*
 
-There's a long way to go and likely some subjectivity on how to make this more effective, but I hope this gives you a general idea of what I'm aiming for here. `checklist` will automatically shift between a Horizontal or Vertical view based on terminal area conditions, however you can also explicitly choose to be in Horizontal or Vertical view if you want.
+There's a long way to go and likely some subjectivity on how to make this more effective, but I hope this gives you a general idea of what I'm aiming for here. `checklist` will automatically shift between a `Horizontal` or `Vertical` view based on terminal area conditions, however you can also explicitly choose to be in `Horizontal` or `Vertical` view if you want.
 
 ## So what else?
 
@@ -43,7 +43,7 @@ A task can have attributes such as:
 * Tags (which can be filtered for)
 * And space to write out a description or maybe the latest update
 
-Speaking of filters, as of now (September 2024) the only other filter is by Status (Completed, NotCompleted, and All), and you can sort Urgency in an ascending or descending manner (Critical > High > Medium > Low). This is stuff I'd like to eventually flesh out a bit more.
+Speaking of filters, as of now (September 2024) the only other filter is by `Status` (Completed, NotCompleted, and All), and you can sort `Urgency` in an ascending or descending manner (Critical > High > Medium > Low). This is stuff I'd like to eventually flesh out a bit more.
 
 The keybindings take inspiration from vim motions, such as `j` and `k` for moving up and down the task list. A full listing can be found when hitting `h` in the app.
 
@@ -88,4 +88,24 @@ checklist display -v horizontal
 
 ## In the App
 
-Once in the App
+### Simple Commands
+
+Once in the app, we can get started by adding in a task! This can be done wither either `a`, which will take you step by step through adding a task and it's attributes. The alternative is `qa`, which will only require you to supply a name before making a task.
+
+To update, `u` followed by a corresponding number will allow you to change that element for the currently selected task.
+
+To delete, `d` will prompt you with a `y` or `n` whether you want to delete it. `dd` will also blow through the prompt.
+
+`qc` will mark the selected task as `Complete` if not already. If used on a task that is complete, it will mark it as `Open`. This is mostly to save time from going to update, then status, and then marking the task `Complete`.
+
+### Configuration memory
+
+`checklist` will remember the last Status filter and Urgency sort you had if you are to exit out and come back. Other "state" like any current `Tag` filter, or the current `Layout View`, are not kept.
+
+## VSCode oddity
+
+I noticed that if running the app in a VSCode terminal, I needed to set the following setting in order for certain command combinations (i.e. CTRL \<down>) to work:
+
+`"terminal.integrated.sendKeybindingsToShell": true`
+
+So if you are running into a similar issue, that might resolve it.

@@ -352,6 +352,16 @@ impl App {
                 KeyCode::Char(ch) => {
                     self.tags_filter_value.push_str(&ch.to_string());
                 }
+                KeyCode::Down => {
+                    self.enter_tags_filter = !self.enter_tags_filter;
+                    self.select_next();
+                    self.adjust_list_scrollbar_down();
+                }
+                KeyCode::Up => {
+                    self.enter_tags_filter = !self.enter_tags_filter;
+                    self.select_previous();
+                    self.adjust_list_scrollbar_up();
+                }
                 _ => {}
             }
             self.update_tasklist()?;
