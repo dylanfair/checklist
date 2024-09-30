@@ -440,8 +440,8 @@ impl App {
             KeyModifiers::CONTROL => match key.code {
                 KeyCode::Right => self.adjust_listbox_sizing_right(),
                 KeyCode::Left => self.adjust_listbox_sizing_left(),
-                KeyCode::Up => self.adjust_task_info_scrollbar_up(),
-                KeyCode::Down => self.adjust_task_info_scrollbar_down(),
+                KeyCode::Up | KeyCode::Char('k') => self.adjust_task_info_scrollbar_up(),
+                KeyCode::Down | KeyCode::Char('j') => self.adjust_task_info_scrollbar_down(),
                 _ => {}
             },
             KeyModifiers::SHIFT => match key.code {

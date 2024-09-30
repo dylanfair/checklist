@@ -161,12 +161,12 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: Rect) {
             "".into(),
         ),
         (
-            vec!["↓".into(), " or ".cyan(), "j           ".into(), "".into()],
-            "Move down task".yellow(),
-        ),
-        (
             vec!["↑".into(), " or ".cyan(), "k           ".into(), "".into()],
             "Move up task".yellow(),
+        ),
+        (
+            vec!["↓".into(), " or ".cyan(), "j           ".into(), "".into()],
+            "Move down task".yellow(),
         ),
         (
             vec!["g".into(), " or ".cyan(), "HOME        ".into(), "".into()],
@@ -178,18 +178,18 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: Rect) {
         ),
         (
             vec!["CTRL ←           ".into(), "".into()],
-            "Adjust screen left".yellow(),
+            "Adjust Task Info pane (bigger)".yellow(),
         ),
         (
             vec!["CTRL →           ".into(), "".into()],
-            "Adjust screen right".yellow(),
+            "Adjust Task Info pane (smaller)".yellow(),
         ),
         (
-            vec!["CTRL ↑           ".into(), "".into()],
+            vec!["CTRL ↑".into(), " or ".cyan(), "j      ".into(), "".into()],
             "Scroll Task Info up".yellow(),
         ),
         (
-            vec!["CTRL ↓           ".into(), "".into()],
+            vec!["CTRL ↓".into(), " or ".cyan(), "k      ".into(), "".into()],
             "Scroll Task Info down".yellow(),
         ),
     ];
