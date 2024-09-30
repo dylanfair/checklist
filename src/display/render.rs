@@ -119,6 +119,10 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: Rect) {
             "Exit".blue(),
         ),
         (
+            vec!["v                ".into(), "".into()],
+            "Change layout view".blue(),
+        ),
+        (
             vec!["f                ".into(), "".into()],
             "Filter on Status".blue(),
         ),
@@ -358,8 +362,7 @@ pub fn render_delete_popup(f: &mut Frame, area: Rect) {
 }
 
 pub fn render_status_bar(f: &mut Frame, app: &mut App, area: Rect) {
-    let chunks =
-        Layout::horizontal([Constraint::Percentage(60), Constraint::Percentage(40)]).split(area);
+    let chunks = Layout::horizontal([Constraint::Percentage(100), Constraint::Min(25)]).split(area);
 
     let help_blurb = if app.show_help {
         Paragraph::new(Text::from(vec![Line::from(vec![
@@ -373,7 +376,7 @@ pub fn render_status_bar(f: &mut Frame, app: &mut App, area: Rect) {
         Paragraph::new(Text::from(vec![Line::from(vec![
             "Press (".into(),
             "h".cyan(),
-            ") to see the actions menu".into(),
+            ") for help".into(),
         ])]))
     };
     let help_contents = help_blurb
