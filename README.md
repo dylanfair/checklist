@@ -59,16 +59,24 @@ checklist
 
 Easy enough! On first time use before opening up the TUI, this will create a SQLite database and configuration file in your local configuration directory - likely one of the following places:
 
-Linux: `/home/\<USER>/.config/checklist/` \
+Linux: `/home/<USER>/.config/checklist/` \
 Windows: `C:\Users\<USER>\AppData\Local\checklist\` \
 Mac*: `~/Library/Application Support/checklist/`
 
 > *I don't have a Mac so haven't tested this, but I believe that's where it will go 
 
+This SQLite database are where your tasks are stored.
+
 You can always check where the database lives with: 
 
 ```sh
 checklist where
+```
+
+If you want to point `checklist` to a specific SQLite database (say you moved your files to a new computer), that can be done with:
+
+```sh
+checklist init --set <DB PATH>
 ```
 
 There are only a couple other commands from the CLI that you need to know:
@@ -94,13 +102,13 @@ Once in the app, we can get started by adding in a task! This can be done wither
 
 To update, `u` followed by a corresponding number will allow you to change that element for the currently selected task.
 
-To delete, `d` will prompt you with a `y` or `n` whether you want to delete it. `dd` will also blow through the prompt.
+To delete, `d` will prompt you with a `y` or `n` whether you want to delete it. `dd` is an alternative to delete quickly.
 
 `qc` will mark the selected task as `Complete` if not already. If used on a task that is complete, it will mark it as `Open`. This is mostly to save time from going to update, then status, and then marking the task `Complete`.
 
 ### Configuration memory
 
-`checklist` will remember the last Status filter and Urgency sort you had if you are to exit out and come back. Other "state" like any current `Tag` filter, or the current `Layout View`, are not kept.
+`checklist` will remember the last `Status` filter and `Urgency` sort you had if you are to exit out and come back. Other "state" like any current `Tag` filter, or the current `Layout View`, are not kept.
 
 ## VSCode oddity
 
