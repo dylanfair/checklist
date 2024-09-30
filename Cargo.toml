@@ -1,7 +1,12 @@
 [package]
-name = "checklist"
+name = "checklist-tui"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "A TUI for keeping track of your tasks in slim terminal views"
+repository = "README.md"
+readme = "https://github.com/dylanfair/checklist"
+keywords = ["tui", "todo", "task"]
 
 [dependencies]
 anyhow = "1.0.86"
