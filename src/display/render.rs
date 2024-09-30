@@ -169,11 +169,11 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: Rect) {
             "Move down task".yellow(),
         ),
         (
-            vec!["g".into(), " or ".cyan(), "HOME        ".into(), "".into()],
+            vec!["HOME".into(), " or ".cyan(), "g        ".into(), "".into()],
             "Move to first task".yellow(),
         ),
         (
-            vec!["G".into(), " or ".cyan(), "END         ".into(), "".into()],
+            vec!["END".into(), " or ".cyan(), "G         ".into(), "".into()],
             "Move to last task".yellow(),
         ),
         (
