@@ -18,6 +18,7 @@ use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
 use crate::backend::task::{Status, Task, TaskList, Urgency};
 use crate::display::add::{get_name, Inputs, Stage};
 use crate::display::render::{render_delete_popup, render_keys, render_task_info, render_tasks};
+use crate::display::theme::Theme;
 
 use self::common::{init_terminal, install_hooks, restore_terminal};
 
@@ -159,13 +160,14 @@ pub fn run_tui(
     memory: bool,
     testing: bool,
     config: Config,
+    theme: Theme,
     view: Option<LayoutView>,
 ) -> color_eyre::Result<(), anyhow::Error> {
     install_hooks()?;
     //let _clean_up = CleanUp;
     let terminal = init_terminal()?;
 
-    let mut app = App::new(memory, testing, config, view)?;
+    let mut app = App::new(memory, testing, config, theme, view)?;
     app.run(terminal)?;
 
     restore_terminal()?;
@@ -225,6 +227,8 @@ pub struct App {
     runtime: Runtime,
     // Config
     pub config: Config,
+    // Theme
+    pub theme: Theme,
     // Layout View
     pub layout_view: LayoutView,
     // Cursor info
@@ -260,7 +264,13 @@ pub struct App {
 }
 
 impl App {
-    fn new(memory: bool, testing: bool, config: Config, view: Option<LayoutView>) -> Result<Self> {
+    fn new(
+        memory: bool,
+        testing: bool,
+        config: Config,
+        theme: Theme,
+        view: Option<LayoutView>,
+    ) -> Result<Self> {
         let conn = get_db(memory, testing)?;
         let tasklist = TaskList::new();
 
@@ -279,6 +289,7 @@ impl App {
             conn,
             runtime,
             config,
+            theme,
             layout_view,
             cursor_info: CursorInfo::default(),
             tasklist,

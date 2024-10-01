@@ -8,18 +8,50 @@ use std::path::PathBuf;
 use crate::backend::config::get_config_dir;
 
 #[derive(Default, Debug, Deserialize, Serialize)]
-pub struct Theme {
-    normal_row_bg: Color,
-    alt_row_bg: Color,
-    selected_style: Color,
+pub struct ThemeColors {
+    pub normal_row_bg: Color,
+    pub alt_row_bg: Color,
+    pub selected_style: Color,
 }
 
-impl Theme {
+impl ThemeColors {
     pub fn default() -> Self {
         Self {
             normal_row_bg: SLATE.c950,
             alt_row_bg: SLATE.c900,
             selected_style: SLATE.c800,
+        }
+    }
+}
+
+#[derive(Default, Debug, Deserialize, Serialize)]
+pub struct ThemeStyles {
+    pub scrollbar_start: String,
+    pub scrollbar_end: String,
+}
+
+impl ThemeStyles {
+    pub fn default() -> Self {
+        Self {
+            scrollbar_start: String::from("↑"),
+            scrollbar_end: String::from("↓"),
+        }
+    }
+}
+
+#[derive(Default, Debug, Deserialize, Serialize)]
+pub struct Theme {
+    // Colors
+    pub theme_colors: ThemeColors,
+    // Styles
+    pub theme_styles: ThemeStyles,
+}
+
+impl Theme {
+    pub fn default() -> Self {
+        Self {
+            theme_colors: ThemeColors::default(),
+            theme_styles: ThemeStyles::default(),
         }
     }
 
@@ -74,7 +106,7 @@ pub fn get_toml_file() -> Result<PathBuf> {
 }
 
 pub fn read_theme() -> Result<Theme> {
-    let toml_file_path = get_config_dir()?;
+    let toml_file_path = get_toml_file()?;
     let toml_file = std::fs::File::open(&toml_file_path)
         .with_context(|| format!("Failed to open {:?}", toml_file_path))?;
     let mut reader = BufReader::new(toml_file);

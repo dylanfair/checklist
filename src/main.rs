@@ -12,7 +12,7 @@ use backend::database::{add_to_db, create_sqlite_db, get_db};
 use backend::task::{Status, Task, Urgency};
 use backend::wipe::wipe_tasks;
 
-use display::theme::{get_toml_file, Theme};
+use display::theme::{get_toml_file, read_theme, Theme};
 use display::tui::{run_tui, LayoutView};
 use display::ui::run_ui;
 
@@ -157,10 +157,23 @@ fn main() -> Result<()> {
                     read_config(cli.test).unwrap()
                 }
             };
+
+            // This will handle the theme, making a default one if
+            // One doesn't exist
+            let toml_file = get_toml_file()?;
+            if !toml_file.exists() {
+                println!("Creating a default theme.toml file");
+                Theme::default()
+                    .save()
+                    .context("Failed to create a default Theme")?;
+            }
+
+            // Now read it in
+            let theme = read_theme()?;
             if old {
                 run_ui(cli.memory, cli.test)?;
             } else {
-                run_tui(cli.memory, cli.test, config, view)?;
+                run_tui(cli.memory, cli.test, config, theme, view)?;
             }
         }
 
@@ -186,7 +199,27 @@ fn main() -> Result<()> {
                     read_config(cli.test).unwrap()
                 }
             };
-            run_tui(cli.memory, cli.test, config, Some(LayoutView::default()))?;
+
+            // This will handle the theme, making a default one if
+            // One doesn't exist
+            let toml_file = get_toml_file()?;
+            if !toml_file.exists() {
+                println!("Creating a default theme.toml file");
+                Theme::default()
+                    .save()
+                    .context("Failed to create a default Theme")?;
+            }
+
+            // Now read it in
+            let theme = read_theme()?;
+
+            run_tui(
+                cli.memory,
+                cli.test,
+                config,
+                theme,
+                Some(LayoutView::default()),
+            )?;
         }
     }
 

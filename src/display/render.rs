@@ -225,9 +225,9 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: Rect) {
 
     let keys_scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .symbols(scrollbar::VERTICAL)
-        .begin_symbol(Some("↑"))
+        .begin_symbol(Some(&app.theme.theme_styles.scrollbar_start))
         .track_symbol(None)
-        .end_symbol(Some("↓"));
+        .end_symbol(Some(&app.theme.theme_styles.scrollbar_end));
 
     f.render_stateful_widget(
         keys_scrollbar,
