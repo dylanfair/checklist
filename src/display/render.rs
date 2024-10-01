@@ -15,16 +15,15 @@ use crate::display::tui::{centered_ratio_rect, App, LayoutView};
 
 const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).add_modifier(Modifier::BOLD);
 const NORMAL_ROW_BG: Color = SLATE.c950;
-const ALT_ROW_BG_COLOR: Color = SLATE.c900;
 //const TODO_HEADER_STYLE: Style = Style::new().fg(SLATE.c100).bg(BLUE.c800);
 //const TEXT_FG_COLOR: Color = SLATE.c200;
 //const COMPLETED_TEXT_FG_COLOR: Color = GREEN.c500;
 
-const fn alternate_colors(i: usize) -> Color {
+const fn alternate_colors(i: usize, normal_color: Color, alternate_color: Color) -> Color {
     if i % 2 == 0 {
-        NORMAL_ROW_BG
+        normal_color
     } else {
-        ALT_ROW_BG_COLOR
+        alternate_color
     }
 }
 
@@ -255,7 +254,11 @@ pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: Rect) {
         .iter()
         .enumerate()
         .map(|(i, task_item)| {
-            let color = alternate_colors(i);
+            let color = alternate_colors(
+                i,
+                app.theme.theme_colors.normal_row_bg,
+                app.theme.theme_colors.alt_row_bg,
+            );
             let list_item = task_item.to_listitem();
             list_item.bg(color)
         })
@@ -270,9 +273,9 @@ pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: Rect) {
 
     let list_scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .symbols(scrollbar::VERTICAL)
-        .begin_symbol(Some("↑"))
+        .begin_symbol(Some(&app.theme.theme_styles.scrollbar_start))
         .track_symbol(None)
-        .end_symbol(Some("↓"));
+        .end_symbol(Some(&app.theme.theme_styles.scrollbar_end));
 
     f.render_stateful_widget(list, rectangle, &mut app.tasklist.state);
 
@@ -330,9 +333,9 @@ pub fn render_task_info(f: &mut Frame, app: &mut App, rectangle: Rect) {
 
     let task_info_scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .symbols(scrollbar::VERTICAL)
-        .begin_symbol(Some("↑"))
+        .begin_symbol(Some(&app.theme.theme_styles.scrollbar_start))
         .track_symbol(None)
-        .end_symbol(Some("↓"));
+        .end_symbol(Some(&app.theme.theme_styles.scrollbar_end));
 
     f.render_stateful_widget(
         task_info_scrollbar,
