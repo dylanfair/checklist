@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 mod backend;
@@ -12,6 +12,7 @@ use backend::database::{add_to_db, create_sqlite_db, get_db};
 use backend::task::{Status, Task, Urgency};
 use backend::wipe::wipe_tasks;
 
+use display::theme::{get_toml_file, Theme};
 use display::tui::{run_tui, LayoutView};
 use display::ui::run_ui;
 
@@ -103,8 +104,21 @@ fn main() -> Result<()> {
             if let Some(valid_path) = set {
                 set_new_path(valid_path, cli.test)?;
             } else {
+                // Probably need to decouple, but this will make the config
+                // file and the sqlite db
                 create_sqlite_db(cli.test)?;
                 println!("Successfully created the database to store your items in!");
+            }
+
+            // This will handle the theme, making a default one if
+            // One doesn't exist
+            let toml_file = get_toml_file()?;
+
+            if !toml_file.exists() {
+                println!("Creating a default theme.toml file");
+                Theme::default()
+                    .save()
+                    .context("Failed to create a default Theme")?;
             }
         }
 
