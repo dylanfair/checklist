@@ -52,7 +52,7 @@ impl ThemeColors {
             help_menu_outline: Color::White,
             help_menu_scrollbar: Color::White,
             pop_up_bg: SLATE.c800,
-            pop_up_outline: Color::Red,
+            pop_up_outline: Color::White,
         }
     }
 }
