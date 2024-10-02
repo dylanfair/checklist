@@ -1,6 +1,6 @@
 # checklist
 
-Yet another todo TUI app, meant to be used regardless of terminal size.
+Yet another todo TUI app (I know), meant to be used regardless of terminal size.
 
 ## Installation
 
@@ -57,7 +57,7 @@ Once you have `checklist` installed, you can get started with:
 checklist
 ```
 
-Easy enough! On first time use before opening up the TUI, this will create a SQLite database and configuration file in your local configuration directory - likely one of the following places:
+Easy enough! On first time use before opening up the TUI, this will create a SQLite database, configuration file, and theme.toml in your local configuration directory - likely one of the following places:
 
 Linux: `/home/<USER>/.config/checklist/` \
 Windows: `C:\Users\<USER>\AppData\Local\checklist\` \
@@ -65,7 +65,7 @@ Mac*: `~/Library/Application Support/checklist/`
 
 > *I don't have a Mac so haven't tested this, but I believe that's where it will go 
 
-This SQLite database are where your tasks are stored.
+The SQLite database are where your tasks are stored.
 
 You can always check where the database lives with: 
 
