@@ -110,6 +110,10 @@ To delete, `d` will prompt you with a `y` or `n` whether you want to delete it. 
 
 `checklist` will remember the last `Status` filter and `Urgency` sort you had if you are to exit out and come back. Other "state" like any current `Tag` filter, or the current `Layout View`, are not kept.
 
+## Customization
+
+There is a `theme.toml` file that is in the same location as your SQLite database (which can be found with `checklist where`). Here you can change background colors, outline colors, scrollbar colors and a couple styles. This isn't fully fleshed out, but hopefully acts as a good start.
+
 ## VSCode oddity
 
 I noticed that if running the app in a VSCode terminal, I needed to set the following setting in order for certain command combinations (i.e. CTRL \<down>) to work:
