@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
-use ratatui::style::{palette::tailwind::SLATE, Color};
+use ratatui::style::{
+    palette::tailwind::{EMERALD, SLATE},
+    Color,
+};
 use serde::{Deserialize, Serialize};
 use std::fs::{rename, File};
 use std::io::{prelude::*, BufReader};
@@ -12,6 +15,21 @@ pub struct ThemeColors {
     pub normal_row_bg: Color,
     pub alt_row_bg: Color,
     pub selected_style: Color,
+    pub status_bar: Color,
+    pub tasks_box_bg: Color,
+    pub tasks_box_outline: Color,
+    pub tasks_box_scrollbar: Color,
+    pub tasks_info_box_bg: Color,
+    pub tasks_info_box_outline: Color,
+    pub tasks_info_box_scrollbar: Color,
+    pub state_box_bg: Color,
+    pub state_box_outline: Color,
+    pub state_box_scrollbar: Color,
+    pub help_menu_bg: Color,
+    pub help_menu_outline: Color,
+    pub help_menu_scrollbar: Color,
+    pub pop_up_bg: Color,
+    pub pop_up_outline: Color,
 }
 
 impl ThemeColors {
@@ -20,21 +38,42 @@ impl ThemeColors {
             normal_row_bg: SLATE.c950,
             alt_row_bg: SLATE.c900,
             selected_style: SLATE.c800,
+            status_bar: EMERALD.c950,
+            tasks_box_bg: SLATE.c950,
+            tasks_box_outline: Color::White,
+            tasks_box_scrollbar: Color::White,
+            tasks_info_box_bg: SLATE.c950,
+            tasks_info_box_outline: Color::White,
+            tasks_info_box_scrollbar: Color::White,
+            state_box_bg: SLATE.c950,
+            state_box_outline: Color::White,
+            state_box_scrollbar: Color::White,
+            help_menu_bg: SLATE.c950,
+            help_menu_outline: Color::White,
+            help_menu_scrollbar: Color::White,
+            pop_up_bg: SLATE.c800,
+            pop_up_outline: Color::Red,
         }
     }
 }
 
 #[derive(Default, Debug, Deserialize, Serialize)]
 pub struct ThemeStyles {
-    pub scrollbar_start: String,
-    pub scrollbar_end: String,
+    pub scrollbar_begin: Option<String>,
+    pub scrollbar_end: Option<String>,
+    pub scrollbar_thumb: Option<String>,
+    pub scrollbar_track: Option<String>,
+    pub highlight_symbol: String,
 }
 
 impl ThemeStyles {
     pub fn default() -> Self {
         Self {
-            scrollbar_start: String::from("↑"),
-            scrollbar_end: String::from("↓"),
+            scrollbar_begin: Some(String::from("↑")),
+            scrollbar_end: Some(String::from("↓")),
+            scrollbar_thumb: Some(String::from("▐")),
+            scrollbar_track: Some(String::from("")),
+            highlight_symbol: String::from(">"),
         }
     }
 }

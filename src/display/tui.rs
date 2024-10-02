@@ -16,16 +16,15 @@ use rusqlite::Connection;
 use crate::backend::config::Config;
 use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
 use crate::backend::task::{Status, Task, TaskList, Urgency};
-use crate::display::add::{get_name, Inputs, Stage};
-use crate::display::render::{render_delete_popup, render_keys, render_task_info, render_tasks};
+use crate::display::add::{EntryMode, Inputs, Stage};
+use crate::display::render::{
+    get_description, get_latest, get_name, get_stage, get_status, get_tags, get_urgency,
+    render_delete_popup, render_keys, render_state, render_status_bar, render_task_info,
+    render_tasks,
+};
 use crate::display::theme::Theme;
 
 use self::common::{init_terminal, install_hooks, restore_terminal};
-
-use super::add::{
-    get_description, get_latest, get_stage, get_status, get_tags, get_urgency, EntryMode,
-};
-use super::render::{render_state, render_status_bar};
 
 impl Status {
     pub fn to_colored_span(&self) -> Span<'_> {
@@ -706,15 +705,15 @@ fn ui(f: &mut Frame, app: &mut App) {
     // popup renders
     // delete
     if app.delete_popup {
-        render_delete_popup(f, area);
+        render_delete_popup(f, app, area);
     }
 
     // add
     if app.add_popup {
         match app.add_stage {
             Stage::Name => get_name(f, app, area),
-            Stage::Urgency => get_urgency(f, area),
-            Stage::Status => get_status(f, area),
+            Stage::Urgency => get_urgency(f, app, area),
+            Stage::Status => get_status(f, app, area),
             Stage::Description => get_description(f, app, area),
             Stage::Latest => get_latest(f, app, area),
             Stage::Tags => get_tags(f, app, area),
@@ -724,10 +723,10 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     if app.update_popup {
         match app.update_stage {
-            Stage::Staging => get_stage(f, area),
+            Stage::Staging => get_stage(f, app, area),
             Stage::Name => get_name(f, app, area),
-            Stage::Urgency => get_urgency(f, area),
-            Stage::Status => get_status(f, area),
+            Stage::Urgency => get_urgency(f, app, area),
+            Stage::Status => get_status(f, app, area),
             Stage::Description => get_description(f, app, area),
             Stage::Latest => get_latest(f, app, area),
             Stage::Tags => get_tags(f, app, area),
@@ -753,23 +752,6 @@ pub fn centered_ratio_rect(x_ratio: u32, y_ratio: u32, r: Rect) -> Rect {
     ])
     .split(popup_layout[1])[1]
 }
-
-/// helper function to create a centered rect using up certain percentage of the available rect `r`
-//fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-//    let popup_layout = Layout::vertical([
-//        Constraint::Percentage((100 - percent_y) / 2),
-//        Constraint::Percentage(percent_y),
-//        Constraint::Percentage((100 - percent_y) / 2),
-//    ])
-//    .split(r);
-//
-//    Layout::horizontal([
-//        Constraint::Percentage((100 - percent_x) / 2),
-//        Constraint::Percentage(percent_x),
-//        Constraint::Percentage((100 - percent_x) / 2),
-//    ])
-//    .split(popup_layout[1])[1]
-//}
 
 mod common {
     use std::{
