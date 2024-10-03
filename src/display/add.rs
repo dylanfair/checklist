@@ -8,6 +8,17 @@ use crate::backend::database::{add_to_db, update_task_in_db};
 use crate::backend::task::{Status, Task, Urgency};
 use crate::display::tui::App;
 
+/// Enum to flag if the input being provided by the user
+/// is in the context of adding a task, updating one, or
+/// doing a "quick add".
+#[derive(PartialEq, Eq)]
+pub enum EntryMode {
+    Add,
+    Update,
+    QuickAdd,
+}
+
+/// Enum to flag the stage we are at during the Add process.
 #[derive(PartialEq, PartialOrd, Eq, Ord, Default)]
 pub enum Stage {
     Staging,
@@ -21,14 +32,9 @@ pub enum Stage {
     Finished,
 }
 
-#[derive(PartialEq, Eq)]
-pub enum EntryMode {
-    Add,
-    Update,
-    QuickAdd,
-}
-
 impl Stage {
+    /// Rotates forward through the stages
+    /// Begins at Name, ends at Finished
     pub fn next(&mut self) {
         match self {
             Stage::Name => *self = Stage::Urgency,
@@ -41,6 +47,8 @@ impl Stage {
         }
     }
 
+    /// Rotates backward through the Stages
+    /// Begins at Finished, ends at Name
     pub fn back(&mut self) {
         match self {
             Stage::Finished => *self = Stage::Tags,
@@ -54,6 +62,7 @@ impl Stage {
     }
 }
 
+/// Struct to capture the inputs provided by a user
 #[derive(Default)]
 pub struct Inputs {
     pub name: String,
@@ -66,6 +75,7 @@ pub struct Inputs {
 }
 
 impl Inputs {
+    /// Creates an `Inputs` struct based on a `Task` provided
     pub fn from_task(&mut self, task: &Task) {
         self.name = task.name.clone();
         self.urgency = task.urgency;
@@ -207,6 +217,7 @@ impl App {
         }
     }
 
+    /// Handles the `KeyEvent` when user is choosing what to update
     pub fn handle_update_staging(&mut self, key: KeyEvent) {
         let current_index = self.tasklist.state.selected().unwrap();
         match key.code {
@@ -247,6 +258,7 @@ impl App {
         }
     }
 
+    /// Handles the `KeyEvent` when user is providing text input
     pub fn handle_keys_for_text_inputs(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => {
@@ -288,6 +300,7 @@ impl App {
         }
     }
 
+    /// Handles the `KeyEvent` when the user is at the Tags `Stage`
     pub fn handle_keys_for_tags(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => {
@@ -399,6 +412,7 @@ impl App {
         }
     }
 
+    /// Handles the `KeyEvent` when in the Urgency `Stage`
     pub fn handle_keys_for_urgency(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => {
@@ -441,6 +455,7 @@ impl App {
         }
     }
 
+    /// Handles the `KeyEvent` when in the Status `Stage`
     pub fn handle_keys_for_status(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Esc => {
@@ -483,6 +498,8 @@ impl App {
         }
     }
 
+    /// Adds a new `Task` into the SQLite database based on what is in
+    /// the current `Inputs` struct in `App`.
     pub fn add_new_task_in(&mut self) -> Result<()> {
         let description = if self.inputs.description == "" {
             None
@@ -522,6 +539,8 @@ impl App {
         Ok(())
     }
 
+    /// Updates a `Task` in the SQLite database that has been selected
+    /// in the TUI.
     pub fn update_selected_task(&mut self) -> Result<()> {
         let current_selection = self.tasklist.state.selected().unwrap();
         let current_uuid = self.tasklist.tasks[current_selection].get_id();
