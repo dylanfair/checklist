@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -7,9 +6,8 @@ use clap::{Parser, Subcommand};
 mod backend;
 mod display;
 
-use backend::config::{read_config, set_new_path};
-use backend::database::{add_to_db, create_sqlite_db, get_db};
-use backend::task::{Status, Task, Urgency};
+use backend::config::{get_config_dir, read_config, set_new_path};
+use backend::database::{create_sqlite_db, get_db};
 use backend::wipe::wipe_tasks;
 
 use display::theme::{get_toml_file, read_theme, Theme};
@@ -19,11 +17,13 @@ use display::ui::run_ui;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    /// Optional for testing using an in memory sqlite db
+    /// Will run checklist off of a memory SQLite database.
+    /// As a result, no data will be kept on program exit.
     #[arg(short, long)]
     memory: bool,
 
-    /// Optional for testing using a test sqlite db
+    /// Will run checklist off a test SQLite database.
+    /// This will keep data in a test.checklist.sqlite file.
     #[arg(short, long)]
     test: bool,
 
@@ -33,54 +33,54 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Initializes checklist, creating a sqlite database
+    /// Initializes checklist, creating a SQLite database
     /// that the program will automatically use
     /// and a config json file
     Init {
         /// Optional argument that will set a given
-        /// sqlite database as the new default
+        /// SQLite database as the new default
         #[arg(short, long)]
         set: Option<PathBuf>,
     },
 
-    /// Wipe out all tasks
+    /// Wipe tasks in the database
     Wipe {
         /// Bypass confirmation check
         #[arg(short)]
         yes: bool,
 
-        /// Pass in to drop the table entirely
+        /// Pass in to drop the 'task' table entirely.
+        /// Use with caution.
         #[arg(long)]
         hard: bool,
     },
 
-    /// Adds a task to your checklist
-    Add {
-        /// Name of the task
-        #[arg(short, long)]
-        name: String,
-
-        /// Optional: Description of the task
-        #[arg(short, long)]
-        description: Option<String>,
-
-        /// Optional: Latest updates on the task
-        #[arg(short, long)]
-        latest: Option<String>,
-
-        /// Optional: Urgency of the task
-        #[arg(short, long, value_enum)]
-        urgency: Option<Urgency>,
-
-        /// Optional: Status of the task
-        #[arg(short, long, value_enum)]
-        status: Option<Status>,
-
-        /// Optional: Tags to give the task
-        #[arg(short, long, num_args = 1..)]
-        tag: Option<Vec<String>>,
-    },
-
+    // /// Adds a task to your checklist
+    // Add {
+    //     /// Name of the task
+    //     #[arg(short, long)]
+    //     name: String,
+    //
+    //     /// Optional: Description of the task
+    //     #[arg(short, long)]
+    //     description: Option<String>,
+    //
+    //     /// Optional: Latest updates on the task
+    //     #[arg(short, long)]
+    //     latest: Option<String>,
+    //
+    //     /// Optional: Urgency of the task
+    //     #[arg(short, long, value_enum)]
+    //     urgency: Option<Urgency>,
+    //
+    //     /// Optional: Status of the task
+    //     #[arg(short, long, value_enum)]
+    //     status: Option<Status>,
+    //
+    //     /// Optional: Tags to give the task
+    //     #[arg(short, long, num_args = 1..)]
+    //     tag: Option<Vec<String>>,
+    // },
     /// Displays tasks in an interactive terminal
     Display {
         /// For testing, switches between ratatui or my hand-rolled interface
@@ -92,8 +92,20 @@ enum Commands {
         view: Option<LayoutView>,
     },
 
-    /// Tells you where the sqlite db that stores your task are
-    Where {},
+    /// Tells you where checklist files are stored
+    Where {
+        /// Gives you the full path to the SQLite database
+        #[arg(short, long)]
+        db: bool,
+
+        /// Gives you the full path to the configuration file
+        #[arg(short, long)]
+        config: bool,
+
+        /// Gives you the full path to the theme.toml file
+        #[arg(short, long)]
+        theme: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -122,27 +134,26 @@ fn main() -> Result<()> {
             }
         }
 
-        Some(Commands::Add {
-            name,
-            description,
-            latest,
-            urgency,
-            status,
-            tag,
-        }) => {
-            println!("Create task");
-            let mut hashset = None;
-            if let Some(t) = tag {
-                hashset = Some(HashSet::from_iter(t));
-            }
-            let new_task = Task::new(name, description, latest, urgency, status, hashset);
-            println!("{:?}", new_task);
-
-            let conn = get_db(cli.memory, cli.test)?;
-            add_to_db(&conn, &new_task)?;
-            println!("New task added successfully");
-        }
-
+        // Some(Commands::Add {
+        //     name,
+        //     description,
+        //     latest,
+        //     urgency,
+        //     status,
+        //     tag,
+        // }) => {
+        //     println!("Create task");
+        //     let mut hashset = None;
+        //     if let Some(t) = tag {
+        //         hashset = Some(HashSet::from_iter(t));
+        //     }
+        //     let new_task = Task::new(name, description, latest, urgency, status, hashset);
+        //     println!("{:?}", new_task);
+        //
+        //     let conn = get_db(cli.memory, cli.test)?;
+        //     add_to_db(&conn, &new_task)?;
+        //     println!("New task added successfully");
+        // }
         Some(Commands::Wipe { yes, hard }) => {
             let conn = get_db(cli.memory, cli.test)?;
             wipe_tasks(&conn, yes, hard)?
@@ -177,18 +188,49 @@ fn main() -> Result<()> {
             }
         }
 
-        Some(Commands::Where {}) => {
-            match read_config(cli.test) {
-                Ok(config) => {
-                    println!("Your tasks are stored in the following database:");
-                    println!("{}", config.db_path.to_str().unwrap());
+        Some(Commands::Where { db, config, theme }) => match get_config_dir() {
+            Ok(dir) => {
+                if !db & !config & !theme {
+                    println!("{}", dir.to_str().unwrap());
                 }
-                Err(_) => {
-                    println!("Could not find a current configruation file.");
-                    println!("Try getting started with 'checklist init' or 'checklist'!");
+                if db {
+                    let db_path = if cli.test {
+                        dir.join(String::from("test.checklist.sqlite"))
+                    } else {
+                        dir.join(String::from("checklist.sqlite"))
+                    };
+                    if db_path.exists() {
+                        println!("{}", db_path.to_str().unwrap());
+                    } else {
+                        println!("Could not find a SQLite database file.")
+                    }
                 }
-            };
-        }
+                if config {
+                    let config_path = if cli.test {
+                        dir.join(String::from("test.config.json"))
+                    } else {
+                        dir.join(String::from("config.json"))
+                    };
+                    if config_path.exists() {
+                        println!("{}", config_path.to_str().unwrap());
+                    } else {
+                        println!("Could not find a config file.")
+                    }
+                }
+                if theme {
+                    let theme_path = dir.join(String::from("theme.toml"));
+                    if theme_path.exists() {
+                        println!("{}", theme_path.to_str().unwrap());
+                    } else {
+                        println!("Could not find a theme file.")
+                    }
+                }
+            }
+            Err(_) => {
+                println!("Could not find the folder that should hold checklist files");
+                println!("Try getting started with 'checklist init' or 'checklist'!");
+            }
+        },
 
         None => {
             let config = match read_config(cli.test) {

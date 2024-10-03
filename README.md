@@ -67,10 +67,15 @@ Mac*: `~/Library/Application Support/checklist/`
 
 The SQLite database are where your tasks are stored.
 
-You can always check where the database lives with: 
+You can always check where files related to checklist live with: 
 
 ```sh
 checklist where
+
+# To get specific files
+checklist where -d # SQLite database
+checklist where -c # config.json file
+checklist where -t # theme.toml file
 ```
 
 If you want to point `checklist` to a specific SQLite database (say you moved your files to a new computer), that can be done with:
