@@ -65,7 +65,7 @@ Mac*: `~/Library/Application Support/checklist/`
 
 > *I don't have a Mac so haven't tested this, but I believe that's where it will go 
 
-The SQLite database are where your tasks are stored.
+The SQLite database is where your tasks are stored.
 
 You can always check where files related to checklist live with: 
 
@@ -120,7 +120,7 @@ To delete, `d` will prompt you with a `y` or `n` whether you want to delete it. 
 
 ## Customization
 
-There is a `theme.toml` file that is in the same location as your SQLite database (which can be found with `checklist where`). Here you can change background colors, outline colors, scrollbar colors and a couple styles. This isn't fully fleshed out, but hopefully acts as a good start.
+There is a `theme.toml` file (which can be found with `checklist where -t`). Here you can change background colors, outline colors, scrollbar colors and a couple styles. This isn't fully fleshed out, but hopefully acts as a good start.
 
 ## VSCode oddity
 
