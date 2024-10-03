@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::mem::swap;
 use std::string::ToString;
 
 use chrono::prelude::*;
@@ -11,6 +10,7 @@ use rusqlite::{types::FromSql, types::ValueRef, ToSql};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// Enum to help control what tasks are to be displayed
 #[derive(Clone, Copy, Debug, ValueEnum, strum_macros::Display, Serialize, Deserialize)]
 pub enum Display {
     All,
@@ -19,6 +19,7 @@ pub enum Display {
 }
 
 impl Display {
+    /// Will rotate through the different enum variants
     pub fn next(&mut self) {
         match self {
             Display::All => *self = Display::Completed,
@@ -28,6 +29,7 @@ impl Display {
     }
 }
 
+/// Enum to handle the urgency of a `Task`
 #[derive(
     Clone,
     Debug,
@@ -51,6 +53,7 @@ pub enum Urgency {
 }
 
 impl Urgency {
+    /// Will return a `StyledContent<String>` based on the Urgency
     pub fn to_colored_string(&self) -> crossterm::style::StyledContent<String> {
         match self {
             Urgency::Low => String::from("Low").green(),
@@ -88,6 +91,7 @@ impl FromSql for Urgency {
     }
 }
 
+/// Enum to handle the status of a `Task`
 #[derive(Clone, Debug, Copy, ValueEnum, strum_macros::Display, PartialEq, Eq, Default)]
 pub enum Status {
     #[default]
@@ -98,6 +102,7 @@ pub enum Status {
 }
 
 impl Status {
+    /// Will return a `StyledContent<String>` based on the Status
     pub fn to_colored_string(&self) -> crossterm::style::StyledContent<String> {
         match self {
             Status::Open => String::from("Open").cyan(),
@@ -135,6 +140,7 @@ impl FromSql for Status {
     }
 }
 
+/// Struct that holds the attributes to a Task
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Task {
     id: Uuid,
@@ -149,6 +155,8 @@ pub struct Task {
 }
 
 impl Task {
+    /// Creates a new `Task`, requiring only a `String` name.
+    /// Everything else is optional.
     pub fn new(
         name: String,
         description: Option<String>,
@@ -181,58 +189,6 @@ impl Task {
 
     pub fn get_date_added(&self) -> DateTime<Local> {
         self.date_added
-    }
-
-    #[allow(dead_code)]
-    pub fn update(
-        &mut self,
-        name: Option<String>,
-        description: Option<String>,
-        latest: Option<String>,
-        urgency: Option<Urgency>,
-        status: Option<Status>,
-        add_tags: Option<HashSet<String>>,
-        remove_tags: Option<HashSet<String>>,
-    ) {
-        if let Some(n) = name {
-            self.name = n;
-        }
-        // Description
-        self.description = description;
-        // Latest
-        self.latest = latest;
-        // Urgency
-        if let Some(urg) = urgency {
-            self.urgency = urg;
-        }
-        // Status
-        if let Some(stat) = status {
-            self.status = stat;
-            if self.status == Status::Completed {
-                self.completed_on = Some(Local::now());
-            } else {
-                self.completed_on = None;
-            }
-        }
-        if let Some(add_t) = add_tags {
-            let mut old_tags: Option<HashSet<String>> = Some(HashSet::new());
-            swap(&mut old_tags, &mut self.tags);
-            let mut tags = old_tags.unwrap_or(HashSet::new());
-            tags.extend(add_t);
-            self.tags = Some(tags);
-        }
-        if self.tags.is_some() {
-            if let Some(remove_t) = remove_tags {
-                let mut old_tags: Option<HashSet<String>> = Some(HashSet::new());
-                swap(&mut old_tags, &mut self.tags);
-                let mut tags = old_tags.unwrap();
-
-                for t in remove_t {
-                    tags.remove(&t);
-                }
-                self.tags = Some(tags);
-            }
-        }
     }
 
     pub fn from_sql(
@@ -286,6 +242,10 @@ fn urgency_asc(a: &Task, b: &Task) -> Ordering {
     Ordering::Less
 }
 
+/// Struct that holds a vector of `Task`, and
+/// a ratatui's `ListState`.
+///
+/// Meant to be used within the TUI
 #[derive(Clone, Debug)]
 pub struct TaskList {
     pub tasks: Vec<Task>,
@@ -293,6 +253,7 @@ pub struct TaskList {
 }
 
 impl TaskList {
+    /// Creates a new `TaskList` with an empty vector of `Task`s and a `ListState::default()`.
     pub fn new() -> Self {
         TaskList {
             tasks: vec![],
@@ -300,7 +261,7 @@ impl TaskList {
         }
     }
 
-    #[allow(dead_code)]
+    /// Creates a new `TaskList` given a vector of `Task`s. Will start with `ListState::default()`.
     pub fn from(tasks: Vec<Task>) -> Self {
         TaskList {
             tasks,
@@ -308,6 +269,8 @@ impl TaskList {
         }
     }
 
+    /// Sorts the `TaskList` based on the `Urgency` in the vector of `Task`s.
+    /// If `descending` is true, sort will be done in a Critical > Low order.
     pub fn sort_by_urgency(&mut self, descending: bool) {
         if descending {
             self.tasks.sort_by(urgency_desc)
@@ -316,11 +279,11 @@ impl TaskList {
         }
     }
 
-    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.tasks.len()
     }
 
+    /// Filters the `TaskList`, either on a `Display` given or by a tag `String`
     pub fn filter_tasks(&mut self, display_option: Option<Display>, tags_filter: String) {
         let mut tasks_to_keep = vec![];
         'task: for task in &mut self.tasks.iter() {
@@ -374,47 +337,6 @@ impl TaskList {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_task_update() {
-        let mut task = Task::new(String::from("Test task"), None, None, None, None, None);
-        // add tags
-        task.update(
-            None,
-            None,
-            None,
-            Some(Urgency::Low),
-            Some(Status::Completed),
-            Some(HashSet::from([
-                "task1".to_string(),
-                "task2".to_string(),
-                "task1".to_string(),
-            ])),
-            None,
-        );
-        assert_eq!(
-            task.tags,
-            Some(HashSet::from(["task1".to_string(), "task2".to_string()]))
-        );
-        assert_eq!(task.urgency, Urgency::Low);
-        assert_eq!(task.status, Status::Completed);
-        assert!(task.completed_on.is_some());
-
-        // remove tags
-        task.update(
-            None,
-            None,
-            None,
-            Some(Urgency::High),
-            Some(Status::Paused),
-            None,
-            Some(HashSet::from(["task1".to_string()])),
-        );
-        assert_eq!(task.tags, Some(HashSet::from(["task2".to_string()])));
-        assert_eq!(task.urgency, Urgency::High);
-        assert_eq!(task.status, Status::Paused);
-        assert!(task.completed_on.is_none());
-    }
 
     #[test]
     fn test_urgency_ordering() {

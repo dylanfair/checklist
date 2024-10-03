@@ -255,7 +255,11 @@ pub fn render_state(f: &mut Frame, app: &mut App, rectangle: Rect) {
     );
 
     if app.enter_tags_filter {
-        state_block = state_block.border_style(Style::new().blue());
+        state_block = state_block
+            .border_style(
+                Style::new().fg(app.theme.theme_colors.state_box_outline_during_tags_edit),
+            )
+            .border_type(BorderType::Rounded);
     }
 
     let state_vec_lines = vec![

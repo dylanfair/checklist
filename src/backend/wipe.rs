@@ -3,6 +3,9 @@ use rusqlite::Connection;
 
 use crate::backend::database::remove_all_db_contents;
 
+/// Wipes all tasks in a SQLite database `&Connection`.
+/// A confirmation prompt will be given unless `confirm_skip` is true.
+/// If `hard` is true, then this will also drop the Task table.
 pub fn wipe_tasks(conn: &Connection, confirm_skip: bool, hard: bool) -> Result<()> {
     if !confirm_skip {
         println!("Are you sure you want to proceed with the wipe? (y/n)");

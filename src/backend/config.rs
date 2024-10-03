@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::backend::task::Display;
 
+/// Struct to hold information for the program between sessions
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub db_path: PathBuf,
@@ -16,6 +17,7 @@ pub struct Config {
 }
 
 impl Config {
+    /// Creates a new config, taking in the path of a SQLite database
     pub fn new(db_path: PathBuf) -> Self {
         let urgency_sort_desc = true;
         let display_filter = Display::All;
@@ -27,6 +29,9 @@ impl Config {
         }
     }
 
+    /// Saves the config to a config.json file.
+    /// Save location is based on `directories::BaseDirs`.
+    /// `testing` bool will save a test.config.json file instead.
     pub fn save(&self, testing: bool) -> Result<()> {
         match get_config_dir() {
             Ok(conf_local_dir) => {
@@ -65,6 +70,8 @@ impl Config {
     }
 }
 
+/// Gets the directory where all checklist files are saved.
+/// This is based on `directories::BaseDirs`
 pub fn get_config_dir() -> Result<PathBuf> {
     let base_directories =
         BaseDirs::new().expect("Could not find the user's local config directory.");
@@ -81,6 +88,8 @@ pub fn get_config_dir() -> Result<PathBuf> {
     Ok(conf_local_dir)
 }
 
+/// Looks for where the config.json file should be,
+/// and reads it in returning a Result<Config>
 pub fn read_config(testing: bool) -> Result<Config> {
     match get_config_dir() {
         Ok(local_config_dir) => {
@@ -105,6 +114,9 @@ pub fn read_config(testing: bool) -> Result<Config> {
     }
 }
 
+/// Will set the SQLite database path in the configuration file to use
+/// the `PathBuf` provided. If `testing` is true, will save to the test
+/// configuration file instead.
 pub fn set_new_path(path: PathBuf, testing: bool) -> Result<()> {
     if path.exists() == false {
         panic!("A valid path that exists needs to be supplied")

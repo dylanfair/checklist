@@ -30,6 +30,7 @@ pub struct ThemeColors {
     pub help_menu_scrollbar: Color,
     pub pop_up_bg: Color,
     pub pop_up_outline: Color,
+    pub state_box_outline_during_tags_edit: Color,
 }
 
 impl ThemeColors {
@@ -53,6 +54,7 @@ impl ThemeColors {
             help_menu_scrollbar: Color::White,
             pop_up_bg: SLATE.c800,
             pop_up_outline: Color::White,
+            state_box_outline_during_tags_edit: Color::Blue,
         }
     }
 }

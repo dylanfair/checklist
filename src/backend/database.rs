@@ -7,6 +7,7 @@ use rusqlite::{params, Connection};
 use crate::backend::config::{get_config_dir, read_config, Config};
 use crate::backend::task::{Task, TaskList};
 
+/// Returns a Result<Connection> to an in-memory SQLite db
 pub fn make_memory_connection() -> Result<Connection> {
     println!("Setting up an in-memory sqlite_db");
     let conn =
@@ -30,6 +31,7 @@ pub fn make_memory_connection() -> Result<Connection> {
     Ok(conn)
 }
 
+/// Returns a `Result<Connection>` given a `&Pathbuf` to a SQLite database
 fn make_connection(path: &PathBuf) -> Result<Connection> {
     let conn = Connection::open(&path)
         .with_context(|| format!("Failed connect to the database at {:?}", path))?;
@@ -37,6 +39,13 @@ fn make_connection(path: &PathBuf) -> Result<Connection> {
     Ok(conn)
 }
 
+/// Creates a SQLite database. Will create a "test" SQLite database
+/// if testing bool brought in. This is a standalone SQLite database 
+/// but with "test." prefixed. 
+///
+/// Problematically this also creates and saves a `Config` based on
+/// the path used to create the SQLite database. Probably best to decouple
+/// this action in the future.
 pub fn create_sqlite_db(testing: bool) -> Result<()> {
     let local_config_dir = get_config_dir()?;
     let mut sqlite_path = local_config_dir;
@@ -71,6 +80,7 @@ pub fn create_sqlite_db(testing: bool) -> Result<()> {
     Ok(())
 }
 
+/// Returns a `Result<Connection>` based on `memory` and `testing` bools.
 pub fn get_db(memory: bool, testing: bool) -> Result<Connection> {
     if memory {
         println!("Using an in-memory sqlite database");
@@ -88,6 +98,7 @@ pub fn get_db(memory: bool, testing: bool) -> Result<Connection> {
     }
 }
 
+/// Adds a `&Task` to a SQLite database based on the `&Connection` given.
 pub fn add_to_db(conn: &Connection, task: &Task) -> Result<()> {
     // Handle inserting tags
     let mut tags_insert = None;
@@ -118,6 +129,7 @@ pub fn add_to_db(conn: &Connection, task: &Task) -> Result<()> {
     Ok(())
 }
 
+/// Updates a `&Task` in a SQLite database based on the `&Connecton` given.
 pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
     let mut tags_insert = None;
     match &task.tags {
@@ -143,12 +155,14 @@ pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
     Ok(())
 }
 
+/// Deletes a `&Task` in a SQLite database based on the `&Connecton` given.
 pub fn delete_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
     // println!("Deleting task from db");
     conn.execute("DELETE FROM task WHERE id = ?1", [&task.get_id()]).context("Failed to delete task from the database")?;
     Ok(())
 }
 
+/// Returns a `Result<TaskList>` of all tasks in a SQLite database on the `&Connection` given.
 pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
     let mut stmt = conn.prepare("SELECT * FROM task").unwrap();
 
@@ -193,6 +207,8 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
     Ok(task_list)
 }
 
+/// Deletes all tasks in a SQLite database on the `&Connection` given.
+/// If `hard` is true, this will also DROP the task table.
 pub fn remove_all_db_contents(conn: &Connection, hard: bool) -> Result<()> {
     if hard {
         conn.execute("DROP TABLE task", ())
@@ -237,10 +253,10 @@ mod tests {
     }
 
     #[test]
-    fn add_update_delete_to_database() {
+    fn add_delete_to_database() {
         let conn = get_db(true, false).unwrap();
 
-        let mut new_task = Task::new(
+        let new_task = Task::new(
             "My new task".to_string(),
             None,
             None,
@@ -267,18 +283,6 @@ mod tests {
             String::from("Tag2"),
         ])));
         assert!(task.completed_on.is_none());
-
-        // Now update our task
-        new_task.update(
-            None,
-            Some("New description".to_string()),
-            Some("New latest".to_string()),
-            None,
-            Some(Status::Completed),
-            None,
-            Some(HashSet::from_iter(["Tag1".to_string()]))
-            );
-        update_task_in_db(&conn, &new_task).unwrap();
 
         // Again, see if data we get back matches
         let task_list = get_all_db_contents(&conn).unwrap();
