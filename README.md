@@ -70,9 +70,12 @@ The SQLite database are where your tasks are stored.
 You can always check where files related to checklist live with: 
 
 ```sh
-checklist where
+checklist where # returns the folder that holds checklist related files
+```
 
-# To get specific files
+To get specific files:
+
+```sh
 checklist where -d # SQLite database
 checklist where -c # config.json file
 checklist where -t # theme.toml file
