@@ -10,6 +10,8 @@ use std::path::PathBuf;
 
 use crate::backend::config::get_config_dir;
 
+/// Struct holds all the color configurations for `checklist`
+/// that the user can change
 #[derive(Default, Debug, Deserialize, Serialize)]
 pub struct ThemeColors {
     pub normal_row_bg: Color,
@@ -34,6 +36,7 @@ pub struct ThemeColors {
 }
 
 impl ThemeColors {
+    /// Default colors to set
     pub fn default() -> Self {
         Self {
             normal_row_bg: SLATE.c950,
@@ -59,6 +62,7 @@ impl ThemeColors {
     }
 }
 
+/// Struct that holds different elements the user can style
 #[derive(Default, Debug, Deserialize, Serialize)]
 pub struct ThemeStyles {
     pub scrollbar_begin: Option<String>,
@@ -69,6 +73,7 @@ pub struct ThemeStyles {
 }
 
 impl ThemeStyles {
+    /// Default style elements
     pub fn default() -> Self {
         Self {
             scrollbar_begin: Some(String::from("↑")),
@@ -80,6 +85,7 @@ impl ThemeStyles {
     }
 }
 
+/// Overall struct that holds `ThemeColors` and `ThemeStyles`
 #[derive(Default, Debug, Deserialize, Serialize)]
 pub struct Theme {
     // Colors
@@ -89,6 +95,7 @@ pub struct Theme {
 }
 
 impl Theme {
+    /// Instantiates the `Theme` with default `ThemeColors` and `ThemeStyles`
     pub fn default() -> Self {
         Self {
             theme_colors: ThemeColors::default(),
@@ -96,6 +103,8 @@ impl Theme {
         }
     }
 
+    /// Saves the `Theme` to a theme.toml file.
+    /// Save location is based on `directories::BaseDirs`.
     pub fn save(&self) -> Result<()> {
         match get_config_dir() {
             Ok(conf_local_dir) => {
@@ -131,6 +140,7 @@ impl Theme {
     }
 }
 
+/// Returns a `Result<PathBuf>` of the theme.toml file
 pub fn get_toml_file() -> Result<PathBuf> {
     match get_config_dir() {
         Ok(local_config_dir) => {
@@ -146,6 +156,7 @@ pub fn get_toml_file() -> Result<PathBuf> {
     }
 }
 
+/// Returns a `Result<Theme>` from the theme.toml file
 pub fn read_theme() -> Result<Theme> {
     let toml_file_path = get_toml_file()?;
     let toml_file = std::fs::File::open(&toml_file_path)

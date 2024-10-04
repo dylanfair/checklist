@@ -6,154 +6,23 @@ use ratatui::{
     backend::Backend,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     layout::{Constraint, Layout, Rect},
-    style::{Color, Style, Stylize},
-    text::{Line, Span},
-    widgets::{ListItem, Paragraph, ScrollbarState},
+    widgets::ScrollbarState,
     Terminal,
 };
 use rusqlite::Connection;
 
 use crate::backend::config::Config;
 use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
-use crate::backend::task::{Status, Task, TaskList, Urgency};
+use crate::backend::task::TaskList;
 use crate::display::add::{EntryMode, Inputs, Stage};
 use crate::display::render::{
-    get_description, get_latest, get_name, get_stage, get_status, get_tags, get_urgency,
-    render_delete_popup, render_keys, render_state, render_status_bar, render_task_info,
-    render_tasks,
+    render_delete_popup, render_description_popup, render_help, render_latest_popup,
+    render_name_popup, render_stage_popup, render_state, render_status_bar, render_status_popup,
+    render_tags_popup, render_task_info, render_tasks, render_urgency_popup,
 };
 use crate::display::theme::Theme;
 
 use self::common::{init_terminal, install_hooks, restore_terminal};
-
-impl Status {
-    pub fn to_colored_span(&self) -> Span<'_> {
-        match self {
-            Status::Open => String::from("Open").cyan(),
-            Status::Working => String::from("Working").blue(),
-            Status::Paused => String::from("Paused").yellow(),
-            Status::Completed => String::from("Completed").green(),
-        }
-    }
-}
-
-impl Urgency {
-    pub fn to_colored_span(&self) -> Span<'_> {
-        match self {
-            Urgency::Low => String::from("Low").green(),
-            Urgency::Medium => String::from("Medium").yellow(),
-            Urgency::High => String::from("High").magenta(),
-            Urgency::Critical => String::from("Critical").red(),
-        }
-    }
-
-    pub fn to_colored_exclamation_marks(&self) -> Span<'_> {
-        match self {
-            Urgency::Low => String::from("   ").green(),
-            Urgency::Medium => String::from("!  ").yellow(),
-            Urgency::High => String::from("!! ").magenta(),
-            Urgency::Critical => String::from("!!!").red(),
-        }
-    }
-}
-
-impl Task {
-    fn span_tags(&self) -> Vec<Span> {
-        let mut tags_span_vec = vec![Span::from("Tags:".to_string())];
-        match &self.tags {
-            Some(tags) => {
-                let mut task_tags_vec = Vec::from_iter(tags);
-                task_tags_vec.sort_by(|a, b| a.cmp(b));
-
-                for tag in task_tags_vec {
-                    tags_span_vec.push(Span::from(format!(" {} ", tag).blue()));
-                    tags_span_vec.push(Span::from("|"));
-                }
-                tags_span_vec.pop(); // removing the extra | at the end
-                tags_span_vec
-            }
-            None => tags_span_vec,
-        }
-    }
-
-    pub fn to_listitem(&self) -> ListItem {
-        let line = match self.status {
-            Status::Completed => {
-                let spans = vec![
-                    "✓   | ".green(),
-                    self.status.to_colored_span().clone(),
-                    " - ".into(),
-                    self.name.clone().into(),
-                ];
-                Line::from(spans)
-            }
-            _ => {
-                let spans = vec![
-                    //"☐ - ".white(),
-                    self.urgency.to_colored_exclamation_marks(),
-                    " | ".into(),
-                    self.status.to_colored_span().clone(),
-                    " - ".into(),
-                    self.name.clone().into(),
-                ];
-                Line::from(spans)
-            }
-        };
-        ListItem::new(line)
-    }
-
-    pub fn to_text_vec(&self) -> Vec<Line> {
-        let completion_date = match self.completed_on {
-            Some(date) => format!(" - {}", date.date_naive().to_string()),
-            None => String::from(""),
-        };
-        let text = vec![
-            Line::from(vec![
-                Span::styled("Title: ", Style::default()),
-                Span::styled(&self.name, Style::default().fg(Color::Magenta)),
-            ]),
-            Line::from(vec![
-                Span::styled("Created: ", Style::default()),
-                Span::styled(
-                    self.date_added.date_naive().to_string(),
-                    Style::default().fg(Color::Cyan),
-                ),
-            ]),
-            Line::from(vec![
-                Span::styled("Status: ", Style::default()),
-                self.status.to_colored_span(),
-                Span::styled(completion_date, Style::default().fg(Color::Green)),
-            ]),
-            Line::from(vec![
-                Span::styled("Urgency: ", Style::default()),
-                self.urgency.to_colored_span(),
-            ]),
-            Line::from(self.span_tags()),
-            Line::from(vec![Span::styled("", Style::default())]),
-            Line::from(vec![Span::styled("Latest:", Style::default().underlined())]),
-            Line::from(vec![Span::styled(
-                self.latest.clone().unwrap_or("".to_string()),
-                Style::default().fg(Color::Blue),
-            )]),
-            Line::from(vec![Span::styled("", Style::default())]),
-            Line::from(vec![Span::styled(
-                "Description:",
-                Style::default().underlined(),
-            )]),
-            Line::from(vec![Span::styled(
-                self.description.clone().unwrap_or("".to_string()),
-                Style::default().fg(Color::Magenta),
-            )]),
-        ];
-        text
-    }
-
-    pub fn to_paragraph(&self) -> Paragraph {
-        let text = self.to_text_vec();
-
-        Paragraph::new(text)
-    }
-}
 
 pub fn run_tui(
     memory: bool,
@@ -382,7 +251,7 @@ impl App {
             match key.code {
                 KeyCode::Char('a') => {
                     // Let user choose a name, then make task
-                    self.quick_add();
+                    self.quick_add_setup();
                     self.quick_action = !self.quick_action;
                 }
                 KeyCode::Char('c') => {
@@ -663,7 +532,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     .split(area);
 
     if app.show_help {
-        render_keys(f, app, chunks[0]);
+        render_help(f, app, chunks[0]);
         render_status_bar(f, app, chunks[1])
     } else {
         let information = if app.layout_view == LayoutView::Vertical {
@@ -711,25 +580,25 @@ fn ui(f: &mut Frame, app: &mut App) {
     // add
     if app.add_popup {
         match app.add_stage {
-            Stage::Name => get_name(f, app, area),
-            Stage::Urgency => get_urgency(f, app, area),
-            Stage::Status => get_status(f, app, area),
-            Stage::Description => get_description(f, app, area),
-            Stage::Latest => get_latest(f, app, area),
-            Stage::Tags => get_tags(f, app, area),
+            Stage::Name => render_name_popup(f, app, area),
+            Stage::Urgency => render_urgency_popup(f, app, area),
+            Stage::Status => render_status_popup(f, app, area),
+            Stage::Description => render_description_popup(f, app, area),
+            Stage::Latest => render_latest_popup(f, app, area),
+            Stage::Tags => render_tags_popup(f, app, area),
             _ => {}
         }
     }
 
     if app.update_popup {
         match app.update_stage {
-            Stage::Staging => get_stage(f, app, area),
-            Stage::Name => get_name(f, app, area),
-            Stage::Urgency => get_urgency(f, app, area),
-            Stage::Status => get_status(f, app, area),
-            Stage::Description => get_description(f, app, area),
-            Stage::Latest => get_latest(f, app, area),
-            Stage::Tags => get_tags(f, app, area),
+            Stage::Staging => render_stage_popup(f, app, area),
+            Stage::Name => render_name_popup(f, app, area),
+            Stage::Urgency => render_urgency_popup(f, app, area),
+            Stage::Status => render_status_popup(f, app, area),
+            Stage::Description => render_description_popup(f, app, area),
+            Stage::Latest => render_latest_popup(f, app, area),
+            Stage::Tags => render_tags_popup(f, app, area),
             _ => {}
         }
     }

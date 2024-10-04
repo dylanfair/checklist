@@ -13,8 +13,166 @@ use ratatui::{
 use std::collections::BTreeMap;
 
 use crate::backend::task::Display;
-use crate::backend::task::{Status, Urgency};
+use crate::backend::task::{Status, Task, Urgency};
 use crate::display::tui::{centered_ratio_rect, App, LayoutView};
+
+impl Urgency {
+    /// Based on the Enum value, will return a colored `Span`
+    pub fn to_colored_span(&self) -> Span<'_> {
+        match self {
+            Urgency::Low => String::from("Low").green(),
+            Urgency::Medium => String::from("Medium").yellow(),
+            Urgency::High => String::from("High").magenta(),
+            Urgency::Critical => String::from("Critical").red(),
+        }
+    }
+
+    /// Based on the Enum value, will return a colored `Span` of exclamation marks
+    pub fn to_colored_exclamation_marks(&self) -> Span<'_> {
+        match self {
+            Urgency::Low => String::from("   ").green(),
+            Urgency::Medium => String::from("!  ").yellow(),
+            Urgency::High => String::from("!! ").magenta(),
+            Urgency::Critical => String::from("!!!").red(),
+        }
+    }
+}
+
+impl Display {
+    /// Based on the Enum value, will return a colored `Span`
+    pub fn to_colored_span(&self) -> Span<'_> {
+        match self {
+            Display::All => Span::styled(String::from("All"), Style::default().fg(Color::Cyan)),
+            Display::Completed => {
+                Span::styled(String::from("Completed"), Style::default().fg(Color::Green))
+            }
+            Display::NotCompleted => Span::styled(
+                String::from("NotCompleted"),
+                Style::default().fg(Color::Yellow),
+            ),
+        }
+    }
+}
+
+impl LayoutView {
+    /// Based on the Enum value, will return a colored `Span`
+    pub fn to_colored_span(&self) -> Span<'_> {
+        match self {
+            LayoutView::Horizontal => {
+                Span::styled(String::from("Horizontal"), Style::default().fg(Color::Cyan))
+            }
+            LayoutView::Vertical => {
+                Span::styled(String::from("Vertical"), Style::default().fg(Color::Blue))
+            }
+            LayoutView::Smart => {
+                Span::styled(String::from("Smart"), Style::default().fg(Color::Yellow))
+            }
+        }
+    }
+}
+
+impl Task {
+    /// Returns the `Task` tags as a vector of `Span`
+    fn span_tags(&self) -> Vec<Span> {
+        let mut tags_span_vec = vec![Span::from("Tags:".to_string())];
+        match &self.tags {
+            Some(tags) => {
+                let mut task_tags_vec = Vec::from_iter(tags);
+                task_tags_vec.sort_by(|a, b| a.cmp(b));
+
+                for tag in task_tags_vec {
+                    tags_span_vec.push(Span::from(format!(" {} ", tag).blue()));
+                    tags_span_vec.push(Span::from("|"));
+                }
+                tags_span_vec.pop(); // removing the extra | at the end
+                tags_span_vec
+            }
+            None => tags_span_vec,
+        }
+    }
+
+    /// Returns a `ListItem` of the `Task`
+    pub fn to_listitem(&self) -> ListItem {
+        let line = match self.status {
+            Status::Completed => {
+                let spans = vec![
+                    "✓   | ".green(),
+                    self.status.to_colored_span().clone(),
+                    " - ".into(),
+                    self.name.clone().into(),
+                ];
+                Line::from(spans)
+            }
+            _ => {
+                let spans = vec![
+                    //"☐ - ".white(),
+                    self.urgency.to_colored_exclamation_marks(),
+                    " | ".into(),
+                    self.status.to_colored_span().clone(),
+                    " - ".into(),
+                    self.name.clone().into(),
+                ];
+                Line::from(spans)
+            }
+        };
+        ListItem::new(line)
+    }
+
+    /// Returns a vector of `Line` containing several elements of the `Task`
+    pub fn to_text_vec(&self) -> Vec<Line> {
+        let completion_date = match self.completed_on {
+            Some(date) => format!(" - {}", date.date_naive().to_string()),
+            None => String::from(""),
+        };
+        let text = vec![
+            Line::from(vec![
+                Span::styled("Title: ", Style::default()),
+                Span::styled(&self.name, Style::default().fg(Color::Magenta)),
+            ]),
+            Line::from(vec![
+                Span::styled("Created: ", Style::default()),
+                Span::styled(
+                    self.date_added.date_naive().to_string(),
+                    Style::default().fg(Color::Cyan),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("Status: ", Style::default()),
+                self.status.to_colored_span(),
+                Span::styled(completion_date, Style::default().fg(Color::Green)),
+            ]),
+            Line::from(vec![
+                Span::styled("Urgency: ", Style::default()),
+                self.urgency.to_colored_span(),
+            ]),
+            Line::from(self.span_tags()),
+            Line::from(vec![Span::styled("", Style::default())]),
+            Line::from(vec![Span::styled("Latest:", Style::default().underlined())]),
+            Line::from(vec![Span::styled(
+                self.latest.clone().unwrap_or("".to_string()),
+                Style::default().fg(Color::Blue),
+            )]),
+            Line::from(vec![Span::styled("", Style::default())]),
+            Line::from(vec![Span::styled(
+                "Description:",
+                Style::default().underlined(),
+            )]),
+            Line::from(vec![Span::styled(
+                self.description.clone().unwrap_or("".to_string()),
+                Style::default().fg(Color::Magenta),
+            )]),
+        ];
+        text
+    }
+
+    /// Returns a `Paragraph` of the `Task`. This is what is displayed
+    /// in the `Task Info` block in the app
+    pub fn to_paragraph(&self) -> Paragraph {
+        let text = self.to_text_vec();
+
+        Paragraph::new(text)
+    }
+}
 
 const fn alternate_colors(i: usize, normal_color: Color, alternate_color: Color) -> Color {
     if i % 2 == 0 {
@@ -152,33 +310,13 @@ fn text_cursor_logic(
     f.set_cursor_position(Position::new(app.cursor_info.x, app.cursor_info.y));
 }
 
-impl Display {
+impl Status {
     pub fn to_colored_span(&self) -> Span<'_> {
         match self {
-            Display::All => Span::styled(String::from("All"), Style::default().fg(Color::Cyan)),
-            Display::Completed => {
-                Span::styled(String::from("Completed"), Style::default().fg(Color::Green))
-            }
-            Display::NotCompleted => Span::styled(
-                String::from("NotCompleted"),
-                Style::default().fg(Color::Yellow),
-            ),
-        }
-    }
-}
-
-impl LayoutView {
-    pub fn to_colored_span(&self) -> Span<'_> {
-        match self {
-            LayoutView::Horizontal => {
-                Span::styled(String::from("Horizontal"), Style::default().fg(Color::Cyan))
-            }
-            LayoutView::Vertical => {
-                Span::styled(String::from("Vertical"), Style::default().fg(Color::Blue))
-            }
-            LayoutView::Smart => {
-                Span::styled(String::from("Smart"), Style::default().fg(Color::Yellow))
-            }
+            Status::Open => String::from("Open").cyan(),
+            Status::Working => String::from("Working").blue(),
+            Status::Paused => String::from("Paused").yellow(),
+            Status::Completed => String::from("Completed").green(),
         }
     }
 }
@@ -240,6 +378,7 @@ fn style_scrollbar<'a>(
     styled_scrollbar
 }
 
+/// Renders the `State` block in the main TUI page
 pub fn render_state(f: &mut Frame, app: &mut App, rectangle: Rect) {
     let urgency_sort_string = match app.config.urgency_sort_desc {
         true => Span::styled("descending".to_string(), Style::default().fg(Color::Blue)),
@@ -288,16 +427,17 @@ pub fn render_state(f: &mut Frame, app: &mut App, rectangle: Rect) {
     f.render_widget(state_paragraph, rectangle);
 }
 
-pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: Rect) {
+/// Renders the `Help`
+pub fn render_help(f: &mut Frame, app: &mut App, rectangle: Rect) {
     // Render actions definitions
-    let key_block = style_block(
+    let help_block = style_block(
         "Help Menu".to_string(),
         Alignment::Center,
         app.theme.theme_colors.help_menu_bg,
         app.theme.theme_colors.help_menu_outline,
     );
 
-    f.render_widget(Paragraph::new("").block(key_block), rectangle);
+    f.render_widget(Paragraph::new("").block(help_block), rectangle);
 
     let vertical_chunks =
         Layout::vertical([Constraint::Length(2), Constraint::Percentage(100)]).split(rectangle);
@@ -393,7 +533,7 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: Rect) {
             "Scroll Task Info down".yellow(),
         ),
     ];
-    let key_vec_lines_len = mappings.len();
+    let help_vec_lines_len = mappings.len();
 
     let mut titles = vec![];
     let mut values = vec![];
@@ -421,9 +561,9 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: Rect) {
     app.scroll_info.keys_scroll_state = app
         .scroll_info
         .keys_scroll_state
-        .content_length(key_vec_lines_len);
+        .content_length(help_vec_lines_len);
 
-    let keys_scrollbar = style_scrollbar(
+    let help_scrollbar = style_scrollbar(
         ScrollbarOrientation::VerticalRight,
         app.theme.theme_colors.help_menu_scrollbar,
         app.theme.theme_styles.scrollbar_begin.as_deref(),
@@ -433,7 +573,7 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: Rect) {
     );
 
     f.render_stateful_widget(
-        keys_scrollbar,
+        help_scrollbar,
         horizontal_chunks[1].inner(ratatui::layout::Margin {
             horizontal: 0,
             vertical: 0,
@@ -442,6 +582,7 @@ pub fn render_keys(f: &mut Frame, app: &mut App, rectangle: Rect) {
     );
 }
 
+/// Renders the `Task` block in the TUI
 pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: Rect) {
     // Now render our tasks
     let list_block = style_block(
@@ -506,6 +647,7 @@ pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: Rect) {
     );
 }
 
+/// Renders the `Task Info` block in the TUI
 pub fn render_task_info(f: &mut Frame, app: &mut App, rectangle: Rect) {
     let info = if let Some(i) = app.tasklist.state.selected() {
         match app.tasklist.tasks[i].status {
@@ -560,6 +702,7 @@ pub fn render_task_info(f: &mut Frame, app: &mut App, rectangle: Rect) {
     );
 }
 
+/// Renders the `Status Bar` in the TUI
 pub fn render_status_bar(f: &mut Frame, app: &mut App, area: Rect) {
     let chunks = Layout::horizontal([Constraint::Percentage(100), Constraint::Min(25)]).split(area);
 
@@ -594,6 +737,7 @@ pub fn render_status_bar(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(layout_contents, chunks[1]);
 }
 
+/// Renders the pop-up when deleting a `Task`
 pub fn render_delete_popup(f: &mut Frame, app: &App, area: Rect) {
     let delete_block = style_block(
         "Delete current task?".to_string(),
@@ -618,7 +762,8 @@ pub fn render_delete_popup(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(delete_popup_contents, delete_popup_area);
 }
 
-pub fn get_stage(f: &mut Frame, app: &App, area: Rect) {
+/// Renders the pop-up when getting user input for what stage to update
+pub fn render_stage_popup(f: &mut Frame, app: &App, area: Rect) {
     let block = style_block(
         "Updating task".to_string(),
         Alignment::Center,
@@ -647,7 +792,8 @@ pub fn get_stage(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(popup_contents, popup_area);
 }
 
-pub fn get_name(f: &mut Frame, app: &mut App, area: Rect) {
+/// Renders the pop-up when getting user input for `Task` name
+pub fn render_name_popup(f: &mut Frame, app: &mut App, area: Rect) {
     let block = style_block(
         "Name".to_string(),
         Alignment::Center,
@@ -688,91 +834,8 @@ pub fn get_name(f: &mut Frame, app: &mut App, area: Rect) {
     );
 }
 
-pub fn get_description(f: &mut Frame, app: &mut App, area: Rect) {
-    let block = style_block(
-        "Description".to_string(),
-        Alignment::Center,
-        app.theme.theme_colors.pop_up_bg,
-        app.theme.theme_colors.pop_up_outline,
-    );
-
-    let instructions = "Feel free to add a description of your task";
-
-    let line_vec = vec![
-        Line::from(instructions),
-        Line::from(""),
-        Line::from(app.inputs.description.as_str()),
-    ];
-    let line_vec_len = line_vec.len();
-
-    let blurb = Paragraph::new(Text::from(line_vec));
-
-    let popup_contents = blurb
-        .block(block)
-        .wrap(Wrap { trim: false })
-        .alignment(Alignment::Left);
-
-    let popup_area = centered_ratio_rect(2, 3, area);
-    f.render_widget(Clear, popup_area);
-    f.render_widget(popup_contents, popup_area);
-
-    // If our text wraps, we want to start our cursor accordingly
-    let text_width = popup_area.right() - popup_area.left() - 1;
-    let (_, y_offset) = map_string_to_lines(instructions.to_string(), text_width);
-
-    text_cursor_logic(
-        f,
-        app,
-        popup_area,
-        app.inputs.description.to_string(),
-        1,
-        line_vec_len as u16 + y_offset as u16,
-    );
-}
-
-pub fn get_latest(f: &mut Frame, app: &mut App, area: Rect) {
-    let block = style_block(
-        "Latest Updates".to_string(),
-        Alignment::Center,
-        app.theme.theme_colors.pop_up_bg,
-        app.theme.theme_colors.pop_up_outline,
-    );
-
-    let instructions = "Feel free to add an update if there is one";
-    let instructions_len = instructions.chars().count();
-    let line_vec = vec![
-        Line::from(instructions),
-        Line::from(""),
-        Line::from(app.inputs.latest.as_str()),
-    ];
-    let line_vec_len = line_vec.len();
-
-    let blurb = Paragraph::new(Text::from(line_vec));
-
-    let popup_contents = blurb
-        .block(block)
-        .wrap(Wrap { trim: false })
-        .alignment(Alignment::Left);
-
-    let popup_area = centered_ratio_rect(2, 3, area);
-    f.render_widget(Clear, popup_area);
-    f.render_widget(popup_contents, popup_area);
-
-    // If our text wraps, we want to start our cursor accordingly
-    let text_width = popup_area.right() - popup_area.left() - 1;
-    let y_offset = instructions_len as u16 / text_width;
-
-    text_cursor_logic(
-        f,
-        app,
-        popup_area,
-        app.inputs.latest.to_string(),
-        1,
-        line_vec_len as u16 + y_offset,
-    );
-}
-
-pub fn get_urgency(f: &mut Frame, app: &App, area: Rect) {
+/// Renders the pop-up when getting user input for `Task` urgency
+pub fn render_urgency_popup(f: &mut Frame, app: &App, area: Rect) {
     let (top_half, bottom_half) = style_two_halves_block(
         "Urgency".to_string(),
         Alignment::Center,
@@ -816,7 +879,8 @@ pub fn get_urgency(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(urgencies_list, chunks[1]);
 }
 
-pub fn get_status(f: &mut Frame, app: &App, area: Rect) {
+/// Renders the pop-up when getting user input for `Task` status
+pub fn render_status_popup(f: &mut Frame, app: &App, area: Rect) {
     let (top_half, bottom_half) = style_two_halves_block(
         "Status".to_string(),
         Alignment::Center,
@@ -859,7 +923,94 @@ pub fn get_status(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(status_list, chunks[1]);
 }
 
-pub fn get_tags(f: &mut Frame, app: &mut App, area: Rect) {
+/// Renders the pop-up when getting user input for `Task` description
+pub fn render_description_popup(f: &mut Frame, app: &mut App, area: Rect) {
+    let block = style_block(
+        "Description".to_string(),
+        Alignment::Center,
+        app.theme.theme_colors.pop_up_bg,
+        app.theme.theme_colors.pop_up_outline,
+    );
+
+    let instructions = "Feel free to add a description of your task";
+
+    let line_vec = vec![
+        Line::from(instructions),
+        Line::from(""),
+        Line::from(app.inputs.description.as_str()),
+    ];
+    let line_vec_len = line_vec.len();
+
+    let blurb = Paragraph::new(Text::from(line_vec));
+
+    let popup_contents = blurb
+        .block(block)
+        .wrap(Wrap { trim: false })
+        .alignment(Alignment::Left);
+
+    let popup_area = centered_ratio_rect(2, 3, area);
+    f.render_widget(Clear, popup_area);
+    f.render_widget(popup_contents, popup_area);
+
+    // If our text wraps, we want to start our cursor accordingly
+    let text_width = popup_area.right() - popup_area.left() - 1;
+    let (_, y_offset) = map_string_to_lines(instructions.to_string(), text_width);
+
+    text_cursor_logic(
+        f,
+        app,
+        popup_area,
+        app.inputs.description.to_string(),
+        1,
+        line_vec_len as u16 + y_offset as u16,
+    );
+}
+
+/// Renders the pop-up when getting user input for `Task` latest
+pub fn render_latest_popup(f: &mut Frame, app: &mut App, area: Rect) {
+    let block = style_block(
+        "Latest Updates".to_string(),
+        Alignment::Center,
+        app.theme.theme_colors.pop_up_bg,
+        app.theme.theme_colors.pop_up_outline,
+    );
+
+    let instructions = "Feel free to add an update if there is one";
+    let instructions_len = instructions.chars().count();
+    let line_vec = vec![
+        Line::from(instructions),
+        Line::from(""),
+        Line::from(app.inputs.latest.as_str()),
+    ];
+    let line_vec_len = line_vec.len();
+
+    let blurb = Paragraph::new(Text::from(line_vec));
+
+    let popup_contents = blurb
+        .block(block)
+        .wrap(Wrap { trim: false })
+        .alignment(Alignment::Left);
+
+    let popup_area = centered_ratio_rect(2, 3, area);
+    f.render_widget(Clear, popup_area);
+    f.render_widget(popup_contents, popup_area);
+
+    // If our text wraps, we want to start our cursor accordingly
+    let text_width = popup_area.right() - popup_area.left() - 1;
+    let y_offset = instructions_len as u16 / text_width;
+
+    text_cursor_logic(
+        f,
+        app,
+        popup_area,
+        app.inputs.latest.to_string(),
+        1,
+        line_vec_len as u16 + y_offset,
+    );
+}
+
+/// Renders the pop-up when getting user input for `Task` tags
+pub fn render_tags_popup(f: &mut Frame, app: &mut App, area: Rect) {
     let (top_half, bottom_half) = style_two_halves_block(
         "Tags".to_string(),
         Alignment::Center,

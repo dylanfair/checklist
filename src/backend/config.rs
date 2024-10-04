@@ -29,7 +29,7 @@ impl Config {
         }
     }
 
-    /// Saves the config to a config.json file.
+    /// Saves the `Config` to a config.json file.
     /// Save location is based on `directories::BaseDirs`.
     /// `testing` bool will save a test.config.json file instead.
     pub fn save(&self, testing: bool) -> Result<()> {

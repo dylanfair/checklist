@@ -7,7 +7,8 @@ use crate::display::add::{EntryMode, Inputs, Stage};
 use crate::display::tui::App;
 
 impl App {
-    pub fn quick_add(&mut self) {
+    /// Sets up the App for a "quick add"
+    pub fn quick_add_setup(&mut self) {
         // Basically set us up to only enter into Name input
         self.add_stage = Stage::Name;
         self.entry_mode = EntryMode::QuickAdd;
@@ -16,6 +17,9 @@ impl App {
         self.inputs = Inputs::default();
     }
 
+    /// Updates the `Status` of a `Task`.
+    /// If `Completed`, goes to `Open`.
+    /// If not `Completed`, goes to `Completed`
     pub fn quick_status(&mut self) -> Result<()> {
         // Mark as complete, or if already complete then open
         let current_selection = match self.tasklist.state.selected() {
@@ -26,7 +30,8 @@ impl App {
         //let current_task = &self.tasklist.tasks[current_selection];
 
         if self.tasklist.tasks[current_selection].status == Status::Completed {
-            self.tasklist.tasks[current_selection].status = Status::Open
+            self.tasklist.tasks[current_selection].status = Status::Open;
+            self.tasklist.tasks[current_selection].completed_on = None;
         } else {
             self.tasklist.tasks[current_selection].status = Status::Completed;
             self.tasklist.tasks[current_selection].completed_on = Some(Local::now());
