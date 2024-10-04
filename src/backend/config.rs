@@ -89,7 +89,7 @@ pub fn get_config_dir() -> Result<PathBuf> {
 }
 
 /// Looks for where the config.json file should be,
-/// and reads it in returning a Result<Config>
+/// and reads it in returning a `Result<Config>`
 pub fn read_config(testing: bool) -> Result<Config> {
     match get_config_dir() {
         Ok(local_config_dir) => {

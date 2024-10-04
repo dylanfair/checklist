@@ -7,7 +7,7 @@ use rusqlite::{params, Connection};
 use crate::backend::config::{get_config_dir, read_config, Config};
 use crate::backend::task::{Task, TaskList};
 
-/// Returns a Result<Connection> to an in-memory SQLite db
+/// Returns a `Result<Connection>` to an in-memory SQLite db
 pub fn make_memory_connection() -> Result<Connection> {
     println!("Setting up an in-memory sqlite_db");
     let conn =
