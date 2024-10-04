@@ -4,11 +4,10 @@ Yet another todo TUI app (I know), meant to be used regardless of terminal size.
 
 ## Installation
 
-At the moment cloning from this GitHub and installing with cargo is the best way to install this.
+At the moment you can install this from crates.io
 
 ```sh
-git clone git@github.com:dylanfair/checklist.git
-cargo install --path ./checklist
+cargo install checklist-tui
 ```
 
 In the future I can learn how to get this installed elsewhere. :)
