@@ -16,6 +16,18 @@ use crate::backend::task::Display;
 use crate::backend::task::{Status, Task, Urgency};
 use crate::display::tui::{centered_ratio_rect, App, LayoutView};
 
+impl Status {
+    /// Based on the Enum value, will return a colored `Span`
+    pub fn to_colored_span(&self) -> Span<'_> {
+        match self {
+            Status::Open => String::from("Open").cyan(),
+            Status::Working => String::from("Working").blue(),
+            Status::Paused => String::from("Paused").yellow(),
+            Status::Completed => String::from("Completed").green(),
+        }
+    }
+}
+
 impl Urgency {
     /// Based on the Enum value, will return a colored `Span`
     pub fn to_colored_span(&self) -> Span<'_> {
@@ -308,17 +320,6 @@ fn text_cursor_logic(
     app.cursor_info.x = text_start_x + x as u16;
     app.cursor_info.y = text_start_y + row as u16;
     f.set_cursor_position(Position::new(app.cursor_info.x, app.cursor_info.y));
-}
-
-impl Status {
-    pub fn to_colored_span(&self) -> Span<'_> {
-        match self {
-            Status::Open => String::from("Open").cyan(),
-            Status::Working => String::from("Working").blue(),
-            Status::Paused => String::from("Paused").yellow(),
-            Status::Completed => String::from("Completed").green(),
-        }
-    }
 }
 
 fn style_block(
