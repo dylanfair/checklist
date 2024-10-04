@@ -526,11 +526,11 @@ pub fn render_help(f: &mut Frame, app: &mut App, rectangle: Rect) {
             "Adjust Task Info pane (smaller)".yellow(),
         ),
         (
-            vec!["CTRL ↑".into(), " or ".cyan(), "j      ".into(), "".into()],
+            vec!["CTRL ↑".into(), " or ".cyan(), "k      ".into(), "".into()],
             "Scroll Task Info up".yellow(),
         ),
         (
-            vec!["CTRL ↓".into(), " or ".cyan(), "k      ".into(), "".into()],
+            vec!["CTRL ↓".into(), " or ".cyan(), "j      ".into(), "".into()],
             "Scroll Task Info down".yellow(),
         ),
     ];

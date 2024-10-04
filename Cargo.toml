@@ -10,6 +10,11 @@ keywords = ["tui", "todo", "task", "terminal", "dashboard"]
 categories = ["command-line-interface"]
 exclude = ["images/"]
 
+[[bin]]
+name = "checklist"
+path = "src/main.rs"
+bench = false
+
 
 [dependencies]
 anyhow = "1.0.86"
