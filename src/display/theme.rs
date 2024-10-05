@@ -32,7 +32,7 @@ fn white_default() -> Color {
 
 /// Struct holds all the color configurations for `checklist`
 /// that the user can change
-#[derive(Default, Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ThemeColors {
     #[serde(default = "slate_950")]
     pub normal_row_bg: Color,
@@ -74,9 +74,9 @@ pub struct ThemeColors {
     pub state_box_outline_during_tags_edit: Color,
 }
 
-impl ThemeColors {
+impl Default for ThemeColors {
     /// Default colors to set
-    pub fn default() -> Self {
+    fn default() -> Self {
         Self {
             normal_row_bg: slate_950(),
             alt_row_bg: slate_900(),
@@ -119,7 +119,7 @@ fn highlight_symbol() -> String {
 }
 
 /// Struct that holds different elements the user can style
-#[derive(Default, Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ThemeStyles {
     #[serde(default = "scroll_begin")]
     pub scrollbar_begin: Option<String>,
@@ -133,9 +133,9 @@ pub struct ThemeStyles {
     pub highlight_symbol: String,
 }
 
-impl ThemeStyles {
+impl Default for ThemeStyles {
     /// Default style elements
-    pub fn default() -> Self {
+    fn default() -> Self {
         Self {
             scrollbar_begin: scroll_begin(),
             scrollbar_end: scroll_end(),
@@ -147,7 +147,7 @@ impl ThemeStyles {
 }
 
 /// Overall struct that holds `ThemeColors` and `ThemeStyles`
-#[derive(Default, Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Theme {
     // Colors
     pub theme_colors: ThemeColors,
@@ -155,15 +155,17 @@ pub struct Theme {
     pub theme_styles: ThemeStyles,
 }
 
-impl Theme {
+impl Default for Theme {
     /// Instantiates the `Theme` with default `ThemeColors` and `ThemeStyles`
-    pub fn default() -> Self {
+    fn default() -> Self {
         Self {
             theme_colors: ThemeColors::default(),
             theme_styles: ThemeStyles::default(),
         }
     }
+}
 
+impl Theme {
     /// Saves the `Theme` to a theme.toml file.
     /// Save location is based on `directories::BaseDirs`.
     pub fn save(&self) -> Result<()> {
