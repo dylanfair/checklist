@@ -55,32 +55,6 @@ enum Commands {
         hard: bool,
     },
 
-    // /// Adds a task to your checklist
-    // Add {
-    //     /// Name of the task
-    //     #[arg(short, long)]
-    //     name: String,
-    //
-    //     /// Optional: Description of the task
-    //     #[arg(short, long)]
-    //     description: Option<String>,
-    //
-    //     /// Optional: Latest updates on the task
-    //     #[arg(short, long)]
-    //     latest: Option<String>,
-    //
-    //     /// Optional: Urgency of the task
-    //     #[arg(short, long, value_enum)]
-    //     urgency: Option<Urgency>,
-    //
-    //     /// Optional: Status of the task
-    //     #[arg(short, long, value_enum)]
-    //     status: Option<Status>,
-    //
-    //     /// Optional: Tags to give the task
-    //     #[arg(short, long, num_args = 1..)]
-    //     tag: Option<Vec<String>>,
-    // },
     /// Displays tasks in an interactive terminal
     Display {
         /// For testing, switches between ratatui or my hand-rolled interface
@@ -134,26 +108,6 @@ fn main() -> Result<()> {
             }
         }
 
-        // Some(Commands::Add {
-        //     name,
-        //     description,
-        //     latest,
-        //     urgency,
-        //     status,
-        //     tag,
-        // }) => {
-        //     println!("Create task");
-        //     let mut hashset = None;
-        //     if let Some(t) = tag {
-        //         hashset = Some(HashSet::from_iter(t));
-        //     }
-        //     let new_task = Task::new(name, description, latest, urgency, status, hashset);
-        //     println!("{:?}", new_task);
-        //
-        //     let conn = get_db(cli.memory, cli.test)?;
-        //     add_to_db(&conn, &new_task)?;
-        //     println!("New task added successfully");
-        // }
         Some(Commands::Wipe { yes, hard }) => {
             let conn = get_db(cli.memory, cli.test)?;
             wipe_tasks(&conn, yes, hard)?

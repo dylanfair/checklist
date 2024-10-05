@@ -10,28 +10,67 @@ use std::path::PathBuf;
 
 use crate::backend::config::get_config_dir;
 
+// Default colors
+fn slate_950() -> Color {
+    SLATE.c950
+}
+fn slate_900() -> Color {
+    SLATE.c900
+}
+fn slate_800() -> Color {
+    SLATE.c800
+}
+fn emerald_950() -> Color {
+    EMERALD.c950
+}
+fn blue_default() -> Color {
+    Color::Blue
+}
+fn white_default() -> Color {
+    Color::White
+}
+
 /// Struct holds all the color configurations for `checklist`
 /// that the user can change
 #[derive(Default, Debug, Deserialize, Serialize)]
 pub struct ThemeColors {
+    #[serde(default = "slate_950")]
     pub normal_row_bg: Color,
+    #[serde(default = "slate_900")]
     pub alt_row_bg: Color,
+    #[serde(default = "slate_800")]
     pub selected_style: Color,
+    #[serde(default = "emerald_950")]
     pub status_bar: Color,
+    #[serde(default = "slate_950")]
     pub tasks_box_bg: Color,
+    #[serde(default = "white_default")]
     pub tasks_box_outline: Color,
+    #[serde(default = "white_default")]
     pub tasks_box_scrollbar: Color,
+    #[serde(default = "slate_950")]
     pub tasks_info_box_bg: Color,
+    #[serde(default = "white_default")]
     pub tasks_info_box_outline: Color,
+    #[serde(default = "white_default")]
     pub tasks_info_box_scrollbar: Color,
+    #[serde(default = "slate_950")]
     pub state_box_bg: Color,
+    #[serde(default = "white_default")]
     pub state_box_outline: Color,
+    #[serde(default = "white_default")]
     pub state_box_scrollbar: Color,
+    #[serde(default = "slate_950")]
     pub help_menu_bg: Color,
+    #[serde(default = "white_default")]
     pub help_menu_outline: Color,
+    #[serde(default = "white_default")]
     pub help_menu_scrollbar: Color,
+    #[serde(default = "slate_800")]
     pub pop_up_bg: Color,
+    #[serde(default = "white_default")]
     pub pop_up_outline: Color,
+    #[serde(default = "blue_default")]
     pub state_box_outline_during_tags_edit: Color,
 }
 
@@ -39,36 +78,58 @@ impl ThemeColors {
     /// Default colors to set
     pub fn default() -> Self {
         Self {
-            normal_row_bg: SLATE.c950,
-            alt_row_bg: SLATE.c900,
-            selected_style: SLATE.c800,
-            status_bar: EMERALD.c950,
-            tasks_box_bg: SLATE.c950,
-            tasks_box_outline: Color::White,
-            tasks_box_scrollbar: Color::White,
-            tasks_info_box_bg: SLATE.c950,
-            tasks_info_box_outline: Color::White,
-            tasks_info_box_scrollbar: Color::White,
-            state_box_bg: SLATE.c950,
-            state_box_outline: Color::White,
-            state_box_scrollbar: Color::White,
-            help_menu_bg: SLATE.c950,
-            help_menu_outline: Color::White,
-            help_menu_scrollbar: Color::White,
-            pop_up_bg: SLATE.c800,
-            pop_up_outline: Color::White,
-            state_box_outline_during_tags_edit: Color::Blue,
+            normal_row_bg: slate_950(),
+            alt_row_bg: slate_900(),
+            selected_style: slate_800(),
+            status_bar: emerald_950(),
+            tasks_box_bg: slate_950(),
+            tasks_box_outline: white_default(),
+            tasks_box_scrollbar: white_default(),
+            tasks_info_box_bg: slate_950(),
+            tasks_info_box_outline: white_default(),
+            tasks_info_box_scrollbar: white_default(),
+            state_box_bg: slate_950(),
+            state_box_outline: white_default(),
+            state_box_scrollbar: white_default(),
+            help_menu_bg: slate_950(),
+            help_menu_outline: white_default(),
+            help_menu_scrollbar: white_default(),
+            pop_up_bg: slate_800(),
+            pop_up_outline: white_default(),
+            state_box_outline_during_tags_edit: blue_default(),
         }
     }
+}
+
+// Default Theme styles
+fn scroll_begin() -> Option<String> {
+    Some(String::from("↑"))
+}
+fn scroll_end() -> Option<String> {
+    Some(String::from("↓"))
+}
+fn scroll_thumb() -> Option<String> {
+    Some(String::from("█"))
+}
+fn scroll_track() -> Option<String> {
+    Some(String::from(""))
+}
+fn highlight_symbol() -> String {
+    String::from(">")
 }
 
 /// Struct that holds different elements the user can style
 #[derive(Default, Debug, Deserialize, Serialize)]
 pub struct ThemeStyles {
+    #[serde(default = "scroll_begin")]
     pub scrollbar_begin: Option<String>,
+    #[serde(default = "scroll_end")]
     pub scrollbar_end: Option<String>,
+    #[serde(default = "scroll_thumb")]
     pub scrollbar_thumb: Option<String>,
+    #[serde(default = "scroll_track")]
     pub scrollbar_track: Option<String>,
+    #[serde(default = "highlight_symbol")]
     pub highlight_symbol: String,
 }
 
@@ -76,11 +137,11 @@ impl ThemeStyles {
     /// Default style elements
     pub fn default() -> Self {
         Self {
-            scrollbar_begin: Some(String::from("↑")),
-            scrollbar_end: Some(String::from("↓")),
-            scrollbar_thumb: Some(String::from("▐")),
-            scrollbar_track: Some(String::from("")),
-            highlight_symbol: String::from(">"),
+            scrollbar_begin: scroll_begin(),
+            scrollbar_end: scroll_end(),
+            scrollbar_thumb: scroll_thumb(),
+            scrollbar_track: scroll_track(),
+            highlight_symbol: highlight_symbol(),
         }
     }
 }
@@ -167,8 +228,14 @@ pub fn read_theme() -> Result<Theme> {
     reader
         .read_to_string(&mut buf)
         .context("Failed to read file contents to string")?;
+
     let theme: Theme =
         toml::from_str(&buf).context("Failed to parse toml string to Theme struct")?;
+
+    // Save in case elements are missing
+    // i.e. if user updates checklist version with new
+    // config options
+    theme.save()?;
 
     Ok(theme)
 }
