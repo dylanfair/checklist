@@ -440,8 +440,12 @@ pub fn render_help(f: &mut Frame, app: &mut App, rectangle: Rect) {
 
     f.render_widget(Paragraph::new("").block(help_block), rectangle);
 
-    let vertical_chunks =
-        Layout::vertical([Constraint::Length(2), Constraint::Percentage(100)]).split(rectangle);
+    let vertical_chunks = Layout::vertical([
+        Constraint::Length(2), // Acts as a margin
+        Constraint::Percentage(100),
+        Constraint::Length(1), // Acts as a margin
+    ])
+    .split(rectangle);
 
     let horizontal_chunks =
         Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
