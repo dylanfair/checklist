@@ -205,6 +205,9 @@ pub fn read_theme() -> Result<Theme> {
     let theme_elements = Theme::FIELD_NAMES_AS_ARRAY;
     for element in theme_elements {
         // If one isn't, add it
+        // This allows the toml file to get read in
+        // by Theme, which can then fill in defaults
+        // as needed
         if !buf.contains(element) {
             buf.push_str(&format!("\n[{}]", element));
             println!("Added new theme element [{}] into the theme.toml", element);
@@ -216,8 +219,8 @@ pub fn read_theme() -> Result<Theme> {
 
     // Save in case attributes are missing
     // or new theme elements were added in
-    // i.e. if user updates checklist version with new
-    // config options
+    // i.e. if user updates to a checklist version
+    // that has new theme options
     theme.save()?;
 
     Ok(theme)
