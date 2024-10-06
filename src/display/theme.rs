@@ -74,33 +74,6 @@ pub struct ThemeColors {
     pub state_box_outline_during_tags_edit: Color,
 }
 
-impl Default for ThemeColors {
-    /// Default colors to set
-    fn default() -> Self {
-        Self {
-            normal_row_bg: slate_950(),
-            alt_row_bg: slate_900(),
-            selected_style: slate_800(),
-            status_bar: emerald_950(),
-            tasks_box_bg: slate_950(),
-            tasks_box_outline: white_default(),
-            tasks_box_scrollbar: white_default(),
-            tasks_info_box_bg: slate_950(),
-            tasks_info_box_outline: white_default(),
-            tasks_info_box_scrollbar: white_default(),
-            state_box_bg: slate_950(),
-            state_box_outline: white_default(),
-            state_box_scrollbar: white_default(),
-            help_menu_bg: slate_950(),
-            help_menu_outline: white_default(),
-            help_menu_scrollbar: white_default(),
-            pop_up_bg: slate_800(),
-            pop_up_outline: white_default(),
-            state_box_outline_during_tags_edit: blue_default(),
-        }
-    }
-}
-
 // Default Theme styles
 fn scroll_begin() -> Option<String> {
     Some(String::from("↑"))
@@ -133,19 +106,6 @@ pub struct ThemeStyles {
     pub highlight_symbol: String,
 }
 
-impl Default for ThemeStyles {
-    /// Default style elements
-    fn default() -> Self {
-        Self {
-            scrollbar_begin: scroll_begin(),
-            scrollbar_end: scroll_end(),
-            scrollbar_thumb: scroll_thumb(),
-            scrollbar_track: scroll_track(),
-            highlight_symbol: highlight_symbol(),
-        }
-    }
-}
-
 /// Overall struct that holds `ThemeColors` and `ThemeStyles`
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Theme {
@@ -155,14 +115,19 @@ pub struct Theme {
     pub theme_styles: ThemeStyles,
 }
 
-impl Default for Theme {
-    /// Instantiates the `Theme` with default `ThemeColors` and `ThemeStyles`
-    fn default() -> Self {
-        Self {
-            theme_colors: ThemeColors::default(),
-            theme_styles: ThemeStyles::default(),
-        }
-    }
+pub fn create_empty_theme_toml() -> Result<()> {
+    let toml_file_path = get_toml_file()?;
+    let mut file = File::create(&toml_file_path).with_context(|| {
+        format!(
+            "Could not create an empty theme.toml file at '{}'",
+            toml_file_path.display()
+        )
+    })?;
+    file.write_all(b"[theme_colors]\n[theme_styles]")
+        .context("Could not write to newly created theme.toml")?;
+    println!("Created a default theme.toml file");
+
+    Ok(())
 }
 
 impl Theme {

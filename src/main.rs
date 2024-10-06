@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod backend;
@@ -10,9 +10,11 @@ use backend::config::{get_config_dir, read_config, set_new_path};
 use backend::database::{create_sqlite_db, get_db};
 use backend::wipe::wipe_tasks;
 
-use display::theme::{get_toml_file, read_theme, Theme};
+use display::theme::{get_toml_file, read_theme};
 use display::tui::{run_tui, LayoutView};
 use display::ui::run_ui;
+
+use crate::display::theme::create_empty_theme_toml;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -101,10 +103,7 @@ fn main() -> Result<()> {
             let toml_file = get_toml_file()?;
 
             if !toml_file.exists() {
-                println!("Creating a default theme.toml file");
-                Theme::default()
-                    .save()
-                    .context("Failed to create a default Theme")?;
+                create_empty_theme_toml()?;
             }
         }
 
@@ -127,10 +126,7 @@ fn main() -> Result<()> {
             // One doesn't exist
             let toml_file = get_toml_file()?;
             if !toml_file.exists() {
-                println!("Creating a default theme.toml file");
-                Theme::default()
-                    .save()
-                    .context("Failed to create a default Theme")?;
+                create_empty_theme_toml()?;
             }
 
             // Now read it in
@@ -200,10 +196,7 @@ fn main() -> Result<()> {
             // One doesn't exist
             let toml_file = get_toml_file()?;
             if !toml_file.exists() {
-                println!("Creating a default theme.toml file");
-                Theme::default()
-                    .save()
-                    .context("Failed to create a default Theme")?;
+                create_empty_theme_toml()?;
             }
 
             // Now read it in
