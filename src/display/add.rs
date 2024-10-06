@@ -76,24 +76,26 @@ pub struct Inputs {
 
 impl Inputs {
     /// Creates an `Inputs` struct based on a `Task` provided
-    pub fn from_task(&mut self, task: &Task) {
-        self.name = task.name.clone();
-        self.urgency = task.urgency;
-        self.status = task.status;
-        self.description = task.description.clone().unwrap_or("".to_string());
-        self.latest = task.latest.clone().unwrap_or("".to_string());
-        self.tags = task.tags.clone().unwrap_or(HashSet::new());
+    pub fn from_task(task: &Task) -> Self {
+        Inputs {
+            name: task.name.clone(),
+            urgency: task.urgency,
+            status: task.status,
+            description: task.description.clone().unwrap_or("".to_string()),
+            latest: task.latest.clone().unwrap_or("".to_string()),
+            tags: task.tags.clone().unwrap_or_default(),
+            tags_input: "".to_string(),
+        }
     }
 }
 
 impl App {
     fn get_stage_off_entry_mode(&self) -> &Stage {
-        let stage = match self.entry_mode {
+        match self.entry_mode {
             EntryMode::Add => &self.add_stage,
             EntryMode::QuickAdd => &self.add_stage,
             EntryMode::Update => &self.update_stage,
-        };
-        stage
+        }
     }
 
     fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
@@ -312,7 +314,7 @@ impl App {
                 }
             }
             KeyCode::Enter => {
-                if self.inputs.tags_input == "".to_string() {
+                if self.inputs.tags_input == *"".to_string() {
                     if self.entry_mode == EntryMode::Add {
                         self.add_stage.next();
                     }
@@ -373,7 +375,7 @@ impl App {
                     self.move_cursor_right();
                 }
                 KeyCode::Down => {
-                    if self.inputs.tags.len() > 0 {
+                    if !self.inputs.tags.is_empty() {
                         self.highlight_tags = !self.highlight_tags;
                     }
                 }
@@ -399,7 +401,7 @@ impl App {
     fn remove_tag(&mut self) {
         // Match what our displayed vectors are
         let mut task_tags_vec = Vec::from_iter(self.inputs.tags.clone());
-        task_tags_vec.sort_by(|a, b| a.cmp(b));
+        task_tags_vec.sort();
 
         // Get the value that is highlighted
         let tags_value = &task_tags_vec[self.tags_highlight_value];
@@ -407,7 +409,7 @@ impl App {
         self.inputs.tags.remove(tags_value);
         self.move_tags_highlight_left();
 
-        if self.inputs.tags.len() == 0 {
+        if self.inputs.tags.is_empty() {
             self.highlight_tags = false
         }
     }
@@ -501,12 +503,12 @@ impl App {
     /// Adds a new `Task` into the SQLite database based on what is in
     /// the current `Inputs` struct in `App`.
     pub fn add_new_task_in(&mut self) -> Result<()> {
-        let description = if self.inputs.description == "" {
+        let description = if self.inputs.description.is_empty() {
             None
         } else {
             Some(self.inputs.description.clone())
         };
-        let latest = if self.inputs.latest == "" {
+        let latest = if self.inputs.latest.is_empty() {
             None
         } else {
             Some(self.inputs.latest.clone())
@@ -545,12 +547,12 @@ impl App {
         let current_selection = self.tasklist.state.selected().unwrap();
         let current_uuid = self.tasklist.tasks[current_selection].get_id();
 
-        let description = if self.inputs.description == "" {
+        let description = if self.inputs.description.is_empty() {
             None
         } else {
             Some(self.inputs.description.clone())
         };
-        let latest = if self.inputs.latest == "" {
+        let latest = if self.inputs.latest.is_empty() {
             None
         } else {
             Some(self.inputs.latest.clone())

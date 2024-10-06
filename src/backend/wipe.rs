@@ -24,7 +24,7 @@ pub fn wipe_tasks(conn: &Connection, confirm_skip: bool, hard: bool) -> Result<(
         }
     }
     println!("Proceeding with wipe");
-    remove_all_db_contents(&conn, hard)?;
+    remove_all_db_contents(conn, hard)?;
     println!("Success!");
     Ok(())
 }

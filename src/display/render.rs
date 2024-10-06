@@ -90,10 +90,11 @@ impl Task {
         match &self.tags {
             Some(tags) => {
                 let mut task_tags_vec = Vec::from_iter(tags);
-                task_tags_vec.sort_by(|a, b| a.cmp(b));
+                task_tags_vec.sort();
+                //task_tags_vec.sort_by(|a, b| a.cmp(b));
 
                 for tag in task_tags_vec {
-                    tags_span_vec.push(Span::from(format!(" {} ", tag).blue()));
+                    tags_span_vec.push(format!(" {} ", tag).blue());
                     tags_span_vec.push(Span::from("|"));
                 }
                 tags_span_vec.pop(); // removing the extra | at the end
@@ -133,7 +134,7 @@ impl Task {
     /// Returns a vector of `Line` containing several elements of the `Task`
     pub fn to_text_vec(&self) -> Vec<Line> {
         let completion_date = match self.completed_on {
-            Some(date) => format!(" - {}", date.date_naive().to_string()),
+            Some(date) => format!(" - {}", date.date_naive()),
             None => String::from(""),
         };
         let text = vec![
@@ -257,7 +258,7 @@ fn map_string_to_lines(
             current_line_words.push(String::from(" "));
             word = String::new();
         } else {
-            word.push(character.clone());
+            word.push(character);
             if word.len() > 1 {
                 current_line_words.pop(); // replace last word
             }
@@ -695,9 +696,7 @@ pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: Rect) {
 /// Renders the `Task Info` block in the TUI
 pub fn render_task_info(f: &mut Frame, app: &mut App, rectangle: Rect) {
     let info = if let Some(i) = app.tasklist.state.selected() {
-        match app.tasklist.tasks[i].status {
-            _ => app.tasklist.tasks[i].to_paragraph(),
-        }
+        app.tasklist.tasks[i].to_paragraph()
     } else {
         Paragraph::new("Nothing selected...")
     };
@@ -1096,10 +1095,10 @@ pub fn render_tags_popup(f: &mut Frame, app: &mut App, area: Rect) {
 
     let mut tags_span_vec = vec![];
     let mut task_tags_vec = Vec::from_iter(app.inputs.tags.clone());
-    task_tags_vec.sort_by(|a, b| a.cmp(b));
+    task_tags_vec.sort();
 
     for (i, tag) in task_tags_vec.iter().enumerate() {
-        let mut span_object = Span::from(format!(" {} ", tag).blue());
+        let mut span_object = format!(" {} ", tag).blue();
         if i == app.tags_highlight_value && app.highlight_tags {
             span_object = span_object.underlined();
         }

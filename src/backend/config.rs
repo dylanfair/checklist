@@ -78,7 +78,7 @@ pub fn get_config_dir() -> Result<PathBuf> {
 
     let conf_local_dir = base_directories.config_local_dir().join("checklist");
     // Create our checklist folder in local directory if it doesn't exist
-    if conf_local_dir.exists() == false {
+    if !conf_local_dir.exists() {
         // Create a brand new config file
         std::fs::create_dir_all(&conf_local_dir).with_context(|| {
             format!("Failed to create the following path: {:?}", conf_local_dir)
@@ -118,7 +118,7 @@ pub fn read_config(testing: bool) -> Result<Config> {
 /// the `PathBuf` provided. If `testing` is true, will save to the test
 /// configuration file instead.
 pub fn set_new_path(path: PathBuf, testing: bool) -> Result<()> {
-    if path.exists() == false {
+    if !path.exists() {
         panic!("A valid path that exists needs to be supplied")
     }
     let absolute_path = std::fs::canonicalize(&path).with_context(|| {

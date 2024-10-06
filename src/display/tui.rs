@@ -150,7 +150,7 @@ impl App {
             Runtime::Real
         };
 
-        let layout_view = view.unwrap_or(LayoutView::default());
+        let layout_view = view.unwrap_or_default();
 
         Ok(Self {
             should_exit: false,
@@ -224,12 +224,11 @@ impl App {
                     self.tags_filter_value = String::new();
                 }
                 KeyCode::Enter => self.enter_tags_filter = !self.enter_tags_filter,
-                KeyCode::Backspace => match self.tags_filter_value.pop() {
-                    Some(_) => (),
-                    None => (),
-                },
+                KeyCode::Backspace => {
+                    self.tags_filter_value.pop();
+                }
                 KeyCode::Char(ch) => {
-                    self.tags_filter_value.push_str(&ch.to_string());
+                    self.tags_filter_value.push(ch);
                 }
                 KeyCode::Down => {
                     self.enter_tags_filter = !self.enter_tags_filter;
@@ -366,10 +365,11 @@ impl App {
                     self.adjust_list_scrollbar_first();
                 }
                 KeyCode::End => self.select_last(),
-                KeyCode::Char('d') => match self.tasklist.state.selected() {
-                    Some(_) => self.delete_popup = !self.delete_popup,
-                    None => {}
-                },
+                KeyCode::Char('d') => {
+                    if self.tasklist.state.selected().is_some() {
+                        self.delete_popup = !self.delete_popup
+                    }
+                }
                 KeyCode::Char('a') => {
                     self.add_popup = !self.add_popup;
                     self.inputs = Inputs::default();
@@ -379,17 +379,16 @@ impl App {
                     self.highlight_tags = false;
                     self.tags_highlight_value = 0;
                 }
-                KeyCode::Char('u') => match self.tasklist.state.selected() {
-                    Some(current_index) => {
+                KeyCode::Char('u') => {
+                    if let Some(current_index) = self.tasklist.state.selected() {
                         self.update_popup = !self.update_popup;
                         self.entry_mode = EntryMode::Update;
                         self.update_stage = Stage::Staging;
                         self.highlight_tags = false;
                         self.tags_highlight_value = 0;
-                        self.inputs.from_task(&self.tasklist.tasks[current_index])
+                        self.inputs = Inputs::from_task(&self.tasklist.tasks[current_index])
                     }
-                    None => {}
-                },
+                }
                 KeyCode::Char('q') => {
                     self.quick_action = !self.quick_action;
                 }

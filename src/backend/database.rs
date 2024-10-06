@@ -33,7 +33,7 @@ pub fn make_memory_connection() -> Result<Connection> {
 
 /// Returns a `Result<Connection>` given a `&Pathbuf` to a SQLite database
 fn make_connection(path: &PathBuf) -> Result<Connection> {
-    let conn = Connection::open(&path)
+    let conn = Connection::open(path)
         .with_context(|| format!("Failed connect to the database at {:?}", path))?;
 
     Ok(conn)
@@ -173,16 +173,13 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
             let mut tags_entry = None;
             let tags_option: Option<String> = row.get(6).unwrap();
 
-            match tags_option {
-                Some(tags) => {
+            if let Some(tags) = tags_option {
                     let tags_parts = tags.split(";");
                     let mut tags_vec = vec![];
                     for part in tags_parts {
                         tags_vec.push(part.to_string());
                     }
                     tags_entry = Some(HashSet::from_iter(tags_vec));
-                }
-                None => {}
             }
 
             Ok(Task::from_sql(

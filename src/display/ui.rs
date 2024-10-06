@@ -308,7 +308,8 @@ impl Renderer {
             let name = task.name.clone();
             let task_tags = task.tags.clone().unwrap_or(HashSet::new());
             let mut task_tags_vec: Vec<&String> = task_tags.iter().collect();
-            task_tags_vec.sort_by(|a, b| a.cmp(b));
+            task_tags_vec.sort();
+            //task_tags_vec.sort_by(|a, b| a.cmp(b));
 
             // Print out tasks
             // First line - Title
@@ -363,9 +364,9 @@ impl Renderer {
             &self.taskinfo.total_tasklist.tasks[self.taskinfo.current_task as usize].clone();
         let name = current_task.name.clone();
 
-        let task_tags = current_task.tags.clone().unwrap_or(HashSet::new());
+        let task_tags = current_task.tags.clone().unwrap_or_default();
         let mut task_tags_vec: Vec<&String> = task_tags.iter().collect();
-        task_tags_vec.sort_by(|a, b| a.cmp(b));
+        task_tags_vec.sort();
 
         let column = self.detail_box_start.0 + 1;
         let mut row = self.detail_box_start.1 + 1;
@@ -388,14 +389,11 @@ impl Renderer {
             "Status: {}",
             current_task.status.to_colored_string()
         )))?;
-        match current_task.completed_on {
-            Some(date) => {
-                self.stdout.queue(Print(format!(
-                    " - {}",
-                    date.date_naive().to_string().green()
-                )))?;
-            }
-            None => {}
+        if let Some(date) = current_task.completed_on {
+            self.stdout.queue(Print(format!(
+                " - {}",
+                date.date_naive().to_string().green()
+            )))?;
         }
         row += 1;
 
@@ -658,7 +656,7 @@ impl Renderer {
             // Current task would be less than a new window if we removed tasks
             // that could fit to old end
             else if (self.taskinfo.current_task as i64)
-                < self.taskwindow.window_end as i64 - self.taskwindow.tasks_that_can_fit as i64
+                < self.taskwindow.window_end - self.taskwindow.tasks_that_can_fit as i64
             {
                 self.taskwindow.window_start = self.taskinfo.current_task as i64;
                 self.taskwindow.window_end =
@@ -679,7 +677,7 @@ impl Renderer {
             // We can maintain highlight place by just taking our current task minus the window
             // start
             self.highlightinfo.highlight_place =
-                self.taskinfo.current_task as u64 - self.taskwindow.window_start as u64;
+                self.taskinfo.current_task - self.taskwindow.window_start as u64;
         }
     }
 }

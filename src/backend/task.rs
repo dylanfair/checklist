@@ -54,7 +54,7 @@ pub enum Urgency {
 
 impl Urgency {
     /// Will return a `StyledContent<String>` based on the Urgency
-    pub fn to_colored_string(&self) -> crossterm::style::StyledContent<String> {
+    pub fn to_colored_string(self) -> crossterm::style::StyledContent<String> {
         match self {
             Urgency::Low => String::from("Low").green(),
             Urgency::Medium => String::from("Medium").yellow(),
@@ -103,7 +103,7 @@ pub enum Status {
 
 impl Status {
     /// Will return a `StyledContent<String>` based on the Status
-    pub fn to_colored_string(&self) -> crossterm::style::StyledContent<String> {
+    pub fn to_colored_string(self) -> crossterm::style::StyledContent<String> {
         match self {
             Status::Open => String::from("Open").cyan(),
             Status::Working => String::from("Working").dark_green(),
