@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 
 use crate::backend::task::Display;
 use crate::backend::task::{Status, Task, Urgency};
-use crate::display::tui::{centered_ratio_rect, App, LayoutView};
+use crate::display::tui::{App, LayoutView};
 
 impl Status {
     /// Based on the Enum value, will return a colored `Span`
@@ -191,6 +191,46 @@ const fn alternate_colors(i: usize, normal_color: Color, alternate_color: Color)
         normal_color
     } else {
         alternate_color
+    }
+}
+
+/// function that relies more on ratios to keep a centered rectangle
+/// consitently sized based on terminal size
+fn centered_ratio_rect(
+    x_ratio: u32,
+    y_ratio: u32,
+    min_height: Option<u16>,
+    min_width: Option<u16>,
+    r: Rect,
+) -> Rect {
+    let popup_layout = match min_height {
+        Some(size) => Layout::vertical([
+            Constraint::Ratio(1, y_ratio * 2),
+            Constraint::Length(size),
+            Constraint::Ratio(1, y_ratio * 2),
+        ])
+        .split(r),
+        None => Layout::vertical([
+            Constraint::Ratio(1, y_ratio * 2),
+            Constraint::Ratio(1, y_ratio),
+            Constraint::Ratio(1, y_ratio * 2),
+        ])
+        .split(r),
+    };
+
+    match min_width {
+        Some(size) => Layout::horizontal([
+            Constraint::Ratio(1, x_ratio * 2),
+            Constraint::Min(size),
+            Constraint::Ratio(1, x_ratio * 2),
+        ])
+        .split(popup_layout[1])[1],
+        None => Layout::horizontal([
+            Constraint::Ratio(1, x_ratio * 2),
+            Constraint::Ratio(1, x_ratio),
+            Constraint::Ratio(1, x_ratio * 2),
+        ])
+        .split(popup_layout[1])[1],
     }
 }
 
@@ -752,7 +792,7 @@ pub fn render_delete_popup(f: &mut Frame, app: &App, area: Rect) {
     );
 
     let blurb = Paragraph::new(Text::from(vec![
-        Line::from("Are you sure you want to delete this task? (y)es (n)o"),
+        Line::from("(y)es (n)o"),
         //Line::from("(y)es (n)o"),
     ]));
 
@@ -762,7 +802,7 @@ pub fn render_delete_popup(f: &mut Frame, app: &App, area: Rect) {
         .alignment(Alignment::Center)
         .bg(app.theme.theme_colors.pop_up_bg);
 
-    let delete_popup_area = centered_ratio_rect(2, 3, area);
+    let delete_popup_area = centered_ratio_rect(2, 3, Some(3), Some(40), area);
     f.render_widget(Clear, delete_popup_area);
     f.render_widget(delete_popup_contents, delete_popup_area);
 }
@@ -792,7 +832,7 @@ pub fn render_stage_popup(f: &mut Frame, app: &App, area: Rect) {
         .wrap(Wrap { trim: false })
         .alignment(Alignment::Left);
 
-    let popup_area = centered_ratio_rect(2, 3, area);
+    let popup_area = centered_ratio_rect(2, 3, Some(10), Some(40), area);
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, popup_area);
 }
@@ -800,17 +840,17 @@ pub fn render_stage_popup(f: &mut Frame, app: &App, area: Rect) {
 /// Renders the pop-up when getting user input for `Task` name
 pub fn render_name_popup(f: &mut Frame, app: &mut App, area: Rect) {
     let block = style_block(
-        "Name".to_string(),
+        "Task Name".to_string(),
         Alignment::Center,
         app.theme.theme_colors.pop_up_bg,
         app.theme.theme_colors.pop_up_outline,
     );
 
-    let instructions = "What do you want to name your task?";
+    //let instructions = "What do you want to name your task?";
 
     let line_vec = vec![
-        Line::from(instructions),
-        Line::from(""),
+        //Line::from(instructions),
+        //Line::from(""),
         Line::from(app.inputs.name.as_str()),
     ];
     let line_vec_len = line_vec.len();
@@ -821,13 +861,14 @@ pub fn render_name_popup(f: &mut Frame, app: &mut App, area: Rect) {
         .wrap(Wrap { trim: false })
         .alignment(Alignment::Left);
 
-    let popup_area = centered_ratio_rect(2, 3, area);
+    let popup_area = centered_ratio_rect(2, 3, Some(5), Some(40), area);
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, popup_area);
 
     // If our text wraps, we want to start our cursor accordingly
-    let text_width = popup_area.right() - popup_area.left() - 1;
-    let (_, y_offset) = map_string_to_lines(instructions.to_string(), text_width);
+    //let text_width = popup_area.right() - popup_area.left() - 1;
+    let y_offset = 0;
+    //let (_, y_offset) = map_string_to_lines(instructions.to_string(), text_width);
 
     text_cursor_logic(
         f,
@@ -842,7 +883,7 @@ pub fn render_name_popup(f: &mut Frame, app: &mut App, area: Rect) {
 /// Renders the pop-up when getting user input for `Task` urgency
 pub fn render_urgency_popup(f: &mut Frame, app: &App, area: Rect) {
     let (top_half, bottom_half) = style_two_halves_block(
-        "Urgency".to_string(),
+        "Task Urgency".to_string(),
         Alignment::Center,
         app.theme.theme_colors.pop_up_bg,
         app.theme.theme_colors.pop_up_outline,
@@ -874,7 +915,7 @@ pub fn render_urgency_popup(f: &mut Frame, app: &App, area: Rect) {
     ];
     let urgencies_list = List::new(urgencies).block(bottom_half);
 
-    let popup_area = centered_ratio_rect(2, 3, area);
+    let popup_area = centered_ratio_rect(2, 3, Some(8), Some(40), area);
 
     let chunks =
         Layout::vertical([Constraint::Ratio(1, 3), Constraint::Ratio(2, 3)]).split(popup_area);
@@ -887,7 +928,7 @@ pub fn render_urgency_popup(f: &mut Frame, app: &App, area: Rect) {
 /// Renders the pop-up when getting user input for `Task` status
 pub fn render_status_popup(f: &mut Frame, app: &App, area: Rect) {
     let (top_half, bottom_half) = style_two_halves_block(
-        "Status".to_string(),
+        "Task Status".to_string(),
         Alignment::Center,
         app.theme.theme_colors.pop_up_bg,
         app.theme.theme_colors.pop_up_outline,
@@ -919,7 +960,7 @@ pub fn render_status_popup(f: &mut Frame, app: &App, area: Rect) {
     ];
     let status_list = List::new(statuses).block(bottom_half);
 
-    let popup_area = centered_ratio_rect(2, 3, area);
+    let popup_area = centered_ratio_rect(2, 3, Some(8), Some(40), area);
     let chunks =
         Layout::vertical([Constraint::Ratio(1, 3), Constraint::Ratio(2, 3)]).split(popup_area);
 
@@ -931,13 +972,13 @@ pub fn render_status_popup(f: &mut Frame, app: &App, area: Rect) {
 /// Renders the pop-up when getting user input for `Task` description
 pub fn render_description_popup(f: &mut Frame, app: &mut App, area: Rect) {
     let block = style_block(
-        "Description".to_string(),
+        "Task Description".to_string(),
         Alignment::Center,
         app.theme.theme_colors.pop_up_bg,
         app.theme.theme_colors.pop_up_outline,
     );
 
-    let instructions = "Feel free to add a description of your task";
+    let instructions = "Feel free to add a description";
 
     let line_vec = vec![
         Line::from(instructions),
@@ -953,7 +994,7 @@ pub fn render_description_popup(f: &mut Frame, app: &mut App, area: Rect) {
         .wrap(Wrap { trim: false })
         .alignment(Alignment::Left);
 
-    let popup_area = centered_ratio_rect(2, 3, area);
+    let popup_area = centered_ratio_rect(2, 3, Some(8), Some(40), area);
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, popup_area);
 
@@ -980,7 +1021,7 @@ pub fn render_latest_popup(f: &mut Frame, app: &mut App, area: Rect) {
         app.theme.theme_colors.pop_up_outline,
     );
 
-    let instructions = "Feel free to add an update if there is one";
+    let instructions = "Any updates?";
     let instructions_len = instructions.chars().count();
     let line_vec = vec![
         Line::from(instructions),
@@ -996,7 +1037,7 @@ pub fn render_latest_popup(f: &mut Frame, app: &mut App, area: Rect) {
         .wrap(Wrap { trim: false })
         .alignment(Alignment::Left);
 
-    let popup_area = centered_ratio_rect(2, 3, area);
+    let popup_area = centered_ratio_rect(2, 3, Some(8), Some(40), area);
     f.render_widget(Clear, popup_area);
     f.render_widget(popup_contents, popup_area);
 
@@ -1017,21 +1058,19 @@ pub fn render_latest_popup(f: &mut Frame, app: &mut App, area: Rect) {
 /// Renders the pop-up when getting user input for `Task` tags
 pub fn render_tags_popup(f: &mut Frame, app: &mut App, area: Rect) {
     let (top_half, bottom_half) = style_two_halves_block(
-        "Tags".to_string(),
+        "Task Tags".to_string(),
         Alignment::Center,
         app.theme.theme_colors.pop_up_bg,
         app.theme.theme_colors.pop_up_outline,
     );
 
-    let popup_area = centered_ratio_rect(2, 2, area);
+    let popup_area = centered_ratio_rect(2, 2, Some(9), Some(40), area);
     let chunks =
         Layout::vertical([Constraint::Ratio(3, 4), Constraint::Ratio(1, 4)]).split(popup_area);
 
     let instructions = vec![
-        "ENTER (with text) - create a tag",
-        "ENTER (no text) - finish",
-        "Pressing Down (↓) will highlight a tag, which you can delete with 'd'",
-        "Pressing Up (↑) will return you to text editing",
+        "<ENTER> creates a tag",
+        "Highlight a tag with <DOWN> (↓), delete it with 'd'",
     ];
 
     let text_width = popup_area.right() - popup_area.left() - 1;
@@ -1079,12 +1118,14 @@ pub fn render_tags_popup(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(popup_contents, chunks[0]);
     f.render_widget(tags_blurb, chunks[1]);
 
-    text_cursor_logic(
-        f,
-        app,
-        popup_area,
-        app.inputs.tags_input.to_string(),
-        1,
-        line_vec_len as u16 + final_y_offset as u16,
-    );
+    if !app.highlight_tags {
+        text_cursor_logic(
+            f,
+            app,
+            popup_area,
+            app.inputs.tags_input.to_string(),
+            1,
+            line_vec_len as u16 + final_y_offset as u16,
+        );
+    }
 }

@@ -5,7 +5,7 @@ use ratatui::Frame;
 use ratatui::{
     backend::Backend,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-    layout::{Constraint, Layout, Rect},
+    layout::{Constraint, Layout},
     widgets::ScrollbarState,
     Terminal,
 };
@@ -550,6 +550,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             ])
             .split(chunks[0])
         } else {
+            // when LayoutView::Smart
             Layout::vertical([
                 Constraint::Percentage(app.list_box_sizing),
                 Constraint::Percentage(100 - app.list_box_sizing),
@@ -602,24 +603,6 @@ fn ui(f: &mut Frame, app: &mut App) {
             _ => {}
         }
     }
-}
-
-/// function that relies more on ratios to keep a centered rectangle
-/// consitently sized based on terminal size
-pub fn centered_ratio_rect(x_ratio: u32, y_ratio: u32, r: Rect) -> Rect {
-    let popup_layout = Layout::vertical([
-        Constraint::Ratio(1, y_ratio * 2),
-        Constraint::Ratio(1, y_ratio),
-        Constraint::Ratio(1, y_ratio * 2),
-    ])
-    .split(r);
-
-    Layout::horizontal([
-        Constraint::Ratio(1, x_ratio * 2),
-        Constraint::Ratio(1, x_ratio),
-        Constraint::Ratio(1, x_ratio * 2),
-    ])
-    .split(popup_layout[1])[1]
 }
 
 mod common {
