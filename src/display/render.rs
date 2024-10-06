@@ -1064,7 +1064,7 @@ pub fn render_tags_popup(f: &mut Frame, app: &mut App, area: Rect) {
         app.theme.theme_colors.pop_up_outline,
     );
 
-    let popup_area = centered_ratio_rect(2, 2, Some(9), Some(40), area);
+    let popup_area = centered_ratio_rect(2, 3, Some(9), Some(40), area);
     let chunks =
         Layout::vertical([Constraint::Ratio(3, 4), Constraint::Ratio(1, 4)]).split(popup_area);
 
