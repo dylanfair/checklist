@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::{rename, File};
 use std::io::{prelude::*, BufReader};
 use std::path::PathBuf;
+use struct_field_names_as_array::FieldNamesAsArray;
 
 use crate::backend::config::get_config_dir;
 
@@ -107,7 +108,7 @@ pub struct ThemeStyles {
 }
 
 /// Overall struct that holds `ThemeColors` and `ThemeStyles`
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, FieldNamesAsArray)]
 pub struct Theme {
     // Colors
     pub theme_colors: ThemeColors,
@@ -123,8 +124,12 @@ pub fn create_empty_theme_toml() -> Result<()> {
             toml_file_path.display()
         )
     })?;
-    file.write_all(b"[theme_colors]\n[theme_styles]")
-        .context("Could not write to newly created theme.toml")?;
+
+    let theme_elements = Theme::FIELD_NAMES_AS_ARRAY;
+    for element in theme_elements {
+        file.write(format!("[{}]\n", element).as_bytes())
+            .context("Failed when writing theme elements to newly created theme.toml")?;
+    }
     println!("Created a default theme.toml file");
 
     Ok(())
@@ -196,10 +201,21 @@ pub fn read_theme() -> Result<Theme> {
         .read_to_string(&mut buf)
         .context("Failed to read file contents to string")?;
 
+    // Check if all theme elements are present
+    let theme_elements = Theme::FIELD_NAMES_AS_ARRAY;
+    for element in theme_elements {
+        // If one isn't, add it
+        if !buf.contains(element) {
+            buf.push_str(&format!("\n[{}]", element));
+            println!("Added new theme element [{}] into the theme.toml", element);
+        }
+    }
+
     let theme: Theme =
         toml::from_str(&buf).context("Failed to parse toml string to Theme struct")?;
 
-    // Save in case elements are missing
+    // Save in case attributes are missing
+    // or new theme elements were added in
     // i.e. if user updates checklist version with new
     // config options
     theme.save()?;
