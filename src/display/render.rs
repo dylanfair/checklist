@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use ratatui::symbols::scrollbar;
 use ratatui::widgets::BorderType;
 use ratatui::Frame;
@@ -10,7 +12,6 @@ use ratatui::{
         ScrollbarOrientation, Wrap,
     },
 };
-use std::collections::BTreeMap;
 
 use crate::backend::task::Display;
 use crate::backend::task::{Status, Task, Urgency};
@@ -68,19 +69,19 @@ impl Urgency {
     pub fn to_colored_exclamation_marks(&self, theme: &Theme) -> Span<'_> {
         match self {
             Urgency::Low => Span::styled(
-                String::from("   "),
+                String::from(&theme.theme_styles.urgency_low),
                 Style::default().fg(theme.text_colors.urgency_low),
             ),
             Urgency::Medium => Span::styled(
-                String::from("!  "),
+                String::from(&theme.theme_styles.urgency_medium),
                 Style::default().fg(theme.text_colors.urgency_medium),
             ),
             Urgency::High => Span::styled(
-                String::from("!! "),
+                String::from(&theme.theme_styles.urgency_high),
                 Style::default().fg(theme.text_colors.urgency_high),
             ),
             Urgency::Critical => Span::styled(
-                String::from("!!!"),
+                String::from(&theme.theme_styles.urgency_critical),
                 Style::default().fg(theme.text_colors.urgency_critical),
             ),
         }
@@ -156,7 +157,11 @@ impl Task {
         let line = match self.status {
             Status::Completed => {
                 let spans = vec![
-                    "✓   | ".green(),
+                    Span::styled(
+                        theme.theme_styles.completed.clone(),
+                        Style::default().fg(theme.text_colors.status_completed),
+                    ),
+                    " | ".into(),
                     self.status.to_colored_span(theme).clone(),
                     " - ".into(),
                     self.name.clone().into(),

@@ -1,12 +1,13 @@
+use std::fs::{rename, File};
+use std::io::{prelude::*, BufReader};
+use std::path::PathBuf;
+
 use anyhow::{Context, Result};
 use ratatui::style::{
     palette::tailwind::{EMERALD, SLATE},
     Color,
 };
 use serde::{Deserialize, Serialize};
-use std::fs::{rename, File};
-use std::io::{prelude::*, BufReader};
-use std::path::PathBuf;
 use struct_field_names_as_array::FieldNamesAsArray;
 
 use crate::backend::config::get_config_dir;
@@ -160,6 +161,21 @@ fn scroll_track() -> Option<String> {
 fn highlight_symbol() -> String {
     String::from(">")
 }
+fn urgency_low() -> String {
+    String::from("   ")
+}
+fn urgency_medium() -> String {
+    String::from("!  ")
+}
+fn urgency_high() -> String {
+    String::from("!! ")
+}
+fn urgency_critical() -> String {
+    String::from("!!!")
+}
+fn completed() -> String {
+    String::from("✓  ")
+}
 
 /// Struct that holds different elements the user can style
 #[derive(Debug, Deserialize, Serialize)]
@@ -174,6 +190,16 @@ pub struct ThemeStyles {
     pub scrollbar_track: Option<String>,
     #[serde(default = "highlight_symbol")]
     pub highlight_symbol: String,
+    #[serde(default = "urgency_low")]
+    pub urgency_low: String,
+    #[serde(default = "urgency_medium")]
+    pub urgency_medium: String,
+    #[serde(default = "urgency_high")]
+    pub urgency_high: String,
+    #[serde(default = "urgency_critical")]
+    pub urgency_critical: String,
+    #[serde(default = "completed")]
+    pub completed: String,
 }
 
 /// Overall struct that holds `ThemeColors` and `ThemeStyles`
