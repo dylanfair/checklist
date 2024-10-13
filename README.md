@@ -121,6 +121,18 @@ To delete, `d` will prompt you with a `y` or `n` whether you want to delete it. 
 
 There is a `theme.toml` file (which can be found with `checklist where -t`). Here you can change background colors, outline colors, scrollbar colors and a couple styles. This isn't fully fleshed out, but hopefully acts as a good start.
 
+Currently the customization options fall under three broad categories:
+
+* `theme_colors`
+* `text_colors`
+* `theme_styles`
+
+`theme_colors` covers color customization for block backgrounds, outlines, and scrollbars.
+
+`text_colors` covers color customization for the colored text in `checklist`.
+
+`theme_styles` covers symbology in `checklist`, like what you want the scrollbar to look like, the highlight symbol, and `Urgency` markings in the `Task` items.
+
 ## VSCode oddity
 
 I noticed that if running the app in a VSCode terminal, I needed to set the following setting in order for certain command combinations (i.e. CTRL \<down>) to work:
