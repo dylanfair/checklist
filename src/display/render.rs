@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use ratatui::symbols::scrollbar;
 use ratatui::widgets::BorderType;
 use ratatui::Frame;
@@ -10,57 +12,97 @@ use ratatui::{
         ScrollbarOrientation, Wrap,
     },
 };
-use std::collections::BTreeMap;
 
 use crate::backend::task::Display;
 use crate::backend::task::{Status, Task, Urgency};
+use crate::display::theme::Theme;
 use crate::display::tui::{App, LayoutView};
 
 impl Status {
     /// Based on the Enum value, will return a colored `Span`
-    pub fn to_colored_span(&self) -> Span<'_> {
+    pub fn to_colored_span(&self, theme: &Theme) -> Span<'_> {
         match self {
-            Status::Open => String::from("Open").cyan(),
-            Status::Working => String::from("Working").blue(),
-            Status::Paused => String::from("Paused").yellow(),
-            Status::Completed => String::from("Completed").green(),
+            Status::Open => Span::styled(
+                String::from("Open"),
+                Style::default().fg(theme.text_colors.status_open),
+            ),
+            Status::Working => Span::styled(
+                String::from("Working"),
+                Style::default().fg(theme.text_colors.status_working),
+            ),
+            Status::Paused => Span::styled(
+                String::from("Paused"),
+                Style::default().fg(theme.text_colors.status_paused),
+            ),
+            Status::Completed => Span::styled(
+                String::from("Completed"),
+                Style::default().fg(theme.text_colors.status_completed),
+            ),
         }
     }
 }
 
 impl Urgency {
     /// Based on the Enum value, will return a colored `Span`
-    pub fn to_colored_span(&self) -> Span<'_> {
+    pub fn to_colored_span(&self, theme: &Theme) -> Span<'_> {
         match self {
-            Urgency::Low => String::from("Low").green(),
-            Urgency::Medium => String::from("Medium").yellow(),
-            Urgency::High => String::from("High").magenta(),
-            Urgency::Critical => String::from("Critical").red(),
+            Urgency::Low => Span::styled(
+                String::from("Low"),
+                Style::default().fg(theme.text_colors.urgency_low),
+            ),
+            Urgency::Medium => Span::styled(
+                String::from("Medium"),
+                Style::default().fg(theme.text_colors.urgency_medium),
+            ),
+            Urgency::High => Span::styled(
+                String::from("High"),
+                Style::default().fg(theme.text_colors.urgency_high),
+            ),
+            Urgency::Critical => Span::styled(
+                String::from("Critical"),
+                Style::default().fg(theme.text_colors.urgency_critical),
+            ),
         }
     }
 
     /// Based on the Enum value, will return a colored `Span` of exclamation marks
-    pub fn to_colored_exclamation_marks(&self) -> Span<'_> {
+    pub fn to_colored_exclamation_marks(&self, theme: &Theme) -> Span<'_> {
         match self {
-            Urgency::Low => String::from("   ").green(),
-            Urgency::Medium => String::from("!  ").yellow(),
-            Urgency::High => String::from("!! ").magenta(),
-            Urgency::Critical => String::from("!!!").red(),
+            Urgency::Low => Span::styled(
+                String::from(&theme.theme_styles.urgency_low),
+                Style::default().fg(theme.text_colors.urgency_low),
+            ),
+            Urgency::Medium => Span::styled(
+                String::from(&theme.theme_styles.urgency_medium),
+                Style::default().fg(theme.text_colors.urgency_medium),
+            ),
+            Urgency::High => Span::styled(
+                String::from(&theme.theme_styles.urgency_high),
+                Style::default().fg(theme.text_colors.urgency_high),
+            ),
+            Urgency::Critical => Span::styled(
+                String::from(&theme.theme_styles.urgency_critical),
+                Style::default().fg(theme.text_colors.urgency_critical),
+            ),
         }
     }
 }
 
 impl Display {
     /// Based on the Enum value, will return a colored `Span`
-    pub fn to_colored_span(&self) -> Span<'_> {
+    pub fn to_colored_span(&self, theme: &Theme) -> Span<'_> {
         match self {
-            Display::All => Span::styled(String::from("All"), Style::default().fg(Color::Cyan)),
-            Display::Completed => {
-                Span::styled(String::from("Completed"), Style::default().fg(Color::Green))
-            }
+            Display::All => Span::styled(
+                String::from("All"),
+                Style::default().fg(theme.text_colors.filter_status_all),
+            ),
+            Display::Completed => Span::styled(
+                String::from("Completed"),
+                Style::default().fg(theme.text_colors.filter_status_completed),
+            ),
             Display::NotCompleted => Span::styled(
                 String::from("NotCompleted"),
-                Style::default().fg(Color::Yellow),
+                Style::default().fg(theme.text_colors.filter_status_notcompleted),
             ),
         }
     }
@@ -68,24 +110,27 @@ impl Display {
 
 impl LayoutView {
     /// Based on the Enum value, will return a colored `Span`
-    pub fn to_colored_span(&self) -> Span<'_> {
+    pub fn to_colored_span(&self, theme: &Theme) -> Span<'_> {
         match self {
-            LayoutView::Horizontal => {
-                Span::styled(String::from("Horizontal"), Style::default().fg(Color::Cyan))
-            }
-            LayoutView::Vertical => {
-                Span::styled(String::from("Vertical"), Style::default().fg(Color::Blue))
-            }
-            LayoutView::Smart => {
-                Span::styled(String::from("Smart"), Style::default().fg(Color::Yellow))
-            }
+            LayoutView::Horizontal => Span::styled(
+                String::from("Horizontal"),
+                Style::default().fg(theme.text_colors.layout_horizontal),
+            ),
+            LayoutView::Vertical => Span::styled(
+                String::from("Vertical"),
+                Style::default().fg(theme.text_colors.layout_vertical),
+            ),
+            LayoutView::Smart => Span::styled(
+                String::from("Smart"),
+                Style::default().fg(theme.text_colors.layout_smart),
+            ),
         }
     }
 }
 
 impl Task {
     /// Returns the `Task` tags as a vector of `Span`
-    fn span_tags(&self) -> Vec<Span> {
+    fn span_tags(&self, theme: &Theme) -> Vec<Span> {
         let mut tags_span_vec = vec![Span::from("Tags:".to_string())];
         match &self.tags {
             Some(tags) => {
@@ -94,7 +139,10 @@ impl Task {
                 //task_tags_vec.sort_by(|a, b| a.cmp(b));
 
                 for tag in task_tags_vec {
-                    tags_span_vec.push(format!(" {} ", tag).blue());
+                    tags_span_vec.push(Span::styled(
+                        format!(" {} ", tag),
+                        Style::default().fg(theme.text_colors.tags),
+                    ));
                     tags_span_vec.push(Span::from("|"));
                 }
                 tags_span_vec.pop(); // removing the extra | at the end
@@ -105,12 +153,16 @@ impl Task {
     }
 
     /// Returns a `ListItem` of the `Task`
-    pub fn to_listitem(&self) -> ListItem {
+    pub fn to_listitem(&self, theme: &Theme) -> ListItem {
         let line = match self.status {
             Status::Completed => {
                 let spans = vec![
-                    "✓   | ".green(),
-                    self.status.to_colored_span().clone(),
+                    Span::styled(
+                        theme.theme_styles.completed.clone(),
+                        Style::default().fg(theme.text_colors.status_completed),
+                    ),
+                    " | ".into(),
+                    self.status.to_colored_span(theme).clone(),
                     " - ".into(),
                     self.name.clone().into(),
                 ];
@@ -119,9 +171,9 @@ impl Task {
             _ => {
                 let spans = vec![
                     //"☐ - ".white(),
-                    self.urgency.to_colored_exclamation_marks(),
+                    self.urgency.to_colored_exclamation_marks(theme),
                     " | ".into(),
-                    self.status.to_colored_span().clone(),
+                    self.status.to_colored_span(theme).clone(),
                     " - ".into(),
                     self.name.clone().into(),
                 ];
@@ -132,7 +184,7 @@ impl Task {
     }
 
     /// Returns a vector of `Line` containing several elements of the `Task`
-    pub fn to_text_vec(&self) -> Vec<Line> {
+    pub fn to_text_vec(&self, theme: &Theme) -> Vec<Line> {
         let completion_date = match self.completed_on {
             Some(date) => format!(" - {}", date.date_naive()),
             None => String::from(""),
@@ -140,30 +192,33 @@ impl Task {
         let text = vec![
             Line::from(vec![
                 Span::styled("Title: ", Style::default()),
-                Span::styled(&self.name, Style::default().fg(Color::Magenta)),
+                Span::styled(&self.name, Style::default().fg(theme.text_colors.title)),
             ]),
             Line::from(vec![
                 Span::styled("Created: ", Style::default()),
                 Span::styled(
                     self.date_added.date_naive().to_string(),
-                    Style::default().fg(Color::Cyan),
+                    Style::default().fg(theme.text_colors.created_date),
                 ),
             ]),
             Line::from(vec![
                 Span::styled("Status: ", Style::default()),
-                self.status.to_colored_span(),
-                Span::styled(completion_date, Style::default().fg(Color::Green)),
+                self.status.to_colored_span(theme),
+                Span::styled(
+                    completion_date,
+                    Style::default().fg(theme.text_colors.completed_date),
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Urgency: ", Style::default()),
-                self.urgency.to_colored_span(),
+                self.urgency.to_colored_span(theme),
             ]),
-            Line::from(self.span_tags()),
+            Line::from(self.span_tags(theme)),
             Line::from(vec![Span::styled("", Style::default())]),
             Line::from(vec![Span::styled("Latest:", Style::default().underlined())]),
             Line::from(vec![Span::styled(
                 self.latest.clone().unwrap_or("".to_string()),
-                Style::default().fg(Color::Blue),
+                Style::default().fg(theme.text_colors.latest),
             )]),
             Line::from(vec![Span::styled("", Style::default())]),
             Line::from(vec![Span::styled(
@@ -172,7 +227,7 @@ impl Task {
             )]),
             Line::from(vec![Span::styled(
                 self.description.clone().unwrap_or("".to_string()),
-                Style::default().fg(Color::Magenta),
+                Style::default().fg(theme.text_colors.description),
             )]),
         ];
         text
@@ -180,8 +235,8 @@ impl Task {
 
     /// Returns a `Paragraph` of the `Task`. This is what is displayed
     /// in the `Task Info` block in the app
-    pub fn to_paragraph(&self) -> Paragraph {
-        let text = self.to_text_vec();
+    pub fn to_paragraph(&self, theme: &Theme) -> Paragraph {
+        let text = self.to_text_vec(theme);
 
         Paragraph::new(text)
     }
@@ -423,8 +478,14 @@ fn style_scrollbar<'a>(
 /// Renders the `State` block in the main TUI page
 pub fn render_state(f: &mut Frame, app: &mut App, rectangle: Rect) {
     let urgency_sort_string = match app.config.urgency_sort_desc {
-        true => Span::styled("descending".to_string(), Style::default().fg(Color::Blue)),
-        false => Span::styled("ascending".to_string(), Style::default().fg(Color::Red)),
+        true => Span::styled(
+            "descending".to_string(),
+            Style::default().fg(app.theme.text_colors.urgency_descending),
+        ),
+        false => Span::styled(
+            "ascending".to_string(),
+            Style::default().fg(app.theme.text_colors.urgency_ascending),
+        ),
     };
 
     // Render actions definitions
@@ -447,11 +508,14 @@ pub fn render_state(f: &mut Frame, app: &mut App, rectangle: Rect) {
         Line::from("Filters:".underlined()),
         Line::from(vec![
             Span::styled("Status: ", Style::default()),
-            app.config.display_filter.to_colored_span(),
+            app.config.display_filter.to_colored_span(&app.theme),
         ]),
         Line::from(vec![
             Span::styled("Tag: ", Style::default()),
-            app.tags_filter_value.clone().blue(),
+            Span::styled(
+                app.tags_filter_value.clone(),
+                Style::default().fg(app.theme.text_colors.tags),
+            ),
         ]),
         Line::from(""),
         Line::from("Sorts:".underlined()),
@@ -492,91 +556,170 @@ pub fn render_help(f: &mut Frame, app: &mut App, rectangle: Rect) {
         Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(vertical_chunks[1]);
 
+    let action_color = app.theme.text_colors.help_actions;
+    let quick_action_color = app.theme.text_colors.help_quick_actions;
+    let movement_color = app.theme.text_colors.help_movement;
+
     let mappings = vec![
         (
-            vec!["Actions:".underlined().blue(), "         ".into()],
+            vec![
+                Span::styled(
+                    "Actions:".to_string(),
+                    Style::default().underlined().fg(action_color),
+                ),
+                "         ".into(),
+            ],
             "".into(),
         ),
-        (vec!["a                ".into(), "".into()], "Add".blue()),
-        (vec!["u                ".into(), "".into()], "Update".blue()),
-        (vec!["d                ".into(), "".into()], "Delete".blue()),
+        (
+            vec!["a                ".into(), "".into()],
+            Span::styled("Add".to_string(), Style::default().fg(action_color)),
+        ),
+        (
+            vec!["u                ".into(), "".into()],
+            Span::styled("Update".to_string(), Style::default().fg(action_color)),
+        ),
+        (
+            vec!["d                ".into(), "".into()],
+            Span::styled("Delete".to_string(), Style::default().fg(action_color)),
+        ),
         (
             vec!["x".into(), " or ".cyan(), "ESC         ".into(), "".into()],
-            "Exit".blue(),
+            Span::styled("Exit".to_string(), Style::default().fg(action_color)),
         ),
         (
             vec!["v                ".into(), "".into()],
-            "Change layout view".blue(),
+            Span::styled(
+                "Change layout view".to_string(),
+                Style::default().fg(action_color),
+            ),
         ),
         (
             vec!["f                ".into(), "".into()],
-            "Filter on Status".blue(),
+            Span::styled(
+                "Filter on Status".to_string(),
+                Style::default().fg(action_color),
+            ),
         ),
         (
             vec!["/ <TEXT>         ".into(), "".into()],
-            "Filter task on Tag".blue(),
+            Span::styled(
+                "Filter task on Tag".to_string(),
+                Style::default().fg(action_color),
+            ),
         ),
         (
             vec!["/ ENTER          ".into(), "".into()],
-            "Remove Tag filter".blue(),
+            Span::styled(
+                "Remove Tag filter".to_string(),
+                Style::default().fg(action_color),
+            ),
         ),
         (
             vec!["s                ".into(), "".into()],
-            "Sort on Urgency".blue(),
+            Span::styled(
+                "Sort on Urgency".to_string(),
+                Style::default().fg(action_color),
+            ),
         ),
         (vec!["".into(), "".into()], "".into()),
         (
-            vec!["Quick Actions:".underlined().magenta(), "   ".into()],
+            vec![
+                Span::styled(
+                    "Quick Actions:".to_string(),
+                    Style::default().underlined().fg(quick_action_color),
+                ),
+                "         ".into(),
+            ],
             "".into(),
         ),
         (
             vec!["qa               ".into(), "".into()],
-            "Quick Add".magenta(),
+            Span::styled(
+                "Quick Add".to_string(),
+                Style::default().fg(quick_action_color),
+            ),
         ),
         (
             vec!["qc               ".into(), "".into()],
-            "Quick Complete".magenta(),
+            Span::styled(
+                "Quick Complete".to_string(),
+                Style::default().fg(quick_action_color),
+            ),
         ),
         (
             vec!["dd               ".into(), "".into()],
-            "Quick Delete".magenta(),
+            Span::styled(
+                "Quick Delete".to_string(),
+                Style::default().fg(quick_action_color),
+            ),
         ),
         (vec!["".into(), "".into()], "".into()),
         (
-            vec!["Move/Adjustment:".underlined().yellow(), " ".into()],
+            vec![
+                Span::styled(
+                    "Move/Adjustment:".to_string(),
+                    Style::default().underlined().fg(movement_color),
+                ),
+                "         ".into(),
+            ],
             "".into(),
         ),
         (
             vec!["↑".into(), " or ".cyan(), "k           ".into(), "".into()],
-            "Move up task".yellow(),
+            Span::styled(
+                "Move up task".to_string(),
+                Style::default().fg(movement_color),
+            ),
         ),
         (
             vec!["↓".into(), " or ".cyan(), "j           ".into(), "".into()],
-            "Move down task".yellow(),
+            Span::styled(
+                "Move down task".to_string(),
+                Style::default().fg(movement_color),
+            ),
         ),
         (
             vec!["HOME".into(), " or ".cyan(), "g        ".into(), "".into()],
-            "Move to first task".yellow(),
+            Span::styled(
+                "Move to first task".to_string(),
+                Style::default().fg(movement_color),
+            ),
         ),
         (
             vec!["END".into(), " or ".cyan(), "G         ".into(), "".into()],
-            "Move to last task".yellow(),
+            Span::styled(
+                "Move to last task".to_string(),
+                Style::default().fg(movement_color),
+            ),
         ),
         (
             vec!["CTRL ←           ".into(), "".into()],
-            "Adjust Task Info pane (bigger)".yellow(),
+            Span::styled(
+                "Adjust Task Info pane (bigger)".to_string(),
+                Style::default().fg(movement_color),
+            ),
         ),
         (
             vec!["CTRL →           ".into(), "".into()],
-            "Adjust Task Info pane (smaller)".yellow(),
+            Span::styled(
+                "Adjust Task Info pane (smaller)".to_string(),
+                Style::default().fg(movement_color),
+            ),
         ),
         (
             vec!["CTRL ↑".into(), " or ".cyan(), "k      ".into(), "".into()],
-            "Scroll Task Info up".yellow(),
+            Span::styled(
+                "Scroll Task Info up".to_string(),
+                Style::default().fg(movement_color),
+            ),
         ),
         (
             vec!["CTRL ↓".into(), " or ".cyan(), "j      ".into(), "".into()],
-            "Scroll Task Info down".yellow(),
+            Span::styled(
+                "Scroll Task Info down".to_string(),
+                Style::default().fg(movement_color),
+            ),
         ),
     ];
     let help_vec_lines_len = mappings.len();
@@ -650,7 +793,7 @@ pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: Rect) {
                 app.theme.theme_colors.normal_row_bg,
                 app.theme.theme_colors.alt_row_bg,
             );
-            let list_item = task_item.to_listitem();
+            let list_item = task_item.to_listitem(&app.theme);
             list_item.bg(color)
         })
         .collect();
@@ -696,13 +839,13 @@ pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: Rect) {
 /// Renders the `Task Info` block in the TUI
 pub fn render_task_info(f: &mut Frame, app: &mut App, rectangle: Rect) {
     let info = if let Some(i) = app.tasklist.state.selected() {
-        app.tasklist.tasks[i].to_paragraph()
+        app.tasklist.tasks[i].to_paragraph(&app.theme)
     } else {
         Paragraph::new("Nothing selected...")
     };
 
     let selected_task_len = match app.tasklist.state.selected() {
-        Some(task) => app.tasklist.tasks[task].to_text_vec().len(),
+        Some(task) => app.tasklist.tasks[task].to_text_vec(&app.theme).len(),
         None => 0,
     };
 
@@ -771,7 +914,7 @@ pub fn render_status_bar(f: &mut Frame, app: &mut App, area: Rect) {
 
     let layout_blurb = Paragraph::new(Text::from(vec![Line::from(vec![
         "Layout View: ".into(),
-        app.layout_view.to_colored_span(),
+        app.layout_view.to_colored_span(&app.theme),
     ])]));
     let layout_contents = layout_blurb
         .block(Block::new().bg(app.theme.theme_colors.status_bar))
@@ -790,10 +933,7 @@ pub fn render_delete_popup(f: &mut Frame, app: &App, area: Rect) {
         app.theme.theme_colors.pop_up_outline,
     );
 
-    let blurb = Paragraph::new(Text::from(vec![
-        Line::from("(y)es (n)o"),
-        //Line::from("(y)es (n)o"),
-    ]));
+    let blurb = Paragraph::new(Text::from(vec![Line::from("(y)es (n)o")]));
 
     let delete_popup_contents = blurb
         .block(delete_block)
@@ -897,19 +1037,19 @@ pub fn render_urgency_popup(f: &mut Frame, app: &App, area: Rect) {
     let urgencies = vec![
         ListItem::from(Line::from(vec![
             "1. ".into(),
-            Urgency::Low.to_colored_span(),
+            Urgency::Low.to_colored_span(&app.theme),
         ])),
         ListItem::from(Line::from(vec![
             "2. ".into(),
-            Urgency::Medium.to_colored_span(),
+            Urgency::Medium.to_colored_span(&app.theme),
         ])),
         ListItem::from(Line::from(vec![
             "3. ".into(),
-            Urgency::High.to_colored_span(),
+            Urgency::High.to_colored_span(&app.theme),
         ])),
         ListItem::from(Line::from(vec![
             "4. ".into(),
-            Urgency::Critical.to_colored_span(),
+            Urgency::Critical.to_colored_span(&app.theme),
         ])),
     ];
     let urgencies_list = List::new(urgencies).block(bottom_half);
@@ -942,19 +1082,19 @@ pub fn render_status_popup(f: &mut Frame, app: &App, area: Rect) {
     let statuses = vec![
         ListItem::from(Line::from(vec![
             "1. ".into(),
-            Status::Open.to_colored_span(),
+            Status::Open.to_colored_span(&app.theme),
         ])),
         ListItem::from(Line::from(vec![
             "2. ".into(),
-            Status::Working.to_colored_span(),
+            Status::Working.to_colored_span(&app.theme),
         ])),
         ListItem::from(Line::from(vec![
             "3. ".into(),
-            Status::Paused.to_colored_span(),
+            Status::Paused.to_colored_span(&app.theme),
         ])),
         ListItem::from(Line::from(vec![
             "4. ".into(),
-            Status::Completed.to_colored_span(),
+            Status::Completed.to_colored_span(&app.theme),
         ])),
     ];
     let status_list = List::new(statuses).block(bottom_half);
@@ -1098,7 +1238,10 @@ pub fn render_tags_popup(f: &mut Frame, app: &mut App, area: Rect) {
     task_tags_vec.sort();
 
     for (i, tag) in task_tags_vec.iter().enumerate() {
-        let mut span_object = format!(" {} ", tag).blue();
+        let mut span_object = Span::styled(
+            format!(" {} ", tag),
+            Style::default().fg(app.theme.text_colors.tags),
+        );
         if i == app.tags_highlight_value && app.highlight_tags {
             span_object = span_object.underlined();
         }

@@ -1,6 +1,7 @@
+use std::collections::HashSet;
+
 use anyhow::{Context, Result};
 use chrono::Local;
-use std::collections::HashSet;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
