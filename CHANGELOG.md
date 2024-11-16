@@ -1,5 +1,13 @@
 # Unreleased
 
+# v0.1.3
+
+* Added the following to the `Cargo.toml` under `[profile.release]`:
+    * `lto = true`
+    * `codegen-units = 1`
+
+These are intended to improve performance of the app in release mode.
+
 # v0.1.2
 
 * `text_colors` has been added to the `theme.toml` to give users more customization options
