@@ -10,6 +10,10 @@ keywords = ["tui", "todo", "task", "terminal", "dashboard"]
 categories = ["command-line-interface"]
 exclude = ["images/"]
 
+[profiler.release]
+lto = true
+codegen-units = 1
+
 [[bin]]
 name = "checklist"
 path = "src/main.rs"
