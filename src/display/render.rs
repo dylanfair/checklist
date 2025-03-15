@@ -322,8 +322,8 @@ fn map_string_to_lines(
         hash_lines.insert(latest_quotient, current_line_words.clone());
 
         let total_chars: usize = hash_lines
-            .iter()
-            .map(|(_, v)| {
+            .values()
+            .map(|v| {
                 v.iter()
                     .map(|x| {
                         if x == "OVER FLOW" {

@@ -282,13 +282,14 @@ impl Renderer {
     }
 
     fn update_task_window(&mut self) {
-        let current_tasks_in_window: &[Task];
-        if self.taskinfo.total_tasklist.len() <= self.taskwindow.tasks_that_can_fit as usize {
-            current_tasks_in_window = &self.taskinfo.total_tasklist.tasks[0..];
-        } else {
-            current_tasks_in_window = &self.taskinfo.total_tasklist.tasks
-                [self.taskwindow.window_start as usize..=self.taskwindow.window_end as usize]
-        }
+        // let current_tasks_in_window: &[Task];
+        let current_tasks_in_window: &[Task] =
+            if self.taskinfo.total_tasklist.len() <= self.taskwindow.tasks_that_can_fit as usize {
+                &self.taskinfo.total_tasklist.tasks[0..]
+            } else {
+                &self.taskinfo.total_tasklist.tasks
+                    [self.taskwindow.window_start as usize..=self.taskwindow.window_end as usize]
+            };
 
         self.taskinfo.display_tasklist = TaskList::from(current_tasks_in_window.to_vec());
     }

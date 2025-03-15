@@ -102,17 +102,14 @@ pub fn get_db(memory: bool, testing: bool) -> Result<Connection> {
 pub fn add_to_db(conn: &Connection, task: &Task) -> Result<()> {
     // Handle inserting tags
     let mut tags_insert = None;
-    match &task.tags {
-        Some(tags) => {
-            tags_insert = Some(tags.clone().into_iter().collect::<Vec<String>>().join(";"))
-        }
-        None => {}
+    if let Some(tags) = &task.tags {
+        tags_insert = Some(tags.clone().into_iter().collect::<Vec<String>>().join(";"))
     }
 
     conn.execute(
         "INSERT INTO task (id, name, description, latest, urgency, status, tags, date_added, completed_on) 
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        (
+        params![
             &task.get_id(),
             &task.name,
             &task.description,
@@ -122,7 +119,7 @@ pub fn add_to_db(conn: &Connection, task: &Task) -> Result<()> {
             tags_insert,
             &task.get_date_added(),
             &task.completed_on,
-        ),
+        ],
     )
     .context("Failed to insert values into database")?;
 
@@ -132,16 +129,13 @@ pub fn add_to_db(conn: &Connection, task: &Task) -> Result<()> {
 /// Updates a `&Task` in a SQLite database based on the `&Connecton` given.
 pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
     let mut tags_insert = None;
-    match &task.tags {
-        Some(tags) => {
-            tags_insert = Some(tags.clone().into_iter().collect::<Vec<String>>().join(";"))
-        }
-        None => {}
+    if let Some(tags) = &task.tags {
+        tags_insert = Some(tags.clone().into_iter().collect::<Vec<String>>().join(";"))
     }
 
     conn.execute(
         "UPDATE task SET name = ?1, description = ?2, latest = ?3, urgency = ?4, status = ?5, tags = ?6, date_added = ?7, completed_on = ?8 WHERE id = ?9"
-        , (
+        ,params![
             &task.name, 
             &task.description, 
             &task.latest, 
@@ -150,7 +144,9 @@ pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
             tags_insert, 
             &task.get_date_added(), 
             &task.completed_on,
-            &task.get_id())).context("Failed to update values for the task")?;
+            &task.get_id()
+        ]
+            ).context("Failed to update values for the task")?;
 
     Ok(())
 }
@@ -158,7 +154,7 @@ pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
 /// Deletes a `&Task` in a SQLite database based on the `&Connecton` given.
 pub fn delete_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
     // println!("Deleting task from db");
-    conn.execute("DELETE FROM task WHERE id = ?1", [&task.get_id()]).context("Failed to delete task from the database")?;
+    conn.execute("DELETE FROM task WHERE id = ?1", params![&task.get_id()]).context("Failed to delete task from the database")?;
     Ok(())
 }
 
@@ -237,16 +233,16 @@ mod tests {
         let local_config_dir = get_config_dir().unwrap();
         let test_db_path = local_config_dir.join("test.checklist.sqlite");
         wipe_existing_test_db(&test_db_path);
-        assert_eq!(test_db_path.exists(), false);
+        assert!(!test_db_path.exists());
 
         create_sqlite_db(true).unwrap();
 
         let config = read_config(true).unwrap();
-        assert_eq!(config.db_path.exists(), true);
+        assert!(config.db_path.exists());
         let _ = make_connection(&config.db_path).unwrap();
 
         wipe_existing_test_db(&test_db_path);
-        assert_eq!(test_db_path.exists(), false);
+        assert!(!test_db_path.exists());
     }
 
     #[test]
