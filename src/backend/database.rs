@@ -32,7 +32,7 @@ pub fn make_memory_connection() -> Result<Connection> {
 }
 
 /// Returns a `Result<Connection>` given a `&Pathbuf` to a SQLite database
-fn make_connection(path: &PathBuf) -> Result<Connection> {
+pub fn make_connection(path: &PathBuf) -> Result<Connection> {
     let conn = Connection::open(path)
         .with_context(|| format!("Failed connect to the database at {:?}", path))?;
 

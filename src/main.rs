@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
+use backend::import::import_database;
 use clap::{Parser, Subcommand};
 
 mod backend;
@@ -80,6 +81,12 @@ enum Commands {
         #[arg(short, long)]
         theme: bool,
     },
+
+    /// Import tasks from one checklist db to your current one
+    Import {
+        /// Path to the database you want to import
+        database: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -150,7 +157,7 @@ fn main() -> Result<()> {
                     if db_path.exists() {
                         println!("{}", db_path.to_str().unwrap());
                     } else {
-                        println!("Could not find a SQLite database file.")
+                        eprintln!("Could not find a SQLite database file.")
                     }
                 }
                 if config {
@@ -162,7 +169,7 @@ fn main() -> Result<()> {
                     if config_path.exists() {
                         println!("{}", config_path.to_str().unwrap());
                     } else {
-                        println!("Could not find a config file.")
+                        eprintln!("Could not find a config file.")
                     }
                 }
                 if theme {
@@ -170,15 +177,29 @@ fn main() -> Result<()> {
                     if theme_path.exists() {
                         println!("{}", theme_path.to_str().unwrap());
                     } else {
-                        println!("Could not find a theme file.")
+                        eprintln!("Could not find a theme file.")
                     }
                 }
             }
             Err(_) => {
-                println!("Could not find the folder that should hold checklist files");
-                println!("Try getting started with 'checklist init' or 'checklist'!");
+                eprintln!("Could not find the folder that should hold checklist files");
+                eprintln!("Try getting started with 'checklist init' or 'checklist'!");
             }
         },
+
+        Some(Commands::Import { database }) => {
+            let config = match read_config(cli.test) {
+                Ok(config) => config,
+                Err(_) => {
+                    create_sqlite_db(cli.test)?;
+                    println!("Could not find an existing database, creating a new one.");
+                    read_config(cli.test).unwrap()
+                }
+            };
+
+            import_database(database, config)?;
+            println!("Finished import tasks to current database.")
+        }
 
         None => {
             let config = match read_config(cli.test) {
