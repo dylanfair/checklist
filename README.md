@@ -14,16 +14,16 @@ In the future I can learn how to get this installed elsewhere. :)
 
 ## Why checklist?
 
-What I wanted for myself was a todo TUI that I could use in a constrained terminal space, like if I just had a slim bar horizontally or vertically. Something I could have off to the side without needing to completely full-screen in order to log some tasks. Now `checklist` can still be used as a full-screen app, but it wasn't my primary goal. Below are some pictures of how `checklist` will conform depending on the terminal size it's been given. 
+What I wanted for myself was a todo TUI that I could use in a constrained terminal space, like if I just had a slim bar horizontally or vertically. Something I could have off to the side without needing to completely full-screen in order to log some tasks. Now `checklist` can still be used as a full-screen app, but it wasn't my primary goal. Below are some pictures of how `checklist` will conform depending on the terminal size it's been given.
 
 ![horizontal checklist](./images/horizontal-example.png)
-*`checklist` in a horizontal view*
+_`checklist` in a horizontal view_
 
 ![vertical checklist](./images/vertical-example.png)
-*`checklist` in a vertical view*
+_`checklist` in a vertical view_
 
 ![checklist in the corner](./images/top-right-example.png)
-*`checklist` crammed in the top right corner*
+_`checklist` crammed in the top right corner_
 
 There's a long way to go and likely some subjectivity on how to make this more effective, but I hope this gives you a general idea of what I'm aiming for here. `checklist` will automatically shift between a `Horizontal` or `Vertical` view based on terminal area conditions, however you can also explicitly choose to be in `Horizontal` or `Vertical` view if you want.
 
@@ -31,16 +31,16 @@ There's a long way to go and likely some subjectivity on how to make this more e
 
 Besides that, `checklist` will have your typical todo app features:
 
-* Adding a task
-* Updating a task
-* Deleting a task
+- Adding a task
+- Updating a task
+- Deleting a task
 
 A task can have attributes such as:
 
-* Urgency (Low, Medium, High, Critical)
-* Status (Open, Working, Paused, Completed)
-* Tags (which can be filtered for)
-* And space to write out a description or maybe the latest update
+- Urgency (Low, Medium, High, Critical)
+- Status (Open, Working, Paused, Completed)
+- Tags (which can be filtered for)
+- And space to write out a description or maybe the latest update
 
 Speaking of filters, as of now (September 2024) the only other filter is by `Status` (Completed, NotCompleted, and All), and you can sort `Urgency` in an ascending or descending manner (Critical > High > Medium > Low). This is stuff I'd like to eventually flesh out a bit more.
 
@@ -60,13 +60,13 @@ Easy enough! On first time use before opening up the TUI, this will create a SQL
 
 Linux: `/home/<USER>/.config/checklist/` \
 Windows: `C:\Users\<USER>\AppData\Local\checklist\` \
-Mac*: `~/Library/Application Support/checklist/`
+Mac\*: `~/Library/Application Support/checklist/`
 
-> *I don't have a Mac so haven't tested this, but I believe that's where it will go 
+> \*I don't have a Mac so haven't tested this, but I believe that's where it will go
 
 The SQLite database is where your tasks are stored.
 
-You can always check where files related to checklist live with: 
+You can always check where files related to checklist live with:
 
 ```sh
 checklist where # returns the folder that holds checklist related files
@@ -86,6 +86,12 @@ If you want to point `checklist` to a specific SQLite database (say you moved yo
 checklist init --set <DB PATH>
 ```
 
+If you instead want to import tasks from another `checklist` SQLite database (i.e. you want to merge the tasks from one database with your current one), that can be done with the `checklist import` command.
+
+```sh
+checklist import <DB PATH>
+```
+
 There are only a couple other commands from the CLI that you need to know:
 
 ```sh
@@ -93,7 +99,6 @@ checklist wipe
 ```
 
 This will wipe out all tasks in your database should you accept the confirmation prompt -- use with caution.
-
 
 `checklist display` will open up the TUI just like `checklist` by itself would, but it does also allow you to preemptively set the layout view you want to use with the `-v` flag, like so:
 
@@ -123,9 +128,9 @@ There is a `theme.toml` file (which can be found with `checklist where -t`). Her
 
 Currently the customization options fall under three broad categories:
 
-* `theme_colors`
-* `text_colors`
-* `theme_styles`
+- `theme_colors`
+- `text_colors`
+- `theme_styles`
 
 `theme_colors` covers color customization for block backgrounds, outlines, and scrollbars.
 
