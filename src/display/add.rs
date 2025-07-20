@@ -188,52 +188,50 @@ impl App {
     }
 
     fn delete_char(&mut self) {
-        let is_not_cursor_leftmost = self.text_info.character_index != 0;
-        if is_not_cursor_leftmost {
-            let right;
-            let left;
+        let right;
+        let left;
 
-            if self.text_info.is_text_highlighted {
-                (left, right) = self.get_highlight_start_and_end();
-            } else {
-                right = self.text_info.character_index;
-                left = right - 1;
+        if self.text_info.is_text_highlighted {
+            (left, right) = self.get_highlight_start_and_end();
+        } else if self.text_info.character_index == 0 {
+            return;
+        } else {
+            right = self.text_info.character_index;
+            left = right - 1;
+        }
+
+        let stage = self.get_stage_off_entry_mode();
+
+        match stage {
+            Stage::Name => {
+                let before_char_to_delete = self.inputs.name.chars().take(left);
+                let after_char_to_delete = self.inputs.name.chars().skip(right);
+                self.inputs.name = before_char_to_delete.chain(after_char_to_delete).collect();
             }
-
-            let stage = self.get_stage_off_entry_mode();
-
-            match stage {
-                Stage::Name => {
-                    let before_char_to_delete = self.inputs.name.chars().take(left);
-                    let after_char_to_delete = self.inputs.name.chars().skip(right);
-                    self.inputs.name = before_char_to_delete.chain(after_char_to_delete).collect();
-                }
-                Stage::Description => {
-                    let before_char_to_delete = self.inputs.description.chars().take(left);
-                    let after_char_to_delete = self.inputs.description.chars().skip(right);
-                    self.inputs.description =
-                        before_char_to_delete.chain(after_char_to_delete).collect();
-                }
-                Stage::Latest => {
-                    let before_char_to_delete = self.inputs.latest.chars().take(left);
-                    let after_char_to_delete = self.inputs.latest.chars().skip(right);
-                    self.inputs.latest =
-                        before_char_to_delete.chain(after_char_to_delete).collect();
-                }
-                Stage::Tags => {
-                    let before_char_to_delete = self.inputs.tags_input.chars().take(left);
-                    let after_char_to_delete = self.inputs.tags_input.chars().skip(right);
-                    self.inputs.tags_input =
-                        before_char_to_delete.chain(after_char_to_delete).collect();
-                }
-                _ => {}
+            Stage::Description => {
+                let before_char_to_delete = self.inputs.description.chars().take(left);
+                let after_char_to_delete = self.inputs.description.chars().skip(right);
+                self.inputs.description =
+                    before_char_to_delete.chain(after_char_to_delete).collect();
             }
-
-            if !self.text_info.is_text_highlighted {
-                self.move_cursor_left();
-            } else {
-                self.text_info.character_index = left;
+            Stage::Latest => {
+                let before_char_to_delete = self.inputs.latest.chars().take(left);
+                let after_char_to_delete = self.inputs.latest.chars().skip(right);
+                self.inputs.latest = before_char_to_delete.chain(after_char_to_delete).collect();
             }
+            Stage::Tags => {
+                let before_char_to_delete = self.inputs.tags_input.chars().take(left);
+                let after_char_to_delete = self.inputs.tags_input.chars().skip(right);
+                self.inputs.tags_input =
+                    before_char_to_delete.chain(after_char_to_delete).collect();
+            }
+            _ => {}
+        }
+
+        if !self.text_info.is_text_highlighted {
+            self.move_cursor_left();
+        } else {
+            self.text_info.character_index = left;
         }
     }
 
