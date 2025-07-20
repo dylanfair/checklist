@@ -1,5 +1,5 @@
 use ratatui::{
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
 };
 
@@ -81,7 +81,7 @@ impl App {
         let end;
         let tmp =
             self.text_info.highlight_info.start as i32 + self.text_info.highlight_info.distance;
-        if tmp as usize > self.text_info.highlight_info.start {
+        if tmp as usize >= self.text_info.highlight_info.start {
             start = self.text_info.highlight_info.start;
             end = tmp as usize;
         } else {
@@ -99,9 +99,15 @@ pub fn highlight_text(text: String, app: &App) -> Line {
     let pre_highlight = &text[0..start];
     let pre_highlight_span = Span::raw(pre_highlight.to_owned());
     let highlight = &text[start..end];
-    let highlight_span = Span::styled(highlight.to_owned(), Style::default().bg(Color::Yellow));
+    let highlight_span = Span::styled(
+        highlight.to_owned(),
+        Style::default()
+            .bg(app.theme.theme_colors.highlight_color_bg)
+            .fg(app.theme.theme_colors.highlight_color_fg),
+    );
     let post_highlight = &text[end..];
     let post_highlight_span = Span::raw(post_highlight.to_owned());
+
     Line::from(vec![
         pre_highlight_span,
         highlight_span,

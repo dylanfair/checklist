@@ -283,12 +283,10 @@ impl App {
         match key.modifiers {
             KeyModifiers::CONTROL => match key.code {
                 KeyCode::Left => {
-                    if self.entry_mode == EntryMode::Add {
-                        self.add_stage.back();
-                    }
-                    if self.entry_mode == EntryMode::Update {
-                        self.update_stage = Stage::Staging;
-                    }
+                    self.text_info.character_index = 0;
+                }
+                KeyCode::Right => {
+                    self.text_info.character_index = self.get_text_length();
                 }
                 KeyCode::Char('a') => {
                     self.highlight_all();

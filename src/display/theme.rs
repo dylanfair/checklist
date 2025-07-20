@@ -46,6 +46,9 @@ fn magenta_default() -> Color {
 fn red_default() -> Color {
     Color::Red
 }
+fn black_default() -> Color {
+    Color::Black
+}
 
 /// Struct holds all the color configurations for `checklist`
 /// that the user can change
@@ -89,6 +92,10 @@ pub struct ThemeColors {
     pub pop_up_outline: Color,
     #[serde(default = "blue_default")]
     pub state_box_outline_during_tags_edit: Color,
+    #[serde(default = "cyan_default")]
+    pub highlight_color_bg: Color,
+    #[serde(default = "black_default")]
+    pub highlight_color_fg: Color,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -224,7 +231,7 @@ pub fn create_empty_theme_toml() -> Result<()> {
 
     let theme_elements = Theme::FIELD_NAMES_AS_ARRAY;
     for element in theme_elements {
-        file.write(format!("[{}]\n", element).as_bytes())
+        file.write(format!("[{element}]\n").as_bytes())
             .context("Failed when writing theme elements to newly created theme.toml")?;
     }
     println!("Created a default theme.toml file");
@@ -243,7 +250,7 @@ impl Theme {
                 // This minimizes the chance of data being lost if an error
                 // happens mid-write
                 let toml_file = String::from("theme.toml");
-                let tmp_file = format!("{}.tmp", toml_file);
+                let tmp_file = format!("{toml_file}.tmp");
 
                 let toml_file_path = conf_local_dir.join(&toml_file);
                 let tmp_file_path = conf_local_dir.join(&tmp_file);
@@ -259,10 +266,10 @@ impl Theme {
 
                 // Rename .tmp file to old file
                 rename(&tmp_file_path, &toml_file_path)
-                    .with_context(|| { format!("Failed to update config file with rename:\ntmp_file: {:?}\nconfig_file:{:?}", tmp_file, toml_file)})?;
+                    .with_context(|| { format!("Failed to update config file with rename:\ntmp_file: {tmp_file:?}\nconfig_file:{toml_file:?}")})?;
             }
             Err(e) => {
-                println!("Failed getting the configuration location: {:?}", e);
+                println!("Failed getting the configuration location: {e:?}");
                 panic!()
             }
         }
@@ -280,7 +287,7 @@ pub fn get_toml_file() -> Result<PathBuf> {
             Ok(toml_file_path)
         }
         Err(e) => {
-            println!("Failed getting the theme toml at: {:?}", e);
+            println!("Failed getting the theme toml at: {e:?}");
             panic!()
         }
     }
@@ -290,7 +297,7 @@ pub fn get_toml_file() -> Result<PathBuf> {
 pub fn read_theme() -> Result<Theme> {
     let toml_file_path = get_toml_file()?;
     let toml_file = std::fs::File::open(&toml_file_path)
-        .with_context(|| format!("Failed to open {:?}", toml_file_path))?;
+        .with_context(|| format!("Failed to open {toml_file_path:?}"))?;
     let mut reader = BufReader::new(toml_file);
 
     let mut buf = String::new();
@@ -306,8 +313,8 @@ pub fn read_theme() -> Result<Theme> {
         // by Theme, which can then fill in defaults
         // as needed
         if !buf.contains(element) {
-            buf.push_str(&format!("\n[{}]", element));
-            println!("Added new theme element [{}] into the theme.toml", element);
+            buf.push_str(&format!("\n[{element}]"));
+            println!("Added new theme element [{element}] into the theme.toml");
         }
     }
 
@@ -358,6 +365,6 @@ mod tests {
         "#,
         )
         .unwrap();
-        println!("{:?}", theme);
+        println!("{theme:?}");
     }
 }
