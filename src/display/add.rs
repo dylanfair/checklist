@@ -161,6 +161,10 @@ impl App {
     fn enter_char(&mut self, new_char: char) {
         let index = self.byte_index();
 
+        if self.text_info.is_text_highlighted {
+            self.delete_char();
+        }
+
         let stage = self.get_stage_off_entry_mode();
 
         match stage {
@@ -176,48 +180,56 @@ impl App {
     fn delete_char(&mut self) {
         let is_not_cursor_leftmost = self.text_info.character_index != 0;
         if is_not_cursor_leftmost {
-            let current_index = self.text_info.character_index;
-            let from_left_to_current_index = current_index - 1;
+            let right;
+            let left;
+
+            if self.text_info.is_text_highlighted {
+                let tmp = self.text_info.highlight_info.start as i32
+                    + self.text_info.highlight_info.distance;
+                if tmp as usize > self.text_info.highlight_info.start {
+                    left = self.text_info.highlight_info.start;
+                    right = tmp as usize;
+                } else {
+                    right = self.text_info.highlight_info.start;
+                    left = tmp as usize;
+                }
+            } else {
+                right = self.text_info.character_index;
+                left = right - 1;
+            }
 
             let stage = self.get_stage_off_entry_mode();
 
             match stage {
                 Stage::Name => {
-                    let before_char_to_delete =
-                        self.inputs.name.chars().take(from_left_to_current_index);
-                    let after_char_to_delete = self.inputs.name.chars().skip(current_index);
+                    let before_char_to_delete = self.inputs.name.chars().take(left);
+                    let after_char_to_delete = self.inputs.name.chars().skip(right);
                     self.inputs.name = before_char_to_delete.chain(after_char_to_delete).collect();
                 }
                 Stage::Description => {
-                    let before_char_to_delete = self
-                        .inputs
-                        .description
-                        .chars()
-                        .take(from_left_to_current_index);
-                    let after_char_to_delete = self.inputs.description.chars().skip(current_index);
+                    let before_char_to_delete = self.inputs.description.chars().take(left);
+                    let after_char_to_delete = self.inputs.description.chars().skip(right);
                     self.inputs.description =
                         before_char_to_delete.chain(after_char_to_delete).collect();
                 }
                 Stage::Latest => {
-                    let before_char_to_delete =
-                        self.inputs.latest.chars().take(from_left_to_current_index);
-                    let after_char_to_delete = self.inputs.latest.chars().skip(current_index);
+                    let before_char_to_delete = self.inputs.latest.chars().take(left);
+                    let after_char_to_delete = self.inputs.latest.chars().skip(right);
                     self.inputs.latest =
                         before_char_to_delete.chain(after_char_to_delete).collect();
                 }
                 Stage::Tags => {
-                    let before_char_to_delete = self
-                        .inputs
-                        .tags_input
-                        .chars()
-                        .take(from_left_to_current_index);
-                    let after_char_to_delete = self.inputs.tags_input.chars().skip(current_index);
+                    let before_char_to_delete = self.inputs.tags_input.chars().take(left);
+                    let after_char_to_delete = self.inputs.tags_input.chars().skip(right);
                     self.inputs.tags_input =
                         before_char_to_delete.chain(after_char_to_delete).collect();
                 }
                 _ => {}
             }
-            self.move_cursor_left();
+
+            if !self.text_info.is_text_highlighted {
+                self.move_cursor_left();
+            }
         }
     }
 
