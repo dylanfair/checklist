@@ -20,6 +20,7 @@ use crate::display::render::{
     render_name_popup, render_stage_popup, render_state, render_status_bar, render_status_popup,
     render_tags_popup, render_task_info, render_tasks, render_urgency_popup,
 };
+use crate::display::text::TextInfo;
 use crate::display::theme::Theme;
 
 use self::common::{init_terminal, install_hooks, restore_terminal};
@@ -105,6 +106,8 @@ pub struct App {
     pub tasklist: TaskList,
     // Scrollbar related
     pub scroll_info: ScrollInfo,
+    // Text related
+    pub text_info: TextInfo,
     // Sizing related
     list_box_sizing: u16,
     // Popup related
@@ -115,7 +118,6 @@ pub struct App {
     pub add_popup: bool,
     pub add_stage: Stage,
     pub inputs: Inputs,
-    pub character_index: usize,
     // Update related
     pub update_popup: bool,
     pub update_stage: Stage,
@@ -162,13 +164,13 @@ impl App {
             cursor_info: CursorInfo::default(),
             tasklist,
             scroll_info: ScrollInfo::default(),
+            text_info: TextInfo::new(),
             list_box_sizing: 30,
             delete_popup: false,
             entry_mode: EntryMode::Add,
             add_popup: false,
             add_stage: Stage::default(),
             inputs: Inputs::default(),
-            character_index: 0,
             update_popup: false,
             update_stage: Stage::default(),
             highlight_tags: false,
@@ -373,7 +375,7 @@ impl App {
                 KeyCode::Char('a') => {
                     self.add_popup = !self.add_popup;
                     self.inputs = Inputs::default();
-                    self.character_index = 0;
+                    self.text_info.character_index = 0;
                     self.add_stage = Stage::Name;
                     self.entry_mode = EntryMode::Add;
                     self.highlight_tags = false;

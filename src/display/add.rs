@@ -7,6 +7,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::backend::database::{add_to_db, update_task_in_db};
 use crate::backend::task::{Status, Task, Urgency};
+use crate::display::text::HighlightDirection;
 use crate::display::tui::App;
 
 /// Enum to flag if the input being provided by the user
@@ -99,7 +100,7 @@ impl App {
         }
     }
 
-    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
+    pub fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
         let stage = self.get_stage_off_entry_mode();
 
         match stage {
@@ -120,41 +121,41 @@ impl App {
                 .name
                 .char_indices()
                 .map(|(i, _)| i)
-                .nth(self.character_index)
+                .nth(self.text_info.character_index)
                 .unwrap_or(self.inputs.name.len()),
             Stage::Description => self
                 .inputs
                 .description
                 .char_indices()
                 .map(|(i, _)| i)
-                .nth(self.character_index)
+                .nth(self.text_info.character_index)
                 .unwrap_or(self.inputs.description.len()),
             Stage::Latest => self
                 .inputs
                 .latest
                 .char_indices()
                 .map(|(i, _)| i)
-                .nth(self.character_index)
+                .nth(self.text_info.character_index)
                 .unwrap_or(self.inputs.latest.len()),
             Stage::Tags => self
                 .inputs
                 .tags_input
                 .char_indices()
                 .map(|(i, _)| i)
-                .nth(self.character_index)
+                .nth(self.text_info.character_index)
                 .unwrap_or(self.inputs.tags_input.len()),
             _ => 0,
         }
     }
 
     fn move_cursor_left(&mut self) {
-        let cursor_moved_left = self.character_index.saturating_sub(1);
-        self.character_index = self.clamp_cursor(cursor_moved_left);
+        let cursor_moved_left = self.text_info.character_index.saturating_sub(1);
+        self.text_info.character_index = self.clamp_cursor(cursor_moved_left);
     }
 
     fn move_cursor_right(&mut self) {
-        let cursor_moved_right = self.character_index.saturating_add(1);
-        self.character_index = self.clamp_cursor(cursor_moved_right);
+        let cursor_moved_right = self.text_info.character_index.saturating_add(1);
+        self.text_info.character_index = self.clamp_cursor(cursor_moved_right);
     }
 
     fn enter_char(&mut self, new_char: char) {
@@ -173,9 +174,9 @@ impl App {
     }
 
     fn delete_char(&mut self) {
-        let is_not_cursor_leftmost = self.character_index != 0;
+        let is_not_cursor_leftmost = self.text_info.character_index != 0;
         if is_not_cursor_leftmost {
-            let current_index = self.character_index;
+            let current_index = self.text_info.character_index;
             let from_left_to_current_index = current_index - 1;
 
             let stage = self.get_stage_off_entry_mode();
@@ -228,7 +229,7 @@ impl App {
             KeyCode::Char(ch) => {
                 if ch == '1' {
                     self.update_stage = Stage::Name;
-                    self.character_index = self.tasklist.tasks[current_index].name.len();
+                    self.text_info.character_index = self.tasklist.tasks[current_index].name.len();
                 }
                 if ch == '2' {
                     self.update_stage = Stage::Status;
@@ -238,7 +239,7 @@ impl App {
                 }
                 if ch == '4' {
                     self.update_stage = Stage::Description;
-                    self.character_index = self.tasklist.tasks[current_index]
+                    self.text_info.character_index = self.tasklist.tasks[current_index]
                         .description
                         .clone()
                         .unwrap_or("".to_string())
@@ -246,14 +247,14 @@ impl App {
                 }
                 if ch == '5' {
                     self.update_stage = Stage::Latest;
-                    self.character_index = self.tasklist.tasks[current_index]
+                    self.text_info.character_index = self.tasklist.tasks[current_index]
                         .latest
                         .clone()
                         .unwrap_or("".to_string())
                         .len();
                 }
                 if ch == '6' {
-                    self.character_index = 0;
+                    self.text_info.character_index = 0;
                     self.update_stage = Stage::Tags;
                 }
             }
@@ -282,24 +283,36 @@ impl App {
                 if self.entry_mode == EntryMode::QuickAdd {
                     self.add_stage = Stage::Finished;
                 }
-                self.character_index = 0;
+                self.text_info.character_index = 0;
             }
-            KeyCode::Left => {
-                if key.modifiers == KeyModifiers::CONTROL {
+            KeyCode::Left => match key.modifiers {
+                KeyModifiers::CONTROL => {
                     if self.entry_mode == EntryMode::Add {
                         self.add_stage.back();
                     }
                     if self.entry_mode == EntryMode::Update {
                         self.update_stage = Stage::Staging;
                     }
-                } else {
-                    self.move_cursor_left()
                 }
-            }
+                KeyModifiers::SHIFT => {
+                    self.highlight_single_char(HighlightDirection::Left);
+                    return;
+                }
+                _ => self.move_cursor_left(),
+            },
+            KeyCode::Right => match key.modifiers {
+                KeyModifiers::SHIFT => {
+                    self.highlight_single_char(HighlightDirection::Right);
+                    return;
+                }
+                _ => self.move_cursor_right(),
+            },
             KeyCode::Backspace => self.delete_char(),
-            KeyCode::Right => self.move_cursor_right(),
             KeyCode::Char(ch) => self.enter_char(ch),
             _ => {}
+        }
+        if self.text_info.is_text_highlighted {
+            self.text_info.is_text_highlighted = false;
         }
     }
 
@@ -326,7 +339,7 @@ impl App {
                     self.inputs.tags.insert(self.inputs.tags_input.to_string());
                     self.inputs.tags_input = "".to_string();
                 }
-                self.character_index = 0;
+                self.text_info.character_index = 0;
             }
             _ => {}
         }
