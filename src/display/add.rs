@@ -232,6 +232,7 @@ impl App {
             self.move_cursor_left();
         } else {
             self.text_info.character_index = left;
+            self.text_info.is_text_highlighted = false;
         }
     }
 

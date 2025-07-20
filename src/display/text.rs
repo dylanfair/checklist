@@ -62,6 +62,7 @@ impl App {
         self.text_info.is_text_highlighted = true;
         self.text_info.highlight_info.start = 0;
         self.text_info.highlight_info.distance = self.get_text_length() as i32;
+        self.text_info.character_index = 0;
     }
 
     pub fn get_text_length(&mut self) -> usize {
