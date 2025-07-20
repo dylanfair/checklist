@@ -1,8 +1,10 @@
-use crate::display::tui::App;
 use ratatui::{
     style::{Color, Style},
     text::{Line, Span},
 };
+
+use crate::display::add::Stage;
+use crate::display::tui::App;
 
 pub struct TextInfo {
     pub character_index: usize,
@@ -55,19 +57,44 @@ impl App {
             }
         }
     }
+
+    pub fn highlight_all(&mut self) {
+        self.text_info.is_text_highlighted = true;
+        self.text_info.highlight_info.start = 0;
+        self.text_info.highlight_info.distance = self.get_text_length() as i32;
+    }
+
+    pub fn get_text_length(&mut self) -> usize {
+        let stage = self.get_stage_off_entry_mode();
+
+        match stage {
+            Stage::Name => self.inputs.name.len(),
+            Stage::Description => self.inputs.description.len(),
+            Stage::Latest => self.inputs.latest.len(),
+            Stage::Tags => self.inputs.tags_input.len(),
+            _ => 0,
+        }
+    }
+
+    pub fn get_highlight_start_and_end(&self) -> (usize, usize) {
+        let start;
+        let end;
+        let tmp =
+            self.text_info.highlight_info.start as i32 + self.text_info.highlight_info.distance;
+        if tmp as usize > self.text_info.highlight_info.start {
+            start = self.text_info.highlight_info.start;
+            end = tmp as usize;
+        } else {
+            end = self.text_info.highlight_info.start;
+            start = tmp as usize;
+        }
+
+        (start, end)
+    }
 }
 
 pub fn highlight_text(text: String, app: &App) -> Line {
-    let start;
-    let end;
-    let tmp = app.text_info.highlight_info.start as i32 + app.text_info.highlight_info.distance;
-    if tmp as usize > app.text_info.highlight_info.start {
-        start = app.text_info.highlight_info.start;
-        end = tmp as usize;
-    } else {
-        end = app.text_info.highlight_info.start;
-        start = tmp as usize;
-    }
+    let (start, end) = app.get_highlight_start_and_end();
 
     let pre_highlight = &text[0..start];
     let pre_highlight_span = Span::raw(pre_highlight.to_owned());

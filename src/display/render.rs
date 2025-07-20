@@ -375,6 +375,11 @@ fn text_cursor_logic(
     x_offset: u16,
     y_offset: u16,
 ) {
+    // If in a highlight, just early return to hide the cursor
+    if app.text_info.is_text_highlighted {
+        return;
+    }
+
     // Idea: create a BtreeMap where
     // keys - the line row
     // values - the line contents as a vector of strings (words)
@@ -1258,7 +1263,7 @@ pub fn render_tags_popup(f: &mut Frame, app: &mut App, area: Rect) {
 
     for (i, tag) in task_tags_vec.iter().enumerate() {
         let mut span_object = Span::styled(
-            format!(" {tag} "),
+            format!(" {tag} ",),
             Style::default().fg(app.theme.text_colors.tags),
         );
         if i == app.tags_highlight_value && app.highlight_tags {

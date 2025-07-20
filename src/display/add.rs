@@ -92,7 +92,7 @@ impl Inputs {
 }
 
 impl App {
-    fn get_stage_off_entry_mode(&self) -> &Stage {
+    pub fn get_stage_off_entry_mode(&self) -> &Stage {
         match self.entry_mode {
             EntryMode::Add => &self.add_stage,
             EntryMode::QuickAdd => &self.add_stage,
@@ -149,13 +149,23 @@ impl App {
     }
 
     fn move_cursor_left(&mut self) {
-        let cursor_moved_left = self.text_info.character_index.saturating_sub(1);
-        self.text_info.character_index = self.clamp_cursor(cursor_moved_left);
+        if self.text_info.is_text_highlighted {
+            let (left, _) = self.get_highlight_start_and_end();
+            self.text_info.character_index = left;
+        } else {
+            let cursor_moved_left = self.text_info.character_index.saturating_sub(1);
+            self.text_info.character_index = self.clamp_cursor(cursor_moved_left);
+        }
     }
 
     fn move_cursor_right(&mut self) {
-        let cursor_moved_right = self.text_info.character_index.saturating_add(1);
-        self.text_info.character_index = self.clamp_cursor(cursor_moved_right);
+        if self.text_info.is_text_highlighted {
+            let (_, right) = self.get_highlight_start_and_end();
+            self.text_info.character_index = right;
+        } else {
+            let cursor_moved_right = self.text_info.character_index.saturating_add(1);
+            self.text_info.character_index = self.clamp_cursor(cursor_moved_right);
+        }
     }
 
     fn enter_char(&mut self, new_char: char) {
@@ -184,15 +194,7 @@ impl App {
             let left;
 
             if self.text_info.is_text_highlighted {
-                let tmp = self.text_info.highlight_info.start as i32
-                    + self.text_info.highlight_info.distance;
-                if tmp as usize > self.text_info.highlight_info.start {
-                    left = self.text_info.highlight_info.start;
-                    right = tmp as usize;
-                } else {
-                    right = self.text_info.highlight_info.start;
-                    left = tmp as usize;
-                }
+                (left, right) = self.get_highlight_start_and_end();
             } else {
                 right = self.text_info.character_index;
                 left = right - 1;
@@ -229,6 +231,8 @@ impl App {
 
             if !self.text_info.is_text_highlighted {
                 self.move_cursor_left();
+            } else {
+                self.text_info.character_index = left;
             }
         }
     }
@@ -276,29 +280,9 @@ impl App {
 
     /// Handles the `KeyEvent` when user is providing text input
     pub fn handle_keys_for_text_inputs(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Esc => {
-                if self.entry_mode == EntryMode::Add || self.entry_mode == EntryMode::QuickAdd {
-                    self.add_popup = !self.add_popup;
-                }
-                if self.entry_mode == EntryMode::Update {
-                    self.update_popup = !self.update_popup;
-                }
-            }
-            KeyCode::Enter => {
-                if self.entry_mode == EntryMode::Add {
-                    self.add_stage.next();
-                }
-                if self.entry_mode == EntryMode::Update {
-                    self.update_stage = Stage::Finished;
-                }
-                if self.entry_mode == EntryMode::QuickAdd {
-                    self.add_stage = Stage::Finished;
-                }
-                self.text_info.character_index = 0;
-            }
-            KeyCode::Left => match key.modifiers {
-                KeyModifiers::CONTROL => {
+        match key.modifiers {
+            KeyModifiers::CONTROL => match key.code {
+                KeyCode::Left => {
                     if self.entry_mode == EntryMode::Add {
                         self.add_stage.back();
                     }
@@ -306,23 +290,53 @@ impl App {
                         self.update_stage = Stage::Staging;
                     }
                 }
-                KeyModifiers::SHIFT => {
-                    self.highlight_single_char(HighlightDirection::Left);
+                KeyCode::Char('a') => {
+                    self.highlight_all();
                     return;
                 }
-                _ => self.move_cursor_left(),
+                _ => {}
             },
-            KeyCode::Right => match key.modifiers {
-                KeyModifiers::SHIFT => {
+            KeyModifiers::SHIFT => match key.code {
+                KeyCode::Right => {
                     self.highlight_single_char(HighlightDirection::Right);
                     return;
                 }
-                _ => self.move_cursor_right(),
+                KeyCode::Left => {
+                    self.highlight_single_char(HighlightDirection::Left);
+                    return;
+                }
+                KeyCode::Char(ch) => self.enter_char(ch),
+                _ => {}
             },
-            KeyCode::Backspace => self.delete_char(),
-            KeyCode::Char(ch) => self.enter_char(ch),
-            _ => {}
+            _ => match key.code {
+                KeyCode::Esc => {
+                    if self.entry_mode == EntryMode::Add || self.entry_mode == EntryMode::QuickAdd {
+                        self.add_popup = !self.add_popup;
+                    }
+                    if self.entry_mode == EntryMode::Update {
+                        self.update_popup = !self.update_popup;
+                    }
+                }
+                KeyCode::Enter => {
+                    if self.entry_mode == EntryMode::Add {
+                        self.add_stage.next();
+                    }
+                    if self.entry_mode == EntryMode::Update {
+                        self.update_stage = Stage::Finished;
+                    }
+                    if self.entry_mode == EntryMode::QuickAdd {
+                        self.add_stage = Stage::Finished;
+                    }
+                    self.text_info.character_index = 0;
+                }
+                KeyCode::Right => self.move_cursor_right(),
+                KeyCode::Left => self.move_cursor_left(),
+                KeyCode::Backspace => self.delete_char(),
+                KeyCode::Char(ch) => self.enter_char(ch),
+                _ => {}
+            },
         }
+
         if self.text_info.is_text_highlighted {
             self.text_info.is_text_highlighted = false;
         }
