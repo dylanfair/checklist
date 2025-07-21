@@ -1,4 +1,25 @@
-# Unreleased
+# v0.1.5
+
+Bumped edition to 2024.
+
+Added a variety of improvements to how text is handled for some of the inputs.
+
+## Highlighting text
+
+Can now highlight text via:
+
+- Ctrl + a to highlight all text
+- Shift + <= or Shift + => to highlight a single character at a time
+
+Once highlighted, the text can either be deleted or a new character entered which replaces the highlighted text.
+
+## Movement
+
+Added the ability to quickly move to the beginning or end of the text with Ctrl + <= or Ctrl + =>
+
+## Theme
+
+Highlight background and foreground color can be changed in the theme via the highlight_color_bg and highlight_color_fg values respectively
 
 # v0.1.4
 
