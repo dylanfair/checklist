@@ -7,6 +7,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::backend::database::{add_to_db, update_task_in_db};
 use crate::backend::task::{Status, Task, Urgency};
+use crate::display::text::HighlightDirection;
 use crate::display::tui::App;
 
 /// Enum to flag if the input being provided by the user
@@ -91,7 +92,7 @@ impl Inputs {
 }
 
 impl App {
-    fn get_stage_off_entry_mode(&self) -> &Stage {
+    pub fn get_stage_off_entry_mode(&self) -> &Stage {
         match self.entry_mode {
             EntryMode::Add => &self.add_stage,
             EntryMode::QuickAdd => &self.add_stage,
@@ -99,7 +100,7 @@ impl App {
         }
     }
 
-    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
+    pub fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
         let stage = self.get_stage_off_entry_mode();
 
         match stage {
@@ -120,45 +121,59 @@ impl App {
                 .name
                 .char_indices()
                 .map(|(i, _)| i)
-                .nth(self.character_index)
+                .nth(self.text_info.character_index)
                 .unwrap_or(self.inputs.name.len()),
             Stage::Description => self
                 .inputs
                 .description
                 .char_indices()
                 .map(|(i, _)| i)
-                .nth(self.character_index)
+                .nth(self.text_info.character_index)
                 .unwrap_or(self.inputs.description.len()),
             Stage::Latest => self
                 .inputs
                 .latest
                 .char_indices()
                 .map(|(i, _)| i)
-                .nth(self.character_index)
+                .nth(self.text_info.character_index)
                 .unwrap_or(self.inputs.latest.len()),
             Stage::Tags => self
                 .inputs
                 .tags_input
                 .char_indices()
                 .map(|(i, _)| i)
-                .nth(self.character_index)
+                .nth(self.text_info.character_index)
                 .unwrap_or(self.inputs.tags_input.len()),
             _ => 0,
         }
     }
 
     fn move_cursor_left(&mut self) {
-        let cursor_moved_left = self.character_index.saturating_sub(1);
-        self.character_index = self.clamp_cursor(cursor_moved_left);
+        if self.text_info.is_text_highlighted {
+            let (left, _) = self.get_highlight_start_and_end();
+            self.text_info.character_index = left;
+        } else {
+            let cursor_moved_left = self.text_info.character_index.saturating_sub(1);
+            self.text_info.character_index = self.clamp_cursor(cursor_moved_left);
+        }
     }
 
     fn move_cursor_right(&mut self) {
-        let cursor_moved_right = self.character_index.saturating_add(1);
-        self.character_index = self.clamp_cursor(cursor_moved_right);
+        if self.text_info.is_text_highlighted {
+            let (_, right) = self.get_highlight_start_and_end();
+            self.text_info.character_index = right;
+        } else {
+            let cursor_moved_right = self.text_info.character_index.saturating_add(1);
+            self.text_info.character_index = self.clamp_cursor(cursor_moved_right);
+        }
     }
 
     fn enter_char(&mut self, new_char: char) {
         let index = self.byte_index();
+
+        if self.text_info.is_text_highlighted {
+            self.delete_char();
+        }
 
         let stage = self.get_stage_off_entry_mode();
 
@@ -173,50 +188,51 @@ impl App {
     }
 
     fn delete_char(&mut self) {
-        let is_not_cursor_leftmost = self.character_index != 0;
-        if is_not_cursor_leftmost {
-            let current_index = self.character_index;
-            let from_left_to_current_index = current_index - 1;
+        let right;
+        let left;
 
-            let stage = self.get_stage_off_entry_mode();
+        if self.text_info.is_text_highlighted {
+            (left, right) = self.get_highlight_start_and_end();
+        } else if self.text_info.character_index == 0 {
+            return;
+        } else {
+            right = self.text_info.character_index;
+            left = right - 1;
+        }
 
-            match stage {
-                Stage::Name => {
-                    let before_char_to_delete =
-                        self.inputs.name.chars().take(from_left_to_current_index);
-                    let after_char_to_delete = self.inputs.name.chars().skip(current_index);
-                    self.inputs.name = before_char_to_delete.chain(after_char_to_delete).collect();
-                }
-                Stage::Description => {
-                    let before_char_to_delete = self
-                        .inputs
-                        .description
-                        .chars()
-                        .take(from_left_to_current_index);
-                    let after_char_to_delete = self.inputs.description.chars().skip(current_index);
-                    self.inputs.description =
-                        before_char_to_delete.chain(after_char_to_delete).collect();
-                }
-                Stage::Latest => {
-                    let before_char_to_delete =
-                        self.inputs.latest.chars().take(from_left_to_current_index);
-                    let after_char_to_delete = self.inputs.latest.chars().skip(current_index);
-                    self.inputs.latest =
-                        before_char_to_delete.chain(after_char_to_delete).collect();
-                }
-                Stage::Tags => {
-                    let before_char_to_delete = self
-                        .inputs
-                        .tags_input
-                        .chars()
-                        .take(from_left_to_current_index);
-                    let after_char_to_delete = self.inputs.tags_input.chars().skip(current_index);
-                    self.inputs.tags_input =
-                        before_char_to_delete.chain(after_char_to_delete).collect();
-                }
-                _ => {}
+        let stage = self.get_stage_off_entry_mode();
+
+        match stage {
+            Stage::Name => {
+                let before_char_to_delete = self.inputs.name.chars().take(left);
+                let after_char_to_delete = self.inputs.name.chars().skip(right);
+                self.inputs.name = before_char_to_delete.chain(after_char_to_delete).collect();
             }
+            Stage::Description => {
+                let before_char_to_delete = self.inputs.description.chars().take(left);
+                let after_char_to_delete = self.inputs.description.chars().skip(right);
+                self.inputs.description =
+                    before_char_to_delete.chain(after_char_to_delete).collect();
+            }
+            Stage::Latest => {
+                let before_char_to_delete = self.inputs.latest.chars().take(left);
+                let after_char_to_delete = self.inputs.latest.chars().skip(right);
+                self.inputs.latest = before_char_to_delete.chain(after_char_to_delete).collect();
+            }
+            Stage::Tags => {
+                let before_char_to_delete = self.inputs.tags_input.chars().take(left);
+                let after_char_to_delete = self.inputs.tags_input.chars().skip(right);
+                self.inputs.tags_input =
+                    before_char_to_delete.chain(after_char_to_delete).collect();
+            }
+            _ => {}
+        }
+
+        if !self.text_info.is_text_highlighted {
             self.move_cursor_left();
+        } else {
+            self.text_info.character_index = left;
+            self.text_info.is_text_highlighted = false;
         }
     }
 
@@ -228,7 +244,7 @@ impl App {
             KeyCode::Char(ch) => {
                 if ch == '1' {
                     self.update_stage = Stage::Name;
-                    self.character_index = self.tasklist.tasks[current_index].name.len();
+                    self.text_info.character_index = self.tasklist.tasks[current_index].name.len();
                 }
                 if ch == '2' {
                     self.update_stage = Stage::Status;
@@ -238,7 +254,7 @@ impl App {
                 }
                 if ch == '4' {
                     self.update_stage = Stage::Description;
-                    self.character_index = self.tasklist.tasks[current_index]
+                    self.text_info.character_index = self.tasklist.tasks[current_index]
                         .description
                         .clone()
                         .unwrap_or("".to_string())
@@ -246,14 +262,14 @@ impl App {
                 }
                 if ch == '5' {
                     self.update_stage = Stage::Latest;
-                    self.character_index = self.tasklist.tasks[current_index]
+                    self.text_info.character_index = self.tasklist.tasks[current_index]
                         .latest
                         .clone()
                         .unwrap_or("".to_string())
                         .len();
                 }
                 if ch == '6' {
-                    self.character_index = 0;
+                    self.text_info.character_index = 0;
                     self.update_stage = Stage::Tags;
                 }
             }
@@ -263,43 +279,63 @@ impl App {
 
     /// Handles the `KeyEvent` when user is providing text input
     pub fn handle_keys_for_text_inputs(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Esc => {
-                if self.entry_mode == EntryMode::Add || self.entry_mode == EntryMode::QuickAdd {
-                    self.add_popup = !self.add_popup;
+        match key.modifiers {
+            KeyModifiers::CONTROL => match key.code {
+                KeyCode::Left => {
+                    self.text_info.character_index = 0;
                 }
-                if self.entry_mode == EntryMode::Update {
-                    self.update_popup = !self.update_popup;
+                KeyCode::Right => {
+                    self.text_info.character_index = self.get_text_length();
                 }
-            }
-            KeyCode::Enter => {
-                if self.entry_mode == EntryMode::Add {
-                    self.add_stage.next();
+                KeyCode::Char('a') => {
+                    self.highlight_all();
+                    return;
                 }
-                if self.entry_mode == EntryMode::Update {
-                    self.update_stage = Stage::Finished;
+                _ => {}
+            },
+            KeyModifiers::SHIFT => match key.code {
+                KeyCode::Right => {
+                    self.highlight_single_char(HighlightDirection::Right);
+                    return;
                 }
-                if self.entry_mode == EntryMode::QuickAdd {
-                    self.add_stage = Stage::Finished;
+                KeyCode::Left => {
+                    self.highlight_single_char(HighlightDirection::Left);
+                    return;
                 }
-                self.character_index = 0;
-            }
-            KeyCode::Left => {
-                if key.modifiers == KeyModifiers::CONTROL {
-                    if self.entry_mode == EntryMode::Add {
-                        self.add_stage.back();
+                KeyCode::Char(ch) => self.enter_char(ch),
+                _ => {}
+            },
+            _ => match key.code {
+                KeyCode::Esc => {
+                    if self.entry_mode == EntryMode::Add || self.entry_mode == EntryMode::QuickAdd {
+                        self.add_popup = !self.add_popup;
                     }
                     if self.entry_mode == EntryMode::Update {
-                        self.update_stage = Stage::Staging;
+                        self.update_popup = !self.update_popup;
                     }
-                } else {
-                    self.move_cursor_left()
                 }
-            }
-            KeyCode::Backspace => self.delete_char(),
-            KeyCode::Right => self.move_cursor_right(),
-            KeyCode::Char(ch) => self.enter_char(ch),
-            _ => {}
+                KeyCode::Enter => {
+                    if self.entry_mode == EntryMode::Add {
+                        self.add_stage.next();
+                    }
+                    if self.entry_mode == EntryMode::Update {
+                        self.update_stage = Stage::Finished;
+                    }
+                    if self.entry_mode == EntryMode::QuickAdd {
+                        self.add_stage = Stage::Finished;
+                    }
+                    self.text_info.character_index = 0;
+                }
+                KeyCode::Right => self.move_cursor_right(),
+                KeyCode::Left => self.move_cursor_left(),
+                KeyCode::Backspace => self.delete_char(),
+                KeyCode::Char(ch) => self.enter_char(ch),
+                _ => {}
+            },
+        }
+
+        if self.text_info.is_text_highlighted {
+            self.text_info.is_text_highlighted = false;
         }
     }
 
@@ -326,7 +362,7 @@ impl App {
                     self.inputs.tags.insert(self.inputs.tags_input.to_string());
                     self.inputs.tags_input = "".to_string();
                 }
-                self.character_index = 0;
+                self.text_info.character_index = 0;
             }
             _ => {}
         }

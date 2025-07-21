@@ -15,6 +15,7 @@ use ratatui::{
 
 use crate::backend::task::Display;
 use crate::backend::task::{Status, Task, Urgency};
+use crate::display::text::highlight_text;
 use crate::display::theme::Theme;
 use crate::display::tui::{App, LayoutView};
 
@@ -140,7 +141,7 @@ impl Task {
 
                 for tag in task_tags_vec {
                     tags_span_vec.push(Span::styled(
-                        format!(" {} ", tag),
+                        format!(" {tag} "),
                         Style::default().fg(theme.text_colors.tags),
                     ));
                     tags_span_vec.push(Span::from("|"));
@@ -374,6 +375,11 @@ fn text_cursor_logic(
     x_offset: u16,
     y_offset: u16,
 ) {
+    // If in a highlight, just early return to hide the cursor
+    if app.text_info.is_text_highlighted {
+        return;
+    }
+
     // Idea: create a BtreeMap where
     // keys - the line row
     // values - the line contents as a vector of strings (words)
@@ -390,10 +396,10 @@ fn text_cursor_logic(
     let (strings_on_lines, _) = map_string_to_lines(current_string, text_width);
 
     // Cursor logic - adjustment
-    let mut x = app.character_index;
+    let mut x = app.text_info.character_index;
     let mut row = 0;
 
-    if app.character_index > 0 {
+    if app.text_info.character_index > 0 {
         for (k, v) in strings_on_lines.iter() {
             let line_length: usize = v
                 .iter()
@@ -987,10 +993,16 @@ pub fn render_name_popup(f: &mut Frame, app: &mut App, area: Rect) {
 
     //let instructions = "What do you want to name your task?";
 
+    let text_input = if app.text_info.is_text_highlighted {
+        highlight_text(app.inputs.name.clone(), app)
+    } else {
+        Line::from(app.inputs.name.as_str())
+    };
+
     let line_vec = vec![
         //Line::from(instructions),
         //Line::from(""),
-        Line::from(app.inputs.name.as_str()),
+        text_input,
     ];
     let line_vec_len = line_vec.len();
     let blurb = Paragraph::new(Text::from(line_vec));
@@ -1119,11 +1131,13 @@ pub fn render_description_popup(f: &mut Frame, app: &mut App, area: Rect) {
 
     let instructions = "Feel free to add a description";
 
-    let line_vec = vec![
-        Line::from(instructions),
-        Line::from(""),
-        Line::from(app.inputs.description.as_str()),
-    ];
+    let text_input = if app.text_info.is_text_highlighted {
+        highlight_text(app.inputs.description.clone(), app)
+    } else {
+        Line::from(app.inputs.description.as_str())
+    };
+
+    let line_vec = vec![Line::from(instructions), Line::from(""), text_input];
     let line_vec_len = line_vec.len();
 
     let blurb = Paragraph::new(Text::from(line_vec));
@@ -1162,11 +1176,14 @@ pub fn render_latest_popup(f: &mut Frame, app: &mut App, area: Rect) {
 
     let instructions = "Any updates?";
     let instructions_len = instructions.chars().count();
-    let line_vec = vec![
-        Line::from(instructions),
-        Line::from(""),
-        Line::from(app.inputs.latest.as_str()),
-    ];
+
+    let text_input = if app.text_info.is_text_highlighted {
+        highlight_text(app.inputs.latest.clone(), app)
+    } else {
+        Line::from(app.inputs.latest.as_str())
+    };
+
+    let line_vec = vec![Line::from(instructions), Line::from(""), text_input];
     let line_vec_len = line_vec.len();
 
     let blurb = Paragraph::new(Text::from(line_vec));
@@ -1224,7 +1241,14 @@ pub fn render_tags_popup(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     line_vec.push(Line::from(""));
-    line_vec.push(Line::from(app.inputs.tags_input.as_str()));
+
+    let text_input = if app.text_info.is_text_highlighted {
+        highlight_text(app.inputs.tags_input.clone(), app)
+    } else {
+        Line::from(app.inputs.tags_input.as_str())
+    };
+
+    line_vec.push(text_input);
     let line_vec_len = line_vec.len();
 
     let blurb = Paragraph::new(Text::from(line_vec));
@@ -1239,7 +1263,7 @@ pub fn render_tags_popup(f: &mut Frame, app: &mut App, area: Rect) {
 
     for (i, tag) in task_tags_vec.iter().enumerate() {
         let mut span_object = Span::styled(
-            format!(" {} ", tag),
+            format!(" {tag} ",),
             Style::default().fg(app.theme.text_colors.tags),
         );
         if i == app.tags_highlight_value && app.highlight_tags {

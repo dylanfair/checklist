@@ -34,7 +34,7 @@ pub fn make_memory_connection() -> Result<Connection> {
 /// Returns a `Result<Connection>` given a `&Pathbuf` to a SQLite database
 pub fn make_connection(path: &PathBuf) -> Result<Connection> {
     let conn = Connection::open(path)
-        .with_context(|| format!("Failed connect to the database at {:?}", path))?;
+        .with_context(|| format!("Failed connect to the database at {path:?}"))?;
 
     Ok(conn)
 }
@@ -56,7 +56,7 @@ pub fn create_sqlite_db(testing: bool) -> Result<()> {
         sqlite_path = sqlite_path.join("checklist.sqlite");
     }
 
-    println!("Setting up a database at {:?}", sqlite_path);
+    println!("Setting up a database at {sqlite_path:?}");
     let conn = make_connection(&sqlite_path)?;
 
     let config = Config::new(sqlite_path);
@@ -265,7 +265,7 @@ mod tests {
         // Check if data we get back from database matches
         let task_list = get_all_db_contents(&conn).unwrap();
         assert_eq!(task_list.len(), 1);
-        let task = task_list.tasks.get(0).unwrap();
+        let task = task_list.tasks.first().unwrap();
         assert_eq!(task.name, "My new task".to_string());
         assert_eq!(task.description, None);
         assert_eq!(task.latest, None);
@@ -280,7 +280,7 @@ mod tests {
         // Again, see if data we get back matches
         let task_list = get_all_db_contents(&conn).unwrap();
         assert_eq!(task_list.len(), 1);
-        let task = task_list.tasks.get(0).unwrap();
+        let task = task_list.tasks.first().unwrap();
         assert_eq!(task.name, "My new task".to_string());
         assert_eq!(task.description, Some("New description".to_string()));
         assert_eq!(task.latest, Some("New latest".to_string()));
