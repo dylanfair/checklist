@@ -2,9 +2,9 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 
-use crate::backend::config::{get_config_dir, read_config, Config};
+use crate::backend::config::{Config, get_config_dir, read_config};
 use crate::backend::task::{Task, TaskList};
 
 /// Returns a `Result<Connection>` to an in-memory SQLite db
@@ -40,8 +40,8 @@ pub fn make_connection(path: &PathBuf) -> Result<Connection> {
 }
 
 /// Creates a SQLite database. Will create a "test" SQLite database
-/// if testing bool brought in. This is a standalone SQLite database 
-/// but with "test." prefixed. 
+/// if testing bool brought in. This is a standalone SQLite database
+/// but with "test." prefixed.
 ///
 /// Problematically this also creates and saves a `Config` based on
 /// the path used to create the SQLite database. Probably best to decouple
@@ -136,13 +136,13 @@ pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
     conn.execute(
         "UPDATE task SET name = ?1, description = ?2, latest = ?3, urgency = ?4, status = ?5, tags = ?6, date_added = ?7, completed_on = ?8 WHERE id = ?9"
         ,params![
-            &task.name, 
-            &task.description, 
-            &task.latest, 
-            &task.urgency, 
-            &task.status, 
-            tags_insert, 
-            &task.get_date_added(), 
+            &task.name,
+            &task.description,
+            &task.latest,
+            &task.urgency,
+            &task.status,
+            tags_insert,
+            &task.get_date_added(),
             &task.completed_on,
             &task.get_id()
         ]
@@ -154,7 +154,8 @@ pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
 /// Deletes a `&Task` in a SQLite database based on the `&Connecton` given.
 pub fn delete_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
     // println!("Deleting task from db");
-    conn.execute("DELETE FROM task WHERE id = ?1", params![&task.get_id()]).context("Failed to delete task from the database")?;
+    conn.execute("DELETE FROM task WHERE id = ?1", params![&task.get_id()])
+        .context("Failed to delete task from the database")?;
     Ok(())
 }
 
@@ -170,12 +171,12 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
             let tags_option: Option<String> = row.get(6).unwrap();
 
             if let Some(tags) = tags_option {
-                    let tags_parts = tags.split(";");
-                    let mut tags_vec = vec![];
-                    for part in tags_parts {
-                        tags_vec.push(part.to_string());
-                    }
-                    tags_entry = Some(HashSet::from_iter(tags_vec));
+                let tags_parts = tags.split(";");
+                let mut tags_vec = vec![];
+                for part in tags_parts {
+                    tags_vec.push(part.to_string());
+                }
+                tags_entry = Some(HashSet::from_iter(tags_vec));
             }
 
             Ok(Task::from_sql(
@@ -217,7 +218,10 @@ pub fn remove_all_db_contents(conn: &Connection, hard: bool) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::{config::read_config, task::{Status, Urgency}};
+    use crate::backend::{
+        config::read_config,
+        task::{Status, Urgency},
+    };
     use std::fs::remove_file;
 
     use super::*;
@@ -271,10 +275,13 @@ mod tests {
         assert_eq!(task.latest, None);
         assert_eq!(task.urgency, Urgency::Critical);
         assert_eq!(task.status, Status::Open);
-        assert_eq!(task.tags, Some(HashSet::from_iter(vec![
-            String::from("Tag1"),
-            String::from("Tag2"),
-        ])));
+        assert_eq!(
+            task.tags,
+            Some(HashSet::from_iter(vec![
+                String::from("Tag1"),
+                String::from("Tag2"),
+            ]))
+        );
         assert!(task.completed_on.is_none());
 
         // Again, see if data we get back matches
@@ -286,9 +293,10 @@ mod tests {
         assert_eq!(task.latest, Some("New latest".to_string()));
         assert_eq!(task.urgency, Urgency::Critical);
         assert_eq!(task.status, Status::Completed);
-        assert_eq!(task.tags, Some(HashSet::from_iter(vec![
-            String::from("Tag2"),
-        ])));
+        assert_eq!(
+            task.tags,
+            Some(HashSet::from_iter(vec![String::from("Tag2"),]))
+        );
         assert!(task.completed_on.is_some());
 
         // Let's see if delete works as well!

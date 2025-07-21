@@ -3,11 +3,11 @@ use clap::ValueEnum;
 use crossterm::event::KeyModifiers;
 use ratatui::Frame;
 use ratatui::{
+    Terminal,
     backend::Backend,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     layout::{Constraint, Layout},
     widgets::ScrollbarState,
-    Terminal,
 };
 use rusqlite::Connection;
 
@@ -617,14 +617,14 @@ mod common {
         eyre,
     };
     use ratatui::{
+        Terminal,
         backend::{Backend, CrosstermBackend},
         crossterm::{
-            terminal::{
-                disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-            },
             ExecutableCommand,
+            terminal::{
+                EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+            },
         },
-        Terminal,
     };
 
     pub fn init_terminal() -> std::io::Result<Terminal<impl Backend>> {

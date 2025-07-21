@@ -1,11 +1,11 @@
-use std::fs::{rename, File};
-use std::io::{prelude::*, BufReader};
+use std::fs::{File, rename};
+use std::io::{BufReader, prelude::*};
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use ratatui::style::{
-    palette::tailwind::{EMERALD, SLATE},
     Color,
+    palette::tailwind::{EMERALD, SLATE},
 };
 use serde::{Deserialize, Serialize};
 use struct_field_names_as_array::FieldNamesAsArray;
@@ -332,7 +332,7 @@ pub fn read_theme() -> Result<Theme> {
 
 #[cfg(test)]
 mod tests {
-    use ratatui::style::{palette::tailwind::SLATE, Color};
+    use ratatui::style::{Color, palette::tailwind::SLATE};
     use std::str::FromStr;
     use toml;
 

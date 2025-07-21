@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
+use ratatui::Frame;
 use ratatui::symbols::scrollbar;
 use ratatui::widgets::BorderType;
-use ratatui::Frame;
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Position, Rect},
     style::{Color, Modifier, Style, Stylize},

@@ -12,7 +12,7 @@ use backend::database::{create_sqlite_db, get_db};
 use backend::wipe::wipe_tasks;
 
 use display::theme::{create_empty_theme_toml, get_toml_file, read_theme};
-use display::tui::{run_tui, LayoutView};
+use display::tui::{LayoutView, run_tui};
 use display::ui::run_ui;
 
 #[derive(Parser, Debug)]

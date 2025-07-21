@@ -1,12 +1,12 @@
 use std::collections::HashSet;
-use std::io::{stdout, Stdout, Write};
+use std::io::{Stdout, Write, stdout};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::style::{Color, Print, PrintStyledContent, SetForegroundColor, Stylize};
 use crossterm::terminal::{self, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
-use crossterm::{cursor, execute, ExecutableCommand, QueueableCommand};
+use crossterm::{ExecutableCommand, QueueableCommand, cursor, execute};
 use rusqlite::Connection;
 
 use crate::backend::database::{get_all_db_contents, get_db};
@@ -521,8 +521,8 @@ impl Renderer {
         self.stdout.queue(cursor::MoveTo(start_x, start_y))?;
         self.stdout.queue(SetForegroundColor(text_color))?;
         let number_of_breaks = lines.chars().count() / (width as usize - 3); // giving some
-                                                                             // space on the
-                                                                             // side
+        // space on the
+        // side
         if number_of_breaks == 0 {
             self.stdout.queue(Print(lines))?;
         } else {

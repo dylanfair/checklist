@@ -1,5 +1,5 @@
-use std::fs::{rename, File};
-use std::io::{prelude::*, BufReader};
+use std::fs::{File, rename};
+use std::io::{BufReader, prelude::*};
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};

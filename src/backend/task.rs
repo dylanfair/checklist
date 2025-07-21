@@ -6,7 +6,7 @@ use chrono::prelude::*;
 use clap::ValueEnum;
 use crossterm::style::Stylize;
 use ratatui::widgets::ListState;
-use rusqlite::{types::FromSql, types::ValueRef, ToSql};
+use rusqlite::{ToSql, types::FromSql, types::ValueRef};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
