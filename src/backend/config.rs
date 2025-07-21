@@ -41,9 +41,9 @@ impl Config {
                 // happens mid-write
                 let mut config_file = String::from("config.json");
                 if testing {
-                    config_file = format!("test.{}", config_file);
+                    config_file = format!("test.{config_file}");
                 }
-                let tmp_file = format!("{}.tmp", config_file);
+                let tmp_file = format!("{config_file}.tmp");
 
                 let config_file_path = conf_local_dir.join(&config_file);
                 let tmp_file_path = conf_local_dir.join(&tmp_file);
@@ -59,10 +59,10 @@ impl Config {
 
                 // Rename .tmp file to old file
                 rename(&tmp_file_path, &config_file_path)
-                    .with_context(|| { format!("Failed to update config file with rename:\ntmp_file: {:?}\nconfig_file:{:?}", tmp_file, config_file)})?;
+                    .with_context(|| { format!("Failed to update config file with rename:\ntmp_file: {tmp_file:?}\nconfig_file:{config_file:?}")})?;
             }
             Err(e) => {
-                println!("Failed getting the configuration location: {:?}", e);
+                println!("Failed getting the configuration location: {e:?}");
                 panic!()
             }
         }
@@ -80,9 +80,8 @@ pub fn get_config_dir() -> Result<PathBuf> {
     // Create our checklist folder in local directory if it doesn't exist
     if !conf_local_dir.exists() {
         // Create a brand new config file
-        std::fs::create_dir_all(&conf_local_dir).with_context(|| {
-            format!("Failed to create the following path: {:?}", conf_local_dir)
-        })?;
+        std::fs::create_dir_all(&conf_local_dir)
+            .with_context(|| format!("Failed to create the following path: {conf_local_dir:?}"))?;
     }
 
     Ok(conf_local_dir)
@@ -95,12 +94,12 @@ pub fn read_config(testing: bool) -> Result<Config> {
         Ok(local_config_dir) => {
             let mut config_f = String::from("config.json");
             if testing {
-                config_f = format!("test.{}", config_f);
+                config_f = format!("test.{config_f}");
             }
             let config_file_path = local_config_dir.join(&config_f);
 
             let config_file = std::fs::File::open(&config_file_path)
-                .with_context(|| format!("Failed to open {:?}", config_file_path))?;
+                .with_context(|| format!("Failed to open {config_file_path:?}"))?;
             let reader = BufReader::new(config_file);
 
             let config: Config = serde_json::from_reader(reader)?;
@@ -108,7 +107,7 @@ pub fn read_config(testing: bool) -> Result<Config> {
             Ok(config)
         }
         Err(e) => {
-            println!("Failed getting the configuration location: {:?}", e);
+            println!("Failed getting the configuration location: {e:?}");
             panic!()
         }
     }
@@ -132,12 +131,12 @@ pub fn set_new_path(path: PathBuf, testing: bool) -> Result<()> {
         Ok(mut config) => {
             config.db_path = absolute_path.clone();
             config.save(testing)?;
-            println!("Updated db path to {:?}", absolute_path);
+            println!("Updated db path to {absolute_path:?}");
         }
         Err(_) => {
             let config = Config::new(absolute_path.clone());
             config.save(testing)?;
-            println!("Set db path to {:?}", absolute_path);
+            println!("Set db path to {absolute_path:?}");
         }
     }
     Ok(())
@@ -155,7 +154,7 @@ mod tests {
                 let config_file = base_directories
                     .config_local_dir()
                     .join("checklist/test.config.json");
-                assert_eq!(config_file.exists(), true);
+                assert!(config_file.exists());
             }
             Err(_) => {
                 println!("Encounted an error saving the test config file");

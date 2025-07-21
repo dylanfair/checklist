@@ -534,7 +534,7 @@ impl Renderer {
                     self.stdout.queue(cursor::MoveTo(start_x, start_y))?;
                     current_line_usage = width as i32;
                 }
-                self.stdout.queue(Print(format!("{} ", word)))?;
+                self.stdout.queue(Print(format!("{word} ")))?;
                 current_line_usage -= word.chars().count() as i32 + 1;
             }
         }
