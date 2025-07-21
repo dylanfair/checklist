@@ -1,6 +1,6 @@
 [package]
 name = "checklist-tui"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 license = "MIT"
 description = "A TUI for keeping track of your tasks in slim terminal views"
