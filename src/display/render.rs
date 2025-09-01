@@ -131,7 +131,7 @@ impl LayoutView {
 
 impl Task {
     /// Returns the `Task` tags as a vector of `Span`
-    fn span_tags(&self, theme: &Theme) -> Vec<Span> {
+    fn span_tags(&self, theme: &Theme) -> Vec<Span<'_>> {
         let mut tags_span_vec = vec![Span::from("Tags:".to_string())];
         match &self.tags {
             Some(tags) => {
@@ -154,7 +154,7 @@ impl Task {
     }
 
     /// Returns a `ListItem` of the `Task`
-    pub fn to_listitem(&self, theme: &Theme) -> ListItem {
+    pub fn to_listitem(&self, theme: &Theme) -> ListItem<'_> {
         let line = match self.status {
             Status::Completed => {
                 let spans = vec![
@@ -185,7 +185,7 @@ impl Task {
     }
 
     /// Returns a vector of `Line` containing several elements of the `Task`
-    pub fn to_text_vec(&self, theme: &Theme) -> Vec<Line> {
+    pub fn to_text_vec(&self, theme: &Theme) -> Vec<Line<'_>> {
         let completion_date = match self.completed_on {
             Some(date) => format!(" - {}", date.date_naive()),
             None => String::from(""),
@@ -236,7 +236,7 @@ impl Task {
 
     /// Returns a `Paragraph` of the `Task`. This is what is displayed
     /// in the `Task Info` block in the app
-    pub fn to_paragraph(&self, theme: &Theme) -> Paragraph {
+    pub fn to_paragraph(&self, theme: &Theme) -> Paragraph<'_> {
         let text = self.to_text_vec(theme);
 
         Paragraph::new(text)
@@ -430,14 +430,12 @@ fn style_block(
     bg_color: Color,
     outline_color: Color,
 ) -> Block<'static> {
-    let block = Block::new()
+    Block::new()
         .title(Line::raw(title).alignment(title_alignment))
         .borders(Borders::ALL)
         .border_style(Style::new().fg(outline_color))
         .border_type(BorderType::Rounded)
-        .bg(bg_color);
-
-    block
+        .bg(bg_color)
 }
 
 fn style_two_halves_block(
@@ -470,15 +468,13 @@ fn style_scrollbar<'a>(
     thumb_symbol: Option<&'a str>,
     track_symbol: Option<&'a str>,
 ) -> Scrollbar<'a> {
-    let styled_scrollbar = Scrollbar::new(orientation)
+    Scrollbar::new(orientation)
         .symbols(scrollbar::VERTICAL)
         .style(Style::new().fg(color))
         .begin_symbol(begin_symbol)
         .end_symbol(end_symbol)
         .thumb_symbol(thumb_symbol.unwrap())
-        .track_symbol(track_symbol);
-
-    styled_scrollbar
+        .track_symbol(track_symbol)
 }
 
 /// Renders the `State` block in the main TUI page

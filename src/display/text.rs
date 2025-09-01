@@ -94,7 +94,7 @@ impl App {
     }
 }
 
-pub fn highlight_text(text: String, app: &App) -> Line {
+pub fn highlight_text(text: String, app: &App) -> Line<'_> {
     let (start, end) = app.get_highlight_start_and_end();
 
     let pre_highlight = &text[0..start];
