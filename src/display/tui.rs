@@ -3,8 +3,6 @@ use clap::ValueEnum;
 use crossterm::event::KeyModifiers;
 use ratatui::Frame;
 use ratatui::{
-    Terminal,
-    backend::Backend,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     layout::{Constraint, Layout},
     widgets::ScrollbarState,
@@ -23,7 +21,7 @@ use crate::display::render::{
 use crate::display::text::TextInfo;
 use crate::display::theme::Theme;
 
-use self::common::{init_terminal, install_hooks, restore_terminal};
+use self::common::{install_hooks, restore_terminal};
 
 pub fn run_tui(
     memory: bool,
@@ -34,10 +32,8 @@ pub fn run_tui(
 ) -> color_eyre::Result<(), anyhow::Error> {
     install_hooks()?;
     //let _clean_up = CleanUp;
-    let terminal = init_terminal()?;
-
     let mut app = App::new(memory, testing, config, theme, view)?;
-    app.run(terminal)?;
+    app.run()?;
 
     restore_terminal()?;
 
@@ -182,26 +178,28 @@ impl App {
         })
     }
 
-    fn run(&mut self, mut terminal: Terminal<impl Backend>) -> std::io::Result<()> {
+    fn run(&mut self) -> std::io::Result<()> {
         match self.update_tasklist() {
             Ok(()) => {}
             Err(e) => panic!("Got an error dealing with update_tasklist(): {e:?}"),
         }
-        while !self.should_exit {
-            terminal.draw(|f| ui(f, &mut *self))?;
-            if let Event::Key(key) = event::read()? {
-                match self.handle_key(key) {
-                    Ok(()) => {}
-                    Err(e) => panic!("Got an error handling key: {key:?} - {e:?}"),
+        ratatui::run(|terminal| {
+            while !self.should_exit {
+                terminal.draw(|f| ui(f, &mut *self))?;
+                if let Event::Key(key) = event::read()? {
+                    match self.handle_key(key) {
+                        Ok(()) => {}
+                        Err(e) => panic!("Got an error handling key: {key:?} - {e:?}"),
+                    }
+                };
+                match self.runtime {
+                    Runtime::Test => self.config.save(true).unwrap(),
+                    Runtime::Real => self.config.save(false).unwrap(),
+                    _ => {}
                 }
-            };
-            match self.runtime {
-                Runtime::Test => self.config.save(true).unwrap(),
-                Runtime::Real => self.config.save(false).unwrap(),
-                _ => {}
             }
-        }
-        Ok(())
+            Ok(())
+        })
     }
 
     fn handle_key(&mut self, key: KeyEvent) -> Result<()> {
@@ -616,22 +614,10 @@ mod common {
         config::{EyreHook, HookBuilder, PanicHook},
         eyre,
     };
-    use ratatui::{
-        Terminal,
-        backend::{Backend, CrosstermBackend},
-        crossterm::{
-            ExecutableCommand,
-            terminal::{
-                EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
-            },
-        },
+    use ratatui::crossterm::{
+        ExecutableCommand,
+        terminal::{LeaveAlternateScreen, disable_raw_mode},
     };
-
-    pub fn init_terminal() -> std::io::Result<Terminal<impl Backend>> {
-        stdout().execute(EnterAlternateScreen)?;
-        enable_raw_mode()?;
-        Terminal::new(CrosstermBackend::new(stdout()))
-    }
 
     /// Restore the terminal to its original state.
     pub fn restore_terminal() -> io::Result<()> {

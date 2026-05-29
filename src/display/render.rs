@@ -812,7 +812,7 @@ pub fn render_tasks(f: &mut Frame, app: &mut App, rectangle: Rect) {
                 .bg(app.theme.theme_colors.selected_style)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol(&app.theme.theme_styles.highlight_symbol)
+        .highlight_symbol(&*app.theme.theme_styles.highlight_symbol)
         .highlight_spacing(HighlightSpacing::Always);
 
     f.render_stateful_widget(list, rectangle, &mut app.tasklist.state);
