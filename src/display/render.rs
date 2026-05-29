@@ -131,7 +131,7 @@ impl LayoutView {
 
 impl Task {
     /// Returns the `Task` tags as a vector of `Span`
-    fn span_tags(&self, theme: &Theme) -> Vec<Span> {
+    fn span_tags(&self, theme: &Theme) -> Vec<Span<'_>> {
         let mut tags_span_vec = vec![Span::from("Tags:".to_string())];
         match &self.tags {
             Some(tags) => {
@@ -154,7 +154,7 @@ impl Task {
     }
 
     /// Returns a `ListItem` of the `Task`
-    pub fn to_listitem(&self, theme: &Theme) -> ListItem {
+    pub fn to_listitem(&self, theme: &Theme) -> ListItem<'_> {
         let line = match self.status {
             Status::Completed => {
                 let spans = vec![
@@ -185,7 +185,7 @@ impl Task {
     }
 
     /// Returns a vector of `Line` containing several elements of the `Task`
-    pub fn to_text_vec(&self, theme: &Theme) -> Vec<Line> {
+    pub fn to_text_vec(&self, theme: &Theme) -> Vec<Line<'_>> {
         let completion_date = match self.completed_on {
             Some(date) => format!(" - {}", date.date_naive()),
             None => String::from(""),
@@ -236,7 +236,7 @@ impl Task {
 
     /// Returns a `Paragraph` of the `Task`. This is what is displayed
     /// in the `Task Info` block in the app
-    pub fn to_paragraph(&self, theme: &Theme) -> Paragraph {
+    pub fn to_paragraph(&self, theme: &Theme) -> Paragraph<'_> {
         let text = self.to_text_vec(theme);
 
         Paragraph::new(text)
