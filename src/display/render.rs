@@ -430,14 +430,12 @@ fn style_block(
     bg_color: Color,
     outline_color: Color,
 ) -> Block<'static> {
-    let block = Block::new()
+    Block::new()
         .title(Line::raw(title).alignment(title_alignment))
         .borders(Borders::ALL)
         .border_style(Style::new().fg(outline_color))
         .border_type(BorderType::Rounded)
-        .bg(bg_color);
-
-    block
+        .bg(bg_color)
 }
 
 fn style_two_halves_block(
@@ -470,15 +468,13 @@ fn style_scrollbar<'a>(
     thumb_symbol: Option<&'a str>,
     track_symbol: Option<&'a str>,
 ) -> Scrollbar<'a> {
-    let styled_scrollbar = Scrollbar::new(orientation)
+    Scrollbar::new(orientation)
         .symbols(scrollbar::VERTICAL)
         .style(Style::new().fg(color))
         .begin_symbol(begin_symbol)
         .end_symbol(end_symbol)
         .thumb_symbol(thumb_symbol.unwrap())
-        .track_symbol(track_symbol);
-
-    styled_scrollbar
+        .track_symbol(track_symbol)
 }
 
 /// Renders the `State` block in the main TUI page
