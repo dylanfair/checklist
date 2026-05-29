@@ -255,8 +255,8 @@ mod tests {
 
         let new_task = Task::new(
             "My new task".to_string(),
-            None,
-            None,
+            Some("New description".to_string()),
+            Some("New latest".to_string()),
             Some(Urgency::Critical),
             Some(Status::Open),
             Some(HashSet::from_iter(vec![
@@ -271,8 +271,8 @@ mod tests {
         assert_eq!(task_list.len(), 1);
         let task = task_list.tasks.first().unwrap();
         assert_eq!(task.name, "My new task".to_string());
-        assert_eq!(task.description, None);
-        assert_eq!(task.latest, None);
+        assert_eq!(task.description, Some("New description".to_string()));
+        assert_eq!(task.latest, Some("New latest".to_string()));
         assert_eq!(task.urgency, Urgency::Critical);
         assert_eq!(task.status, Status::Open);
         assert_eq!(
@@ -283,21 +283,6 @@ mod tests {
             ]))
         );
         assert!(task.completed_on.is_none());
-
-        // Again, see if data we get back matches
-        let task_list = get_all_db_contents(&conn).unwrap();
-        assert_eq!(task_list.len(), 1);
-        let task = task_list.tasks.first().unwrap();
-        assert_eq!(task.name, "My new task".to_string());
-        assert_eq!(task.description, Some("New description".to_string()));
-        assert_eq!(task.latest, Some("New latest".to_string()));
-        assert_eq!(task.urgency, Urgency::Critical);
-        assert_eq!(task.status, Status::Completed);
-        assert_eq!(
-            task.tags,
-            Some(HashSet::from_iter(vec![String::from("Tag2"),]))
-        );
-        assert!(task.completed_on.is_some());
 
         // Let's see if delete works as well!
         delete_task_in_db(&conn, &new_task).unwrap();

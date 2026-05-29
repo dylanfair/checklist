@@ -359,9 +359,16 @@ mod tests {
     fn read_from_toml() {
         let theme: Theme = toml::from_str(
             r#"
+        [theme_colors]
         normal_row_bg = '#020617'
         alt_row_bg = '#020600'
         selected_style = '#020650'
+        [text_colors]
+        status_open = 'cyan'
+        status_working = 'cyan'
+        [theme_styles]
+        scrollbar_begin = 'grey'
+        scrollbar_end = 'grey'
         "#,
         )
         .unwrap();

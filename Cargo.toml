@@ -1,6 +1,6 @@
 [package]
 name = "checklist-tui"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 license = "MIT"
 description = "A TUI for keeping track of your tasks in slim terminal views"
@@ -24,14 +24,14 @@ anyhow = "1.0.86"
 chrono = { version = "0.4.38", features = ["serde"] }
 clap = { version = "4.5.13", features = ["derive"] }
 color-eyre = "0.6.3"
-crossterm = "0.28.1"
-directories = "5.0.1"
-ratatui = { version = "0.28.0", features = ["serde"] }
-rusqlite = { version = "0.31.0", features = ["bundled", "chrono", "uuid"] }
+crossterm = "0.29.0"
+directories = "6.0.0"
+ratatui = { version = "0.30.0", features = ["serde"] }
+rusqlite = { version = "0.40.0", features = ["bundled", "chrono", "uuid"] }
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.122"
 struct-field-names-as-array = "0.3.0"
-strum = { version = "0.26.3", features = ["strum_macros"] }
-strum_macros = "0.26.4"
-toml = "0.8.19"
+strum = { version = "0.28.0", features = ["strum_macros"] }
+strum_macros = "0.28.0"
+toml = "1.1.2+spec-1.1.0"
 uuid = { version = "1.10.0", features = ["v4"] }
