@@ -1,3 +1,40 @@
+# v0.1.7
+
+Focused on robustness and removing unnecessary work in the event loop.
+
+## Build
+
+- Fixed a typo in `Cargo.toml`: the table was `[profiler.release]` instead of
+  `[profile.release]`. Cargo silently ignores unknown tables, so `lto` and
+  `codegen-units` were never being applied to release builds. They now are.
+
+## Performance
+
+- Config is no longer serialized and rewritten to disk on every keypress. The
+  previous behavior ran `serde_json::to_string` + an atomic temp-file rename on
+  every event loop iteration, even though only the sort (`s`) and filter (`f`)
+  toggles ever mutate persisted config. A `config_dirty` flag is now set at those
+  two mutation sites, and the save runs once on exit, guarded by the flag. A
+  transient disk error on save now propagates instead of panicking via `unwrap`.
+
+## Resilience
+
+- `get_all_db_contents` no longer panics on a single malformed row. It
+  previously chained `.unwrap()` through `prepare`, `query_map`, the row
+  closure, and the final loop — so one bad row (a NULL in a NOT NULL column,
+  a bad `FromSql` value) would crash the app, and since the load runs on most
+  keypresses, one bad row made `checklist` unopenable. Now:
+  - `prepare`/`query_map` errors propagate with context.
+  - The row closure uses `?`, so a structurally bad row becomes a skipped
+    item logged to stderr instead of a panic.
+  - Empty tag segments from `;;` or a trailing `;` are filtered out.
+- `From<&str>` for `Urgency` and `Status` no longer `panic!()` on unrecognized
+  strings. They `eprintln!` a warning and fall back to the default variant
+  (`Low` / `Open`), so a typo'd value in the DB degrades gracefully instead of
+  crashing. Matching is now case-insensitive as well.
+- `update_tasklist` propagates load errors via `?` instead of `.unwrap()`, so a
+  fatal DB error surfaces cleanly rather than as a raw `rusqlite::Error` panic.
+
 # v0.1.5
 
 Bumped edition to 2024.
