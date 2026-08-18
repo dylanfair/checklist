@@ -493,7 +493,7 @@ impl App {
 
     pub fn update_tasklist(&mut self) -> Result<()> {
         // Get data
-        let task_list = get_all_db_contents(&self.conn).unwrap();
+        let task_list = get_all_db_contents(&self.conn)?;
         self.tasklist = task_list;
 
         // Filter tasks
