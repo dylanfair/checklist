@@ -1,6 +1,6 @@
 [package]
 name = "checklist-tui"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2024"
 license = "MIT"
 description = "A TUI for keeping track of your tasks in slim terminal views"
@@ -10,7 +10,7 @@ keywords = ["tui", "todo", "task", "terminal", "dashboard"]
 categories = ["command-line-interface"]
 exclude = ["images/"]
 
-[profiler.release]
+[profile.release]
 lto = true
 codegen-units = 1
 
