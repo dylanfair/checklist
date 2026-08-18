@@ -127,6 +127,7 @@ pub struct App {
     quick_action: bool,
     // Show help
     pub show_help: bool,
+    pub config_dirty: bool,
 }
 
 impl App {
@@ -175,6 +176,7 @@ impl App {
             tags_filter_value: String::new(),
             quick_action: false,
             show_help: false,
+            config_dirty: false,
         })
     }
 
@@ -192,9 +194,11 @@ impl App {
                         Err(e) => panic!("Got an error handling key: {key:?} - {e:?}"),
                     }
                 };
+            }
+            if self.config_dirty {
                 match self.runtime {
-                    Runtime::Test => self.config.save(true).unwrap(),
-                    Runtime::Real => self.config.save(false).unwrap(),
+                    Runtime::Test => self.config.save(true).map_err(std::io::Error::other)?,
+                    Runtime::Real => self.config.save(false).map_err(std::io::Error::other)?,
                     _ => {}
                 }
             }
@@ -345,10 +349,12 @@ impl App {
                 KeyCode::Char('s') => {
                     self.config.urgency_sort_desc = !self.config.urgency_sort_desc;
                     self.update_tasklist()?;
+                    self.config_dirty = true;
                 }
                 KeyCode::Char('f') => {
                     self.config.display_filter.next();
                     self.update_tasklist()?;
+                    self.config_dirty = true;
                 }
                 KeyCode::Left => self.select_none(),
                 KeyCode::Char('h') => self.show_help = !self.show_help,
