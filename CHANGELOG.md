@@ -1,3 +1,26 @@
+# v0.1.7
+
+> NOTE: In this version AI assistance is used, notably with inspecting the application and resolving more pressing bugs.
+
+Focused on robustness and removing unnecessary work in the event loop.
+
+## Build
+
+- Fixed a typo in `Cargo.toml`: the table was `[profiler.release]` instead of
+  `[profile.release]`.
+
+## Performance
+
+- Config is no longer serialized and rewritten to disk on every keypress. Now the config is only saved on exit after actions that would have changed the config (i.e. sort (s) and filter (f)) are done.
+
+## Resilience
+
+- Broadly reduced usage of `.unwrap()`, in particular around the code involved with reading tasks from the database. Tasks that are not able to be read now are instead logged out to stderr instead of crashing the app.
+
+# v0.1.6
+
+Bumped ratatui and rusqlite to v0.30.0 and v0.40.0 respectively.
+
 # v0.1.5
 
 Bumped edition to 2024.

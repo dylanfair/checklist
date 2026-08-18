@@ -67,13 +67,13 @@ impl Urgency {
 impl From<&str> for Urgency {
     fn from(s: &str) -> Self {
         match s {
-            "Low" => Urgency::Low,
-            "Medium" => Urgency::Medium,
-            "High" => Urgency::High,
-            "Critical" => Urgency::Critical,
-            _ => {
-                println!("String received was not a valid Urgency");
-                panic!()
+            "Low" | "low" => Urgency::Low,
+            "Medium" | "medium" => Urgency::Medium,
+            "High" | "high" => Urgency::High,
+            "Critical" | "critical" => Urgency::Critical,
+            other => {
+                eprintln!("checklist: '{other}' is not a valid Urgency, falling back to Low");
+                Urgency::Low
             }
         }
     }
@@ -116,13 +116,13 @@ impl Status {
 impl From<&str> for Status {
     fn from(s: &str) -> Self {
         match s {
-            "Open" => Status::Open,
-            "Working" => Status::Working,
-            "Paused" => Status::Paused,
-            "Completed" => Status::Completed,
-            _ => {
-                println!("String received wasn not a valid Status");
-                panic!()
+            "Open" | "open" => Status::Open,
+            "Working" | "working" => Status::Working,
+            "Paused" | "paused" => Status::Paused,
+            "Completed" | "completed" => Status::Completed,
+            other => {
+                eprintln!("checklist: '{other}' is not a valid Status, falling back to Open");
+                Status::Open
             }
         }
     }

@@ -2,6 +2,8 @@
 
 Yet another todo TUI app (I know), meant to be used regardless of terminal size.
 
+> NOTE: As a heads up, starting from `v0.1.7`, AI assistance is used. As this is primarily a pet project, I'm planning to use this as a good way to get myself familiar with incorporating agents into a workflow. Just wanted to be upfront with that!
+
 ## Installation
 
 At the moment you can install this from crates.io

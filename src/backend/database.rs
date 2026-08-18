@@ -160,42 +160,60 @@ pub fn delete_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
 }
 
 /// Returns a `Result<TaskList>` of all tasks in a SQLite database on the `&Connection` given.
+///
+/// Rows that fail to deserialize (e.g. a NULL in a NOT NULL column, or a
+/// structurally malformed row) are skipped with a warning printed to stderr
+/// rather than aborting the entire load. A bad `urgency`/`status` string is
+/// handled separately: `FromSql` falls back to the default variant, so those
+/// rows still load (see `task::Urgency` / `task::Status`).
 pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
-    let mut stmt = conn.prepare("SELECT * FROM task").unwrap();
+    let mut stmt = conn
+        .prepare("SELECT * FROM task")
+        .context("Failed to prepare the 'task' query")?;
 
     let task_iter = stmt
         .query_map(params![], |row| {
             // Need separate handling for the tags
             // Basically convert string back to a vector
             let mut tags_entry = None;
-            let tags_option: Option<String> = row.get(6).unwrap();
+            let tags_option: Option<String> = row.get(6)?;
 
             if let Some(tags) = tags_option {
-                let tags_parts = tags.split(";");
-                let mut tags_vec = vec![];
-                for part in tags_parts {
-                    tags_vec.push(part.to_string());
-                }
+                let tags_vec: Vec<String> = tags
+                    .split(';')
+                    .filter(|p| !p.is_empty())
+                    .map(str::to_string)
+                    .collect();
                 tags_entry = Some(HashSet::from_iter(tags_vec));
             }
 
             Ok(Task::from_sql(
-                row.get(0).unwrap(),
-                row.get(1).unwrap(),
-                row.get(2).unwrap(),
-                row.get(3).unwrap(),
-                row.get(4).unwrap(),
-                row.get(5).unwrap(),
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
                 tags_entry,
-                row.get(7).unwrap(),
-                row.get(8).unwrap(),
+                row.get(7)?,
+                row.get(8)?,
             ))
         })
-        .unwrap();
+        .context("Failed to map over the 'task' rows")?;
 
     let mut task_list = TaskList::new();
+    let mut skipped = 0usize;
     for task in task_iter {
-        task_list.tasks.push(task.unwrap());
+        match task {
+            Ok(t) => task_list.tasks.push(t),
+            Err(e) => {
+                skipped += 1;
+                eprintln!("checklist: skipping a malformed task row: {e}");
+            }
+        }
+    }
+    if skipped > 0 {
+        eprintln!("checklist: {skipped} task(s) skipped due to load errors");
     }
 
     Ok(task_list)
