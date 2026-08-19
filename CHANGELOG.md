@@ -4,9 +4,14 @@
 
 Internal refactor focused on the config directory and test isolation.
 
-## Enhancement
+## Enhancements
 
-- User provided input to the `init --set <path>` command now supports paths leading with `~` to denote the user's home directory.
+- `init --set <path>` has been improved upon in the following ways:
+  - User provided input to the `init --set <path>` command now supports paths leading with `~` to denote the user's home directory.
+  - If user passes in a directory, if no 'checklist.sqlite' exists, one is made.
+  - Otherwise, the existing 'checklist.sqlite' is used.
+  - If user passes in a file, we check if it's a 'sqlite' file. If it is, we use that.
+  - Otherwise, error is returned.
 
 ## Internal Changes
 

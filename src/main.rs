@@ -158,7 +158,7 @@ fn main() -> Result<()> {
                     Err(_) => {
                         eprintln!("Could not read the config file holding the database location.");
                     }
-                };
+                }
             }
             if config {
                 let config_path = dir.config_path();
