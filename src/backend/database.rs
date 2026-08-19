@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use rusqlite::{Connection, params};
 
-use crate::backend::config::{Config, get_config_dir, read_config};
+use crate::backend::config::{Config, ConfigDir, read_config};
 use crate::backend::task::{Task, TaskList};
 
 /// Returns a `Result<Connection>` to an in-memory SQLite db
@@ -39,28 +39,20 @@ pub fn make_connection(path: &PathBuf) -> Result<Connection> {
     Ok(conn)
 }
 
-/// Creates a SQLite database. Will create a "test" SQLite database
-/// if testing bool brought in. This is a standalone SQLite database
-/// but with "test." prefixed.
+/// Creates a SQLite database in `dir` (at the default `checklist.sqlite`
+/// path) and records that path in a new `config.json` there.
 ///
-/// Problematically this also creates and saves a `Config` based on
-/// the path used to create the SQLite database. Probably best to decouple
-/// this action in the future.
-pub fn create_sqlite_db(testing: bool) -> Result<()> {
-    let local_config_dir = get_config_dir()?;
-    let mut sqlite_path = local_config_dir;
-
-    if testing {
-        sqlite_path = sqlite_path.join("test.checklist.sqlite");
-    } else {
-        sqlite_path = sqlite_path.join("checklist.sqlite");
-    }
+/// Problematically this also creates and saves a `Config` based on the path
+/// used to create the SQLite database. Probably best to decouple this action
+/// in the future.
+pub fn create_sqlite_db(dir: &ConfigDir) -> Result<()> {
+    let sqlite_path = dir.db_path();
 
     println!("Setting up a database at {sqlite_path:?}");
     let conn = make_connection(&sqlite_path)?;
 
     let config = Config::new(sqlite_path);
-    config.save(testing)?;
+    config.save(dir)?;
 
     conn.execute(
         "CREATE TABLE task (
@@ -80,14 +72,17 @@ pub fn create_sqlite_db(testing: bool) -> Result<()> {
     Ok(())
 }
 
-/// Returns a `Result<Connection>` based on `memory` and `testing` bools.
-pub fn get_db(memory: bool, testing: bool) -> Result<Connection> {
+/// Returns a `Result<Connection>` based on `memory` and the config directory.
+///
+/// When `memory` is true, an in-memory SQLite database is used and `dir` is
+/// otherwise ignored.
+pub fn get_db(memory: bool, dir: &ConfigDir) -> Result<Connection> {
     if memory {
         println!("Using an in-memory sqlite database");
         let conn = make_memory_connection().unwrap();
         Ok(conn)
     } else {
-        let config = read_config(testing).context("Failed to read in config")?;
+        let config = read_config(dir).context("Failed to read in config")?;
         let conn = make_connection(&config.db_path).with_context(|| {
             format!(
                 "Failed to make a connection to the database: {:?}",
@@ -236,40 +231,33 @@ pub fn remove_all_db_contents(conn: &Connection, hard: bool) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::{
-        config::read_config,
-        task::{Status, Urgency},
-    };
-    use std::fs::remove_file;
+    use crate::backend::config::{ConfigDir, read_config};
+    use crate::backend::task::{Status, Urgency};
+    use std::collections::HashSet;
+    use tempfile::tempdir;
 
     use super::*;
 
-    fn wipe_existing_test_db(test_db_path: &PathBuf) {
-        if test_db_path.exists() {
-            remove_file(test_db_path).unwrap();
-        }
-    }
-
     #[test]
     fn create_db() {
-        let local_config_dir = get_config_dir().unwrap();
-        let test_db_path = local_config_dir.join("test.checklist.sqlite");
-        wipe_existing_test_db(&test_db_path);
-        assert!(!test_db_path.exists());
+        let tmp = tempdir().unwrap();
+        let dir = ConfigDir::new(tmp.path().to_path_buf());
+        let db_path = dir.db_path();
+        assert!(!db_path.exists());
 
-        create_sqlite_db(true).unwrap();
+        create_sqlite_db(&dir).unwrap();
 
-        let config = read_config(true).unwrap();
+        let config = read_config(&dir).unwrap();
         assert!(config.db_path.exists());
         let _ = make_connection(&config.db_path).unwrap();
-
-        wipe_existing_test_db(&test_db_path);
-        assert!(!test_db_path.exists());
+        // tempdir is removed automatically on drop; no manual wipe needed.
     }
 
     #[test]
     fn add_delete_to_database() {
-        let conn = get_db(true, false).unwrap();
+        let tmp = tempdir().unwrap();
+        let dir = ConfigDir::new(tmp.path().to_path_buf());
+        let conn = get_db(true, &dir).unwrap();
 
         let new_task = Task::new(
             "My new task".to_string(),

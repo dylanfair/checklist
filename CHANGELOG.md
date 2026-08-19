@@ -1,3 +1,16 @@
+# v0.1.8
+
+> NOTE: In this version AI assistance is used.
+
+Internal refactor focused on the config directory and test isolation.
+
+## Changes
+
+- The config directory is now resolved once at startup and passed through as a value (`ConfigDir`) instead of being a hardcoded global switched by a `testing` flag. As a result, the `--test` CLI flag has been removed (`--memory` covers user testing needs).
+- Tests now run against isolated temp directories instead of the real `~/.config/checklist/`. The full test suite passes under default parallel execution; `--test-threads=1` is no longer needed.
+- `Runtime` enum (Memory/Test/Real) collapsed to a simpler `memory` flag on the app.
+- Cleaned up the `toml` dependency version string.
+
 # v0.1.7
 
 > NOTE: In this version AI assistance is used, notably with inspecting the application and resolving more pressing bugs.
