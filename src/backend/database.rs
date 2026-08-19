@@ -12,7 +12,14 @@ pub fn make_memory_connection() -> Result<Connection> {
     println!("Setting up an in-memory sqlite_db");
     let conn =
         Connection::open_in_memory().with_context(|| "Failed to create database in memory")?;
+    init_schema(&conn)?;
+    Ok(conn)
+}
 
+/// Creates the `task` table on an open connection. Shared between the
+/// in-memory connection, the default-path bootstrap, and bootstrap at an
+/// arbitrary path so the schema string lives in one place.
+fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE task (
             id TEXT PRIMARY KEY,
@@ -27,8 +34,7 @@ pub fn make_memory_connection() -> Result<Connection> {
         )",
         (),
     )?;
-
-    Ok(conn)
+    Ok(())
 }
 
 /// Returns a `Result<Connection>` given a `&Pathbuf` to a SQLite database
@@ -39,36 +45,29 @@ pub fn make_connection(path: &PathBuf) -> Result<Connection> {
     Ok(conn)
 }
 
+/// Bootstrap a new SQLite database (with the `task` table) at `db_path`.
+/// Opens a connection, creates the schema, and drops the connection. Does not
+/// touch `config.json` — the caller is responsible for pointing the config at
+/// `db_path` (e.g. via `set_new_path`).
+pub fn create_sqlite_db_at(db_path: PathBuf) -> Result<()> {
+    println!("Setting up a database at {db_path:?}");
+    let conn = make_connection(&db_path)?;
+    init_schema(&conn)?;
+    // `conn` is dropped here, closing the database.
+    Ok(())
+}
+
 /// Creates a SQLite database in `dir` (at the default `checklist.sqlite`
 /// path) and records that path in a new `config.json` there.
 ///
-/// Problematically this also creates and saves a `Config` based on the path
-/// used to create the SQLite database. Probably best to decouple this action
-/// in the future.
+/// Used by `checklist init` (without `--set`) to bootstrap at the default
+/// location. For bootstrap at an arbitrary path, use `create_sqlite_db_at`
+/// and then write the config separately.
 pub fn create_sqlite_db(dir: &ConfigDir) -> Result<()> {
     let sqlite_path = dir.db_path();
-
-    println!("Setting up a database at {sqlite_path:?}");
-    let conn = make_connection(&sqlite_path)?;
-
+    create_sqlite_db_at(sqlite_path.clone())?;
     let config = Config::new(sqlite_path);
     config.save(dir)?;
-
-    conn.execute(
-        "CREATE TABLE task (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            description TEXT,
-            latest TEXT,
-            urgency TEXT,
-            status TEXT NOT NULL,
-            tags TEXT,
-            date_added DATE NOT NULL,
-            completed_on DATE
-        )",
-        (),
-    )?;
-
     Ok(())
 }
 
