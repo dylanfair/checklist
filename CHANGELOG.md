@@ -4,7 +4,11 @@
 
 Internal refactor focused on the config directory and test isolation.
 
-## Changes
+## Enhancement
+
+- User provided input to the `init --set <path>` command now support paths leading with `~` to denote the user's home directory.
+
+## Internal Changes
 
 - The config directory is now resolved once at startup and passed through as a value (`ConfigDir`) instead of being a hardcoded global switched by a `testing` flag. As a result, the `--test` CLI flag has been removed (`--memory` covers user testing needs).
 - Tests now run against isolated temp directories instead of the real `~/.config/checklist/`. The full test suite passes under default parallel execution; `--test-threads=1` is no longer needed.
