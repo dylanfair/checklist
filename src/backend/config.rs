@@ -26,8 +26,7 @@ pub struct ConfigDir(PathBuf);
 impl ConfigDir {
     /// Resolve the default config directory from the OS and ensure it exists.
     pub fn resolve_default() -> Result<Self> {
-        let base = BaseDirs::new()
-            .context("Could not find the user's local config directory.")?;
+        let base = BaseDirs::new().context("Could not find the user's local config directory.")?;
         let dir = base.config_local_dir().join("checklist");
         if !dir.exists() {
             std::fs::create_dir_all(&dir)
@@ -94,11 +93,9 @@ impl Config {
         let config_file_path = dir.config_path();
         let tmp_file_path = dir.path().join("config.json.tmp");
 
-        let config_string =
-            serde_json::to_string(self).context("Failed to serialize Config")?;
+        let config_string = serde_json::to_string(self).context("Failed to serialize Config")?;
 
-        let mut file =
-            File::create(&tmp_file_path).context("Failed to make a .tmp file")?;
+        let mut file = File::create(&tmp_file_path).context("Failed to make a .tmp file")?;
         file.write_all(config_string.as_bytes())
             .context("Failed to write to config file")?;
 
@@ -150,6 +147,21 @@ pub fn set_new_path(path: PathBuf, dir: &ConfigDir) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Expand a leading '~' to the user's home directory.
+/// Intended to be used as a value_parser within clap
+/// to simplify backend path handling logic
+pub fn expand_tilde(path: &str) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+    let home = BaseDirs::new()
+        .map(|b| b.home_dir().to_path_buf())
+        .ok_or("could not determine the user's home directory")?;
+    let expanded = match path {
+        "~" => home,
+        p if p.starts_with("~/") => home.join(&p[2..]),
+        p => PathBuf::from(p),
+    };
+    Ok(expanded)
 }
 
 #[cfg(test)]
