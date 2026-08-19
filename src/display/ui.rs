@@ -9,6 +9,7 @@ use crossterm::terminal::{self, ClearType, EnterAlternateScreen, LeaveAlternateS
 use crossterm::{ExecutableCommand, QueueableCommand, cursor, execute};
 use rusqlite::Connection;
 
+use crate::backend::config::ConfigDir;
 use crate::backend::database::{get_all_db_contents, get_db};
 use crate::backend::task::{Display, Task, TaskList};
 
@@ -22,9 +23,9 @@ impl Drop for CleanUp {
     }
 }
 
-pub fn run_ui(memory: bool, testing: bool) -> Result<()> {
+pub fn run_ui(memory: bool, dir: &ConfigDir) -> Result<()> {
     let _clean_up = CleanUp;
-    let conn = get_db(memory, testing).context("Errored out making a database connection")?;
+    let conn = get_db(memory, dir).context("Errored out making a database connection")?;
     terminal::enable_raw_mode().expect("Could not turn on raw mode");
 
     let mut renderer = Renderer::new(3, 5, conn);

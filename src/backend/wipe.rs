@@ -32,13 +32,17 @@ pub fn wipe_tasks(conn: &Connection, confirm_skip: bool, hard: bool) -> Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::config::ConfigDir;
     use crate::backend::database::{add_to_db, get_all_db_contents, get_db};
     use crate::backend::task::{Status, Task, Urgency};
     use std::collections::HashSet;
+    use tempfile::tempdir;
 
     #[test]
     fn test_wipe_tasks() {
-        let conn = get_db(true, false).unwrap();
+        let tmp = tempdir().unwrap();
+        let dir = ConfigDir::new(tmp.path().to_path_buf());
+        let conn = get_db(true, &dir).unwrap();
 
         let new_task = Task::new(
             String::from("Task1"),

@@ -1,6 +1,5 @@
 use std::fs::{File, rename};
 use std::io::{BufReader, prelude::*};
-use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use ratatui::style::{
@@ -10,7 +9,7 @@ use ratatui::style::{
 use serde::{Deserialize, Serialize};
 use struct_field_names_as_array::FieldNamesAsArray;
 
-use crate::backend::config::get_config_dir;
+use crate::backend::config::ConfigDir;
 
 // Default colors
 fn slate_950() -> Color {
@@ -220,8 +219,8 @@ pub struct Theme {
     pub theme_styles: ThemeStyles,
 }
 
-pub fn create_empty_theme_toml() -> Result<()> {
-    let toml_file_path = get_toml_file()?;
+pub fn create_empty_theme_toml(dir: &ConfigDir) -> Result<()> {
+    let toml_file_path = dir.theme_path();
     let mut file = File::create(&toml_file_path).with_context(|| {
         format!(
             "Could not create an empty theme.toml file at '{}'",
@@ -240,62 +239,36 @@ pub fn create_empty_theme_toml() -> Result<()> {
 }
 
 impl Theme {
-    /// Saves the `Theme` to a theme.toml file.
-    /// Save location is based on `directories::BaseDirs`.
-    pub fn save(&self) -> Result<()> {
-        match get_config_dir() {
-            Ok(conf_local_dir) => {
-                // For when we want to save the toml file
-                // We can do this by creating a .tmp file and renaming it
-                // This minimizes the chance of data being lost if an error
-                // happens mid-write
-                let toml_file = String::from("theme.toml");
-                let tmp_file = format!("{toml_file}.tmp");
+    /// Saves the `Theme` to the `theme.toml` file inside `dir`.
+    ///
+    /// Writes to a `.tmp` file first and renames it into place, which
+    /// minimizes the chance of data loss if an error happens mid-write.
+    pub fn save(&self, dir: &ConfigDir) -> Result<()> {
+        let toml_file_path = dir.theme_path();
+        let tmp_file_path = dir.path().join("theme.toml.tmp");
 
-                let toml_file_path = conf_local_dir.join(&toml_file);
-                let tmp_file_path = conf_local_dir.join(&tmp_file);
+        let toml_string =
+            toml::to_string(self).context("Had an issue serializing the toml file")?;
 
-                let toml_string =
-                    toml::to_string(self).context("Had an issue serializing the toml file")?;
+        // Create a .tmp file
+        let mut file =
+            File::create(&tmp_file_path).context("Failed to make a .tmp file")?;
+        file.write_all(toml_string.as_bytes())
+            .context("Failed to write theme toml file")?;
 
-                // Create a .tmp file
-                let mut file =
-                    File::create(&tmp_file_path).context("Failed to make a .tmp file")?;
-                file.write_all(toml_string.as_bytes())
-                    .context("Failed to write theme toml file")?;
-
-                // Rename .tmp file to old file
-                rename(&tmp_file_path, &toml_file_path)
-                    .with_context(|| { format!("Failed to update config file with rename:\ntmp_file: {tmp_file:?}\nconfig_file:{toml_file:?}")})?;
-            }
-            Err(e) => {
-                println!("Failed getting the configuration location: {e:?}");
-                panic!()
-            }
-        }
+        // Rename .tmp file into place
+        rename(&tmp_file_path, &toml_file_path).with_context(|| {
+            format!(
+                "Failed to update theme file with rename:\ntmp_file: {tmp_file_path:?}\ntoml_file: {toml_file_path:?}"
+            )
+        })?;
         Ok(())
     }
 }
 
-/// Returns a `Result<PathBuf>` of the theme.toml file
-pub fn get_toml_file() -> Result<PathBuf> {
-    match get_config_dir() {
-        Ok(local_config_dir) => {
-            let toml_f = String::from("theme.toml");
-            let toml_file_path = local_config_dir.join(&toml_f);
-
-            Ok(toml_file_path)
-        }
-        Err(e) => {
-            println!("Failed getting the theme toml at: {e:?}");
-            panic!()
-        }
-    }
-}
-
-/// Returns a `Result<Theme>` from the theme.toml file
-pub fn read_theme() -> Result<Theme> {
-    let toml_file_path = get_toml_file()?;
+/// Returns a `Result<Theme>` from the `theme.toml` file in `dir`.
+pub fn read_theme(dir: &ConfigDir) -> Result<Theme> {
+    let toml_file_path = dir.theme_path();
     let toml_file = std::fs::File::open(&toml_file_path)
         .with_context(|| format!("Failed to open {toml_file_path:?}"))?;
     let mut reader = BufReader::new(toml_file);
@@ -325,7 +298,7 @@ pub fn read_theme() -> Result<Theme> {
     // or new theme elements were added in
     // i.e. if user updates to a checklist version
     // that has new theme options
-    theme.save()?;
+    theme.save(dir)?;
 
     Ok(theme)
 }
