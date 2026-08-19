@@ -146,12 +146,19 @@ fn main() -> Result<()> {
                 println!("{}", dir.path().display());
             }
             if db {
-                let db_path = dir.db_path();
-                if db_path.exists() {
-                    println!("{}", db_path.display());
-                } else {
-                    eprintln!("Could not find a SQLite database file.")
-                }
+                match read_config(&dir) {
+                    Ok(config) => {
+                        let db_path = config.db_path;
+                        if db_path.exists() {
+                            println!("{}", db_path.display());
+                        } else {
+                            eprintln!("Could not find a SQLite database file.")
+                        }
+                    }
+                    Err(_) => {
+                        eprintln!("Could not read the config file holding the database location.");
+                    }
+                };
             }
             if config {
                 let config_path = dir.config_path();
