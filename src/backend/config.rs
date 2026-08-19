@@ -271,14 +271,10 @@ mod tests {
         assert_eq!(expanded_sub.file_name(), Some(std::ffi::OsStr::new("foo")));
     }
 
-    // --- set_new_path branch tests ---
-    //
-    // Each test uses its own tempdir as the checklist config dir, and a
-    // separate tempdir/file for the path passed to `set_new_path`, so none
-    // of them touch the real config dir or each other.
-
     fn config_db_path(dir: &ConfigDir) -> PathBuf {
-        read_config(dir).expect("config should exist after set_new_path").db_path
+        read_config(dir)
+            .expect("config should exist after set_new_path")
+            .db_path
     }
 
     #[test]
@@ -311,7 +307,10 @@ mod tests {
 
         let result = set_new_path(not_db, &cfg_dir);
         assert!(result.is_err(), "non-.sqlite file should be rejected");
-        assert!(!cfg_dir.config_path().exists(), "config should not have been written");
+        assert!(
+            !cfg_dir.config_path().exists(),
+            "config should not have been written"
+        );
         Ok(())
     }
 
@@ -328,7 +327,10 @@ mod tests {
         set_new_path(target_tmp.path().to_path_buf(), &cfg_dir)?;
 
         // The DB should have been created at <dir>/checklist.sqlite ...
-        assert!(expected_db.exists(), "checklist.sqlite should have been created");
+        assert!(
+            expected_db.exists(),
+            "checklist.sqlite should have been created"
+        );
         // ... and config should point at it.
         let configured = config_db_path(&cfg_dir);
         assert_eq!(configured, std::fs::canonicalize(&expected_db)?);
@@ -360,7 +362,10 @@ mod tests {
         let bogus = cfg_tmp.path().join("does-not-exist");
         let result = set_new_path(bogus, &cfg_dir);
         assert!(result.is_err(), "non-existent path should be rejected");
-        assert!(!cfg_dir.config_path().exists(), "config should not have been written");
+        assert!(
+            !cfg_dir.config_path().exists(),
+            "config should not have been written"
+        );
         Ok(())
     }
 }
