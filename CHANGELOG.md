@@ -6,7 +6,7 @@ Internal refactor focused on the config directory and test isolation.
 
 ## Enhancement
 
-- User provided input to the `init --set <path>` command now support paths leading with `~` to denote the user's home directory.
+- User provided input to the `init --set <path>` command now supports paths leading with `~` to denote the user's home directory.
 
 ## Internal Changes
 

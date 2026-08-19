@@ -208,4 +208,28 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn expand_tilde_passthrough() {
+        assert_eq!(
+            expand_tilde("/etc/passwd").unwrap(),
+            PathBuf::from("/etc/passwd")
+        );
+        assert_eq!(
+            expand_tilde("relative/path").unwrap(),
+            PathBuf::from("relative/path")
+        );
+    }
+
+    #[test]
+    fn expand_tilde_home() {
+        let expanded = expand_tilde("~").unwrap();
+        assert!(
+            expanded.is_absolute(),
+            "bare ~ should resolve to an absolute home path"
+        );
+        let expanded_sub = expand_tilde("~/foo").unwrap();
+        assert!(expanded_sub.starts_with(expanded.as_path()));
+        assert_eq!(expanded_sub.file_name(), Some(std::ffi::OsStr::new("foo")));
+    }
 }
