@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 mod backend;
 mod display;
 
-use backend::config::{ConfigDir, read_config, set_new_path};
+use backend::config::{ConfigDir, expand_tilde, read_config, set_new_path};
 use backend::database::{create_sqlite_db, get_db};
 use backend::wipe::wipe_tasks;
 
@@ -35,7 +35,7 @@ enum Commands {
     Init {
         /// Optional argument that will set a given
         /// SQLite database as the new default
-        #[arg(short, long)]
+        #[arg(short, long, value_parser = expand_tilde)]
         set: Option<PathBuf>,
     },
 
@@ -146,11 +146,18 @@ fn main() -> Result<()> {
                 println!("{}", dir.path().display());
             }
             if db {
-                let db_path = dir.db_path();
-                if db_path.exists() {
-                    println!("{}", db_path.display());
-                } else {
-                    eprintln!("Could not find a SQLite database file.")
+                match read_config(&dir) {
+                    Ok(config) => {
+                        let db_path = config.db_path;
+                        if db_path.exists() {
+                            println!("{}", db_path.display());
+                        } else {
+                            eprintln!("Could not find a SQLite database file.")
+                        }
+                    }
+                    Err(_) => {
+                        eprintln!("Could not read the config file holding the database location.");
+                    }
                 }
             }
             if config {
@@ -205,13 +212,7 @@ fn main() -> Result<()> {
             // Now read it in
             let theme = read_theme(&dir)?;
 
-            run_tui(
-                cli.memory,
-                dir,
-                config,
-                theme,
-                Some(LayoutView::default()),
-            )?;
+            run_tui(cli.memory, dir, config, theme, Some(LayoutView::default()))?;
         }
     }
 

@@ -4,7 +4,14 @@
 
 Internal refactor focused on the config directory and test isolation.
 
-## Changes
+## Enhancements
+
+- `init --set <path>` has been improved upon in the following ways:
+  - User provided input to the `init --set <path>` command now supports paths leading with `~` to denote the user's home directory.
+  - If user passes in a directory and no 'checklist.sqlite' exists, one is made. Otherwise, the existing 'checklist.sqlite' is used.
+  - If user passes in a file, we check if it's a 'sqlite' file. If it is, we use that. Otherwise, an error is returned.
+
+## Internal Changes
 
 - The config directory is now resolved once at startup and passed through as a value (`ConfigDir`) instead of being a hardcoded global switched by a `testing` flag. As a result, the `--test` CLI flag has been removed (`--memory` covers user testing needs).
 - Tests now run against isolated temp directories instead of the real `~/.config/checklist/`. The full test suite passes under default parallel execution; `--test-threads=1` is no longer needed.

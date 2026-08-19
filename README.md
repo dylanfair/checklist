@@ -88,6 +88,8 @@ If you want to point `checklist` to a specific SQLite database (say you moved yo
 checklist init --set <DB PATH>
 ```
 
+If a directory path is given instead, `checklist` will create a `checklist.sqlite` in that location. If a `checklist.sqlite` is already found in that directory, then `checklist` simply uses that database.
+
 If you instead want to import tasks from another `checklist` SQLite database (i.e. you want to merge the tasks from one database with your current one), that can be done with the `checklist import` command.
 
 ```sh

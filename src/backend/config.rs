@@ -6,6 +6,7 @@ use anyhow::{Context, Result, bail};
 use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 
+use crate::backend::database::create_sqlite_db_at;
 use crate::backend::task::Display;
 
 /// The directory where checklist stores its data files: the SQLite database
@@ -26,8 +27,7 @@ pub struct ConfigDir(PathBuf);
 impl ConfigDir {
     /// Resolve the default config directory from the OS and ensure it exists.
     pub fn resolve_default() -> Result<Self> {
-        let base = BaseDirs::new()
-            .context("Could not find the user's local config directory.")?;
+        let base = BaseDirs::new().context("Could not find the user's local config directory.")?;
         let dir = base.config_local_dir().join("checklist");
         if !dir.exists() {
             std::fs::create_dir_all(&dir)
@@ -94,11 +94,9 @@ impl Config {
         let config_file_path = dir.config_path();
         let tmp_file_path = dir.path().join("config.json.tmp");
 
-        let config_string =
-            serde_json::to_string(self).context("Failed to serialize Config")?;
+        let config_string = serde_json::to_string(self).context("Failed to serialize Config")?;
 
-        let mut file =
-            File::create(&tmp_file_path).context("Failed to make a .tmp file")?;
+        let mut file = File::create(&tmp_file_path).context("Failed to make a .tmp file")?;
         file.write_all(config_string.as_bytes())
             .context("Failed to write to config file")?;
 
@@ -128,28 +126,80 @@ pub fn read_config(dir: &ConfigDir) -> Result<Config> {
 /// `PathBuf` provided. If no config exists yet, a fresh one is created.
 pub fn set_new_path(path: PathBuf, dir: &ConfigDir) -> Result<()> {
     if !path.exists() {
-        bail!("A valid path that exists needs to be supplied");
-    }
-    let absolute_path = std::fs::canonicalize(&path).with_context(|| {
-        format!(
-            "Failed to create a canonical path from the following: {:?}",
-            &path
-        )
-    })?;
+        bail!("A valid path to either an existing directory or sqlite file needs to be supplied");
+    } else if path.is_file() {
+        // if existing path, check if a sqlite file
+        if let Some(extension) = path.extension()
+            && extension.eq_ignore_ascii_case("sqlite")
+        {
+            let absolute_path = std::fs::canonicalize(&path).with_context(|| {
+                format!(
+                    "Failed to create a canonical path from the following: {:?}",
+                    path
+                )
+            })?;
+            write_db_path(absolute_path, dir)?;
+        } else {
+            bail!("File provided needs to end with a .sqlite extension");
+        }
+    } else if path.is_dir() {
+        // If existing directory, check if 'checklist.sqlite' is there
+        // if there, use it
+        // if not, make a new one
+        let absolute_path = std::fs::canonicalize(&path).with_context(|| {
+            format!(
+                "Failed to create a canonical path from the following: {:?}",
+                path
+            )
+        })?;
 
+        let checklist_path = absolute_path.join("checklist.sqlite");
+        if checklist_path.exists() {
+            write_db_path(checklist_path, dir)?;
+        } else {
+            // Create the database at the user's path first, then point the
+            // config at it — so config never references a not-yet-existing
+            // file. `create_sqlite_db_at` only creates the DB + schema; it
+            // does not touch config.json (unlike `create_sqlite_db`).
+            create_sqlite_db_at(checklist_path.clone())?;
+            write_db_path(checklist_path, dir)?;
+        }
+    } else {
+        bail!("Path is neither a file nor a directory");
+    }
+
+    Ok(())
+}
+
+fn write_db_path(db_path: PathBuf, dir: &ConfigDir) -> Result<()> {
     match read_config(dir) {
         Ok(mut config) => {
-            config.db_path = absolute_path.clone();
+            config.db_path = db_path.clone();
             config.save(dir)?;
-            println!("Updated db path to {absolute_path:?}");
+            println!("Updated db path to {db_path:?}");
         }
         Err(_) => {
-            let config = Config::new(absolute_path.clone());
+            let config = Config::new(db_path.clone());
             config.save(dir)?;
-            println!("Set db path to {absolute_path:?}");
+            println!("Set db path to {db_path:?}");
         }
     }
     Ok(())
+}
+
+/// Expand a leading '~' to the user's home directory.
+/// Intended to be used as a value_parser within clap
+/// to simplify backend path handling logic
+pub fn expand_tilde(path: &str) -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync>> {
+    let home = BaseDirs::new()
+        .map(|b| b.home_dir().to_path_buf())
+        .ok_or("could not determine the user's home directory")?;
+    let expanded = match path {
+        "~" => home,
+        p if p.starts_with("~/") => home.join(&p[2..]),
+        p => PathBuf::from(p),
+    };
+    Ok(expanded)
 }
 
 #[cfg(test)]
@@ -194,6 +244,128 @@ mod tests {
         let second_read_in_config = read_config(&dir)?;
         assert_eq!(config.db_path, second_read_in_config.db_path);
 
+        Ok(())
+    }
+
+    #[test]
+    fn expand_tilde_passthrough() {
+        assert_eq!(
+            expand_tilde("/etc/passwd").unwrap(),
+            PathBuf::from("/etc/passwd")
+        );
+        assert_eq!(
+            expand_tilde("relative/path").unwrap(),
+            PathBuf::from("relative/path")
+        );
+    }
+
+    #[test]
+    fn expand_tilde_home() {
+        let expanded = expand_tilde("~").unwrap();
+        assert!(
+            expanded.is_absolute(),
+            "bare ~ should resolve to an absolute home path"
+        );
+        let expanded_sub = expand_tilde("~/foo").unwrap();
+        assert!(expanded_sub.starts_with(expanded.as_path()));
+        assert_eq!(expanded_sub.file_name(), Some(std::ffi::OsStr::new("foo")));
+    }
+
+    fn config_db_path(dir: &ConfigDir) -> PathBuf {
+        read_config(dir)
+            .expect("config should exist after set_new_path")
+            .db_path
+    }
+
+    #[test]
+    fn set_new_path_existing_sqlite_file_points_config_at_it() -> Result<()> {
+        let cfg_tmp = tempdir()?;
+        let cfg_dir = ConfigDir::new(cfg_tmp.path().to_path_buf());
+
+        // Set up an existing .sqlite file (with a valid task schema) to point at.
+        let db_tmp = tempdir()?;
+        let db_path = db_tmp.path().join("existing.sqlite");
+        create_sqlite_db_at(db_path.clone())?;
+        assert!(db_path.exists());
+
+        set_new_path(db_path.clone(), &cfg_dir)?;
+
+        let configured = config_db_path(&cfg_dir);
+        assert_eq!(configured, std::fs::canonicalize(&db_path)?);
+        Ok(())
+    }
+
+    #[test]
+    fn set_new_path_non_sqlite_file_bails() -> Result<()> {
+        let cfg_tmp = tempdir()?;
+        let cfg_dir = ConfigDir::new(cfg_tmp.path().to_path_buf());
+
+        // An existing file that doesn't end in .sqlite should be rejected.
+        let db_tmp = tempdir()?;
+        let not_db = db_tmp.path().join("not_a_db.txt");
+        std::fs::write(&not_db, "hello")?;
+
+        let result = set_new_path(not_db, &cfg_dir);
+        assert!(result.is_err(), "non-.sqlite file should be rejected");
+        assert!(
+            !cfg_dir.config_path().exists(),
+            "config should not have been written"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn set_new_path_existing_dir_without_sqlite_creates_db_and_points_config() -> Result<()> {
+        let cfg_tmp = tempdir()?;
+        let cfg_dir = ConfigDir::new(cfg_tmp.path().to_path_buf());
+
+        // An existing directory with no checklist.sqlite yet.
+        let target_tmp = tempdir()?;
+        let expected_db = target_tmp.path().join("checklist.sqlite");
+        assert!(!expected_db.exists());
+
+        set_new_path(target_tmp.path().to_path_buf(), &cfg_dir)?;
+
+        // The DB should have been created at <dir>/checklist.sqlite ...
+        assert!(
+            expected_db.exists(),
+            "checklist.sqlite should have been created"
+        );
+        // ... and config should point at it.
+        let configured = config_db_path(&cfg_dir);
+        assert_eq!(configured, std::fs::canonicalize(&expected_db)?);
+        Ok(())
+    }
+
+    #[test]
+    fn set_new_path_existing_dir_with_sqlite_points_config_at_it() -> Result<()> {
+        let cfg_tmp = tempdir()?;
+        let cfg_dir = ConfigDir::new(cfg_tmp.path().to_path_buf());
+
+        // An existing directory that already contains a checklist.sqlite.
+        let target_tmp = tempdir()?;
+        let existing_db = target_tmp.path().join("checklist.sqlite");
+        create_sqlite_db_at(existing_db.clone())?;
+
+        set_new_path(target_tmp.path().to_path_buf(), &cfg_dir)?;
+
+        let configured = config_db_path(&cfg_dir);
+        assert_eq!(configured, std::fs::canonicalize(&existing_db)?);
+        Ok(())
+    }
+
+    #[test]
+    fn set_new_path_nonexistent_path_bails() -> Result<()> {
+        let cfg_tmp = tempdir()?;
+        let cfg_dir = ConfigDir::new(cfg_tmp.path().to_path_buf());
+
+        let bogus = cfg_tmp.path().join("does-not-exist");
+        let result = set_new_path(bogus, &cfg_dir);
+        assert!(result.is_err(), "non-existent path should be rejected");
+        assert!(
+            !cfg_dir.config_path().exists(),
+            "config should not have been written"
+        );
         Ok(())
     }
 }
