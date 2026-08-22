@@ -1,12 +1,3 @@
-# Unreleased
-
-## Removed
-
-- Removed the legacy hand-rolled terminal UI (`display --old`). The ratatui-based
-  TUI is now the only interactive interface. Also removed the
-  `Status::to_colored_string` and `Urgency::to_colored_string` helpers that were
-  only used by that interface.
-
 # v0.1.8
 
 > NOTE: In this version AI assistance is used.
@@ -19,6 +10,10 @@ Internal refactor focused on the config directory and test isolation.
   - User provided input to the `init --set <path>` command now supports paths leading with `~` to denote the user's home directory.
   - If user passes in a directory and no 'checklist.sqlite' exists, one is made. Otherwise, the existing 'checklist.sqlite' is used.
   - If user passes in a file, we check if it's a 'sqlite' file. If it is, we use that. Otherwise, an error is returned.
+
+## Removed
+
+- Removed the legacy hand-rolled terminal UI (`display --old`). The ratatui-based TUI is now the only interactive interface.
 
 ## Internal Changes
 
