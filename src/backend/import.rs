@@ -5,12 +5,11 @@ use crate::backend::database::{add_to_db, get_all_db_contents, make_connection};
 
 use super::config::Config;
 
-pub fn import_database(database_path: String, config: Config) -> Result<()> {
+pub fn import_database(database_path: PathBuf, config: Config) -> Result<()> {
     // read in tasks from database to be imported
     // then add them to current database
 
-    let new_db = PathBuf::from(database_path);
-    let new_db_conn = make_connection(&new_db)?;
+    let new_db_conn = make_connection(&database_path)?;
     let existing_db = config.db_path;
     let existing_db_conn = make_connection(&existing_db)?;
 
