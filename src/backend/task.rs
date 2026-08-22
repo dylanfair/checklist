@@ -4,7 +4,6 @@ use std::string::ToString;
 
 use chrono::prelude::*;
 use clap::ValueEnum;
-use crossterm::style::Stylize;
 use ratatui::widgets::ListState;
 use rusqlite::{ToSql, types::FromSql, types::ValueRef};
 use serde::{Deserialize, Serialize};
@@ -52,18 +51,6 @@ pub enum Urgency {
     Critical,
 }
 
-impl Urgency {
-    /// Will return a `StyledContent<String>` based on the Urgency
-    pub fn to_colored_string(self) -> crossterm::style::StyledContent<String> {
-        match self {
-            Urgency::Low => String::from("Low").green(),
-            Urgency::Medium => String::from("Medium").yellow(),
-            Urgency::High => String::from("High").dark_yellow(),
-            Urgency::Critical => String::from("Critical").red(),
-        }
-    }
-}
-
 impl From<&str> for Urgency {
     fn from(s: &str) -> Self {
         match s {
@@ -99,18 +86,6 @@ pub enum Status {
     Working,
     Paused,
     Completed,
-}
-
-impl Status {
-    /// Will return a `StyledContent<String>` based on the Status
-    pub fn to_colored_string(self) -> crossterm::style::StyledContent<String> {
-        match self {
-            Status::Open => String::from("Open").cyan(),
-            Status::Working => String::from("Working").dark_green(),
-            Status::Paused => String::from("Paused").dark_yellow(),
-            Status::Completed => String::from("Completed").green(),
-        }
-    }
 }
 
 impl From<&str> for Status {
@@ -261,14 +236,6 @@ impl TaskList {
         }
     }
 
-    /// Creates a new `TaskList` given a vector of `Task`s. Will start with `ListState::default()`.
-    pub fn from(tasks: Vec<Task>) -> Self {
-        TaskList {
-            tasks,
-            state: ListState::default(),
-        }
-    }
-
     /// Sorts the `TaskList` based on the `Urgency` in the vector of `Task`s.
     /// If `descending` is true, sort will be done in a Critical > Low order.
     pub fn sort_by_urgency(&mut self, descending: bool) {
@@ -390,7 +357,8 @@ mod tests {
             None,
         );
 
-        let mut task_vec = TaskList::from(vec![task1, task2, task3, task4, task5]);
+        let mut task_vec = TaskList::new();
+        task_vec.tasks = vec![task1, task2, task3, task4, task5];
 
         // Descending sort
         task_vec.sort_by_urgency(true);

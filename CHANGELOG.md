@@ -1,3 +1,12 @@
+# Unreleased
+
+## Removed
+
+- Removed the legacy hand-rolled terminal UI (`display --old`). The ratatui-based
+  TUI is now the only interactive interface. Also removed the
+  `Status::to_colored_string` and `Urgency::to_colored_string` helpers that were
+  only used by that interface.
+
 # v0.1.8
 
 > NOTE: In this version AI assistance is used.
