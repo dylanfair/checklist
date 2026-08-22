@@ -75,7 +75,7 @@ enum Commands {
     /// Import tasks from one checklist db to your current one
     Import {
         /// Path to the database you want to import
-        #[arg(short, long, value_parser = expand_tilde)]
+        #[arg(value_parser = expand_tilde)]
         database: PathBuf,
     },
 }
