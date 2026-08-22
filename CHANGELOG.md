@@ -11,6 +11,10 @@ Internal refactor focused on the config directory and test isolation.
   - If user passes in a directory and no 'checklist.sqlite' exists, one is made. Otherwise, the existing 'checklist.sqlite' is used.
   - If user passes in a file, we check if it's a 'sqlite' file. If it is, we use that. Otherwise, an error is returned.
 
+## Removed
+
+- Removed the legacy hand-rolled terminal UI (`display --old`). The ratatui-based TUI is now the only interactive interface.
+
 ## Internal Changes
 
 - The config directory is now resolved once at startup and passed through as a value (`ConfigDir`) instead of being a hardcoded global switched by a `testing` flag. As a result, the `--test` CLI flag has been removed (`--memory` covers user testing needs).

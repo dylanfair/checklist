@@ -13,7 +13,6 @@ use backend::wipe::wipe_tasks;
 
 use display::theme::{create_empty_theme_toml, read_theme};
 use display::tui::{LayoutView, run_tui};
-use display::ui::run_ui;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -53,10 +52,6 @@ enum Commands {
 
     /// Displays tasks in an interactive terminal
     Display {
-        /// For testing, switches between ratatui or my hand-rolled interface
-        #[arg(long)]
-        old: bool,
-
         /// What Layout View to start with
         #[arg(short, long, value_enum)]
         view: Option<LayoutView>,
@@ -115,7 +110,7 @@ fn main() -> Result<()> {
             wipe_tasks(&conn, yes, hard)?
         }
 
-        Some(Commands::Display { old, view }) => {
+        Some(Commands::Display { view }) => {
             let config = match read_config(&dir) {
                 Ok(config) => config,
                 Err(_) => {
@@ -134,11 +129,7 @@ fn main() -> Result<()> {
 
             // Now read it in
             let theme = read_theme(&dir)?;
-            if old {
-                run_ui(cli.memory, &dir)?;
-            } else {
-                run_tui(cli.memory, dir, config, theme, view)?;
-            }
+            run_tui(cli.memory, dir, config, theme, view)?;
         }
 
         Some(Commands::Where { db, config, theme }) => {
