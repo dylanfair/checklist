@@ -169,7 +169,11 @@ fn main() -> Result<()> {
             }
         }
 
-        Some(Commands::Import { database, display, view }) => {
+        Some(Commands::Import {
+            database,
+            display,
+            view,
+        }) => {
             let conn = import(database, cli.memory, &dir)?;
             if display {
                 launch_tui(cli.memory, dir, conn, view)?;
@@ -180,7 +184,9 @@ fn main() -> Result<()> {
             if migrate {
                 migrate_theme(&dir)?;
             } else {
-                eprintln!("No action specified. Use `checklist theme --migrate` to re-serialize theme.toml.");
+                eprintln!(
+                    "No action specified. Use `checklist theme --migrate` to re-serialize theme.toml."
+                );
             }
         }
 
@@ -227,6 +233,7 @@ fn launch_tui(
         let theme_path = dir.theme_path();
         if !theme_path.exists() {
             create_empty_theme_toml(&dir)?;
+            migrate_theme(&dir)?; // if a brand new theme, let's save contents for new users
         }
         read_theme(&dir)?
     };

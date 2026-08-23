@@ -2,8 +2,6 @@
 
 > NOTE: In this version AI assistance is used.
 
-Internal refactor focused on the config directory and test isolation.
-
 ## Enhancements
 
 - `checklist import <DB PATH>` now supports `~` expansion for the import path.
