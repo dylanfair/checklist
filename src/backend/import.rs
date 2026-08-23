@@ -66,6 +66,20 @@ mod tests {
 
     use super::*;
 
+    fn sample_task() -> Task {
+        Task::new(
+            "My new task".to_string(),
+            Some("New description".to_string()),
+            Some("New latest".to_string()),
+            Some(Urgency::Critical),
+            Some(Status::Open),
+            Some(HashSet::from_iter(vec![
+                String::from("Tag1"),
+                String::from("Tag2"),
+            ])),
+        )
+    }
+
     #[test]
     fn import_memory() {
         let tmp = tempdir().unwrap();
@@ -76,17 +90,7 @@ mod tests {
         // Make a temp disk db and add a task to it
         create_sqlite_db(&dir).unwrap();
         let disk_conn = make_connection(&db_path).unwrap();
-        let new_task = Task::new(
-            "My new task".to_string(),
-            Some("New description".to_string()),
-            Some("New latest".to_string()),
-            Some(Urgency::Critical),
-            Some(Status::Open),
-            Some(HashSet::from_iter(vec![
-                String::from("Tag1"),
-                String::from("Tag2"),
-            ])),
-        );
+        let new_task = sample_task();
         add_to_db(&disk_conn, &new_task).unwrap();
 
         // Import from temp disk db to a memory db
@@ -130,17 +134,7 @@ mod tests {
 
         let disk_conn1 = make_connection(&db_path).unwrap();
         let disk_conn2 = make_connection(&db_path2).unwrap();
-        let new_task = Task::new(
-            "My new task".to_string(),
-            Some("New description".to_string()),
-            Some("New latest".to_string()),
-            Some(Urgency::Critical),
-            Some(Status::Open),
-            Some(HashSet::from_iter(vec![
-                String::from("Tag1"),
-                String::from("Tag2"),
-            ])),
-        );
+        let new_task = sample_task();
         add_to_db(&disk_conn1, &new_task).unwrap();
 
         // Import from temp disk db to another disk db
