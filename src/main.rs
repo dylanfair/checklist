@@ -11,7 +11,7 @@ use backend::config::{Config, ConfigDir, expand_tilde, read_config, set_new_path
 use backend::database::{create_sqlite_db, get_db};
 use backend::wipe::wipe_tasks;
 
-use display::theme::{Theme, create_empty_theme_toml, read_theme};
+use display::theme::{Theme, create_empty_theme_toml, migrate_theme, read_theme};
 use display::tui::{LayoutView, run_tui};
 
 use crate::backend::import::import;
@@ -87,6 +87,15 @@ enum Commands {
         /// What Layout View to start with (used with --display)
         #[arg(short, long, value_enum)]
         view: Option<LayoutView>,
+    },
+
+    /// Manage the theme.toml file
+    Theme {
+        /// Re-serialize theme.toml with all current keys and defaults.
+        /// Useful for picking up newly available theme options after an
+        /// update. Note: comments and custom formatting are not preserved.
+        #[arg(long)]
+        migrate: bool,
     },
 }
 
@@ -167,6 +176,14 @@ fn main() -> Result<()> {
             }
         }
 
+        Some(Commands::Theme { migrate }) => {
+            if migrate {
+                migrate_theme(&dir)?;
+            } else {
+                eprintln!("No action specified. Use `checklist theme --migrate` to re-serialize theme.toml.");
+            }
+        }
+
         None => {
             bootstrap(cli.memory, dir, Some(LayoutView::default()))?;
         }
@@ -205,7 +222,7 @@ fn launch_tui(
     // theme.toml is created. Otherwise, make a default one if it doesn't
     // exist and read it in.
     let theme = if memory {
-        Theme::default_theme()
+        Theme::default()
     } else {
         let theme_path = dir.theme_path();
         if !theme_path.exists() {
