@@ -112,27 +112,7 @@ fn main() -> Result<()> {
             wipe_tasks(&conn, yes, hard)?
         }
 
-        Some(Commands::Display { view }) => {
-            let config = match read_config(&dir) {
-                Ok(config) => config,
-                Err(_) => {
-                    create_sqlite_db(&dir)?;
-                    println!("Successfully created the database to store your items in!");
-                    read_config(&dir).unwrap()
-                }
-            };
-
-            // This will handle the theme, making a default one if
-            // One doesn't exist
-            let theme_path = dir.theme_path();
-            if !theme_path.exists() {
-                create_empty_theme_toml(&dir)?;
-            }
-
-            // Now read it in
-            let theme = read_theme(&dir)?;
-            run_tui(cli.memory, dir, config, theme, view)?;
-        }
+        Some(Commands::Display { view }) => bootstrap(&cli, dir, view)?,
 
         Some(Commands::Where { db, config, theme }) => {
             if !db && !config && !theme {
@@ -174,28 +154,33 @@ fn main() -> Result<()> {
         Some(Commands::Import { database }) => import(database, cli.memory, &dir)?,
 
         None => {
-            let config = match read_config(&dir) {
-                Ok(config) => config,
-                Err(_) => {
-                    create_sqlite_db(&dir)?;
-                    println!("Successfully created the database to store your items in!");
-                    read_config(&dir)?
-                }
-            };
-
-            // This will handle the theme, making a default one if
-            // One doesn't exist
-            let theme_path = dir.theme_path();
-            if !theme_path.exists() {
-                create_empty_theme_toml(&dir)?;
-            }
-
-            // Now read it in
-            let theme = read_theme(&dir)?;
-
-            run_tui(cli.memory, dir, config, theme, Some(LayoutView::default()))?;
+            bootstrap(&cli, dir, Some(LayoutView::default()))?;
         }
     }
 
+    Ok(())
+}
+
+fn bootstrap(cli: &Cli, dir: ConfigDir, view: Option<LayoutView>) -> Result<()> {
+    let config = match read_config(&dir) {
+        Ok(config) => config,
+        Err(_) => {
+            create_sqlite_db(&dir)?;
+            println!("Successfully created the database to store your items in!");
+            read_config(&dir)?
+        }
+    };
+
+    // This will handle the theme, making a default one if
+    // One doesn't exist
+    let theme_path = dir.theme_path();
+    if !theme_path.exists() {
+        create_empty_theme_toml(&dir)?;
+    }
+
+    // Now read it in
+    let theme = read_theme(&dir)?;
+
+    run_tui(cli.memory, dir, config, theme, view)?;
     Ok(())
 }

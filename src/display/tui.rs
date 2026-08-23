@@ -39,7 +39,7 @@ pub fn run_tui(
     Ok(())
 }
 
-#[derive(Default, PartialEq, Eq, Debug, Clone, ValueEnum)]
+#[derive(Default, PartialEq, Eq, Debug, Clone, ValueEnum, Copy)]
 pub enum LayoutView {
     Horizontal,
     Vertical,
