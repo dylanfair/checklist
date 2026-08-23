@@ -1,18 +1,19 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use backend::import::import_database;
 use clap::{Parser, Subcommand};
 
 mod backend;
 mod display;
 
 use backend::config::{ConfigDir, expand_tilde, read_config, set_new_path};
-use backend::database::{create_sqlite_db, get_db, make_connection, make_memory_connection};
+use backend::database::{create_sqlite_db, get_db};
 use backend::wipe::wipe_tasks;
 
 use display::theme::{create_empty_theme_toml, read_theme};
 use display::tui::{LayoutView, run_tui};
+
+use crate::backend::import::import;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -170,24 +171,7 @@ fn main() -> Result<()> {
             }
         }
 
-        Some(Commands::Import { database }) => {
-            let dest_conn = if cli.memory {
-                make_memory_connection()?
-            } else {
-                let config = match read_config(&dir) {
-                    Ok(config) => config,
-                    Err(_) => {
-                        create_sqlite_db(&dir)?;
-                        println!("Could not find an existing database, creating a new one.");
-                        read_config(&dir)?
-                    }
-                };
-                make_connection(&config.db_path)?
-            };
-
-            import_database(database, &dest_conn)?;
-            println!("Finished importing tasks to current database.")
-        }
+        Some(Commands::Import { database }) => import(database, cli.memory, &dir)?,
 
         None => {
             let config = match read_config(&dir) {
