@@ -1,18 +1,20 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use backend::import::import_database;
 use clap::{Parser, Subcommand};
+use rusqlite::Connection;
 
 mod backend;
 mod display;
 
-use backend::config::{ConfigDir, expand_tilde, read_config, set_new_path};
+use backend::config::{Config, ConfigDir, expand_tilde, read_config, set_new_path};
 use backend::database::{create_sqlite_db, get_db};
 use backend::wipe::wipe_tasks;
 
 use display::theme::{create_empty_theme_toml, read_theme};
 use display::tui::{LayoutView, run_tui};
+
+use crate::backend::import::import;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -75,7 +77,16 @@ enum Commands {
     /// Import tasks from one checklist db to your current one
     Import {
         /// Path to the database you want to import
-        database: String,
+        #[arg(value_parser = expand_tilde)]
+        database: PathBuf,
+
+        /// Open the TUI displaying the imported tasks after the import finishes
+        #[arg(long)]
+        display: bool,
+
+        /// What Layout View to start with (used with --display)
+        #[arg(short, long, value_enum)]
+        view: Option<LayoutView>,
     },
 }
 
@@ -110,27 +121,7 @@ fn main() -> Result<()> {
             wipe_tasks(&conn, yes, hard)?
         }
 
-        Some(Commands::Display { view }) => {
-            let config = match read_config(&dir) {
-                Ok(config) => config,
-                Err(_) => {
-                    create_sqlite_db(&dir)?;
-                    println!("Successfully created the database to store your items in!");
-                    read_config(&dir).unwrap()
-                }
-            };
-
-            // This will handle the theme, making a default one if
-            // One doesn't exist
-            let theme_path = dir.theme_path();
-            if !theme_path.exists() {
-                create_empty_theme_toml(&dir)?;
-            }
-
-            // Now read it in
-            let theme = read_theme(&dir)?;
-            run_tui(cli.memory, dir, config, theme, view)?;
-        }
+        Some(Commands::Display { view }) => bootstrap(cli.memory, dir, view)?,
 
         Some(Commands::Where { db, config, theme }) => {
             if !db && !config && !theme {
@@ -169,43 +160,57 @@ fn main() -> Result<()> {
             }
         }
 
-        Some(Commands::Import { database }) => {
-            let config = match read_config(&dir) {
-                Ok(config) => config,
-                Err(_) => {
-                    create_sqlite_db(&dir)?;
-                    println!("Could not find an existing database, creating a new one.");
-                    read_config(&dir).unwrap()
-                }
-            };
-
-            import_database(database, config)?;
-            println!("Finished import tasks to current database.")
+        Some(Commands::Import { database, display, view }) => {
+            let conn = import(database, cli.memory, &dir)?;
+            if display {
+                launch_tui(cli.memory, dir, conn, view)?;
+            }
         }
 
         None => {
-            let config = match read_config(&dir) {
-                Ok(config) => config,
-                Err(_) => {
-                    create_sqlite_db(&dir)?;
-                    println!("Successfully created the database to store your items in!");
-                    read_config(&dir).unwrap()
-                }
-            };
-
-            // This will handle the theme, making a default one if
-            // One doesn't exist
-            let theme_path = dir.theme_path();
-            if !theme_path.exists() {
-                create_empty_theme_toml(&dir)?;
-            }
-
-            // Now read it in
-            let theme = read_theme(&dir)?;
-
-            run_tui(cli.memory, dir, config, theme, Some(LayoutView::default()))?;
+            bootstrap(cli.memory, dir, Some(LayoutView::default()))?;
         }
     }
 
+    Ok(())
+}
+
+fn bootstrap(memory: bool, dir: ConfigDir, view: Option<LayoutView>) -> Result<()> {
+    let conn = get_db(memory, &dir).or_else(|_| {
+        // Disk mode with no config yet: bootstrap a default DB + config, then retry.
+        create_sqlite_db(&dir)?;
+        println!("Successfully created the database to store your items in!");
+        get_db(memory, &dir)
+    })?;
+    launch_tui(memory, dir, conn, view)
+}
+
+fn launch_tui(
+    memory: bool,
+    dir: ConfigDir,
+    conn: Connection,
+    view: Option<LayoutView>,
+) -> Result<()> {
+    let config = match read_config(&dir) {
+        Ok(config) => config,
+        Err(_) if memory => Config::new(PathBuf::new()),
+        Err(_) => {
+            create_sqlite_db(&dir)?;
+            println!("Successfully created the database to store your items in!");
+            read_config(&dir)?
+        }
+    };
+
+    // This will handle the theme, making a default one if
+    // One doesn't exist
+    let theme_path = dir.theme_path();
+    if !theme_path.exists() {
+        create_empty_theme_toml(&dir)?;
+    }
+
+    // Now read it in
+    let theme = read_theme(&dir)?;
+
+    run_tui(memory, conn, dir, config, theme, view)?;
     Ok(())
 }
