@@ -118,7 +118,7 @@ fn main() -> Result<()> {
             }
 
             // This will handle the theme, making a default one if
-            // One doesn't exist. Migrate it right away so a fresh theme
+            // one doesn't exist. Migrate it right away so a fresh theme
             // file has all the current keys/options shown.
             let theme_path = dir.theme_path();
             if !theme_path.exists() {
