@@ -1,23 +1,20 @@
 use anyhow::Result;
+use rusqlite::Connection;
 use std::path::PathBuf;
 
 use crate::backend::database::{add_to_db, get_all_db_contents, make_connection};
 
-use super::config::Config;
-
-pub fn import_database(database_path: PathBuf, config: Config) -> Result<()> {
+pub fn import_database(database_path: PathBuf, dest_conn: &Connection) -> Result<()> {
     // read in tasks from database to be imported
     // then add them to current database
 
     let new_db_conn = make_connection(&database_path)?;
-    let existing_db = config.db_path;
-    let existing_db_conn = make_connection(&existing_db)?;
 
     let new_db_tasks = get_all_db_contents(&new_db_conn)?;
     println!("Adding {} tasks to current database", new_db_tasks.len());
     let mut failed_tasks = vec![];
     for task in new_db_tasks.tasks {
-        match add_to_db(&existing_db_conn, &task) {
+        match add_to_db(dest_conn, &task) {
             Ok(_) => {}
             Err(_) => {
                 failed_tasks.push(task);

@@ -6,6 +6,8 @@ Internal refactor focused on the config directory and test isolation.
 
 ## Enhancements
 
+- `checklist import <DB PATH>` now supports `~` expansion for the import path.
+- `checklist import --memory <DB PATH>` now imports into an in-memory database instead of the configured on-disk database, and no longer creates config or database files on disk when a config does not exist.
 - `init --set <path>` has been improved upon in the following ways:
   - User provided input to the `init --set <path>` command now supports paths leading with `~` to denote the user's home directory.
   - If user passes in a directory and no 'checklist.sqlite' exists, one is made. Otherwise, the existing 'checklist.sqlite' is used.
