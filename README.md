@@ -151,6 +151,14 @@ Currently the customization options fall under three broad categories:
 
 `theme_styles` covers symbology in `checklist`, like what you want the scrollbar to look like, the highlight symbol, and `Urgency` markings in the `Task` items.
 
+Comments and custom formatting in your `theme.toml` are preserved when the app reads it — checklist only writes the file when it first creates it. If a new release adds theme options you'd like to surface in your existing file, run:
+
+```sh
+checklist theme --migrate
+```
+
+This re-serializes `theme.toml` with all current keys and defaults. Note that it regenerates the file from the parsed struct, so comments are **not** preserved by a migrate.
+
 ## VSCode oddity
 
 I noticed that if running the app in a VSCode terminal, I needed to set the following setting in order for certain command combinations (i.e. CTRL \<down>) to work:

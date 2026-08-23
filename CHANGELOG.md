@@ -2,14 +2,13 @@
 
 > NOTE: In this version AI assistance is used.
 
-Internal refactor focused on the config directory and test isolation.
-
 ## Enhancements
 
 - `checklist import <DB PATH>` now supports `~` expansion for the import path.
 - `checklist import --memory <DB PATH>` now imports into an in-memory database instead of the configured on-disk database, and no longer creates config or database files on disk when a config does not exist.
 - `checklist import` now accepts a `--display` flag (and optional `-v/--view`) to open the TUI showing the imported tasks once the import finishes. Works with `--memory` — the import is loaded into the in-memory database and then displayed.
 - `--memory` no longer creates a `theme.toml` file on disk. A default theme is constructed in memory instead, so `--memory` is now fully ephemeral (no config, database, or theme files written).
+- New `checklist theme --migrate` command re-serializes `theme.toml` with all current keys and defaults, so newly added theme options can be surfaced into an existing file. Note that migrate regenerates the file and does not preserve comments.
 - `init --set <path>` has been improved upon in the following ways:
   - User provided input to the `init --set <path>` command now supports paths leading with `~` to denote the user's home directory.
   - If user passes in a directory and no 'checklist.sqlite' exists, one is made. Otherwise, the existing 'checklist.sqlite' is used.
@@ -25,6 +24,7 @@ Internal refactor focused on the config directory and test isolation.
 - Tests now run against isolated temp directories instead of the real `~/.config/checklist/`. The full test suite passes under default parallel execution; `--test-threads=1` is no longer needed.
 - `Runtime` enum (Memory/Test/Real) collapsed to a simpler `memory` flag on the app.
 - `import` now returns the `Connection` it imported into, and `run_tui`/`App` accept an existing connection instead of always opening their own. This lets `import --display` (including with `--memory`) show the freshly imported tasks in the same database.
+- `read_theme` is now a pure read — it no longer rewrites `theme.toml` on every launch, so user comments and formatting are preserved. Missing tables/fields fall back to `#[serde(default)]` values (the `Theme` sub-structs now implement `Default`). The only path that rewrites the file is the opt-in `checklist theme --migrate`.
 - Cleaned up the `toml` dependency version string.
 
 # v0.1.7
