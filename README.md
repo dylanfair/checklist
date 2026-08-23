@@ -88,11 +88,22 @@ If you want to point `checklist` to a specific SQLite database (say you moved yo
 checklist init --set <DB PATH>
 ```
 
+If a directory path is given instead, `checklist` will create a `checklist.sqlite` in that location. If a `checklist.sqlite` is already found in that directory, then `checklist` simply uses that database.
+
 If you instead want to import tasks from another `checklist` SQLite database (i.e. you want to merge the tasks from one database with your current one), that can be done with the `checklist import` command.
 
 ```sh
 checklist import <DB PATH>
 ```
+
+If you'd like to jump straight into the TUI after the import finishes, pass `--display`. You can also pair it with `-v/--view` to pick the starting layout view:
+
+```sh
+checklist import --display <DB PATH>
+checklist import --display -v vertical <DB PATH>
+```
+
+This works with `--memory` too — the tasks are imported into the in-memory database and then displayed, so you can preview an import without writing to disk.
 
 There are only a couple other commands from the CLI that you need to know:
 
@@ -139,6 +150,14 @@ Currently the customization options fall under three broad categories:
 `text_colors` covers color customization for the colored text in `checklist`.
 
 `theme_styles` covers symbology in `checklist`, like what you want the scrollbar to look like, the highlight symbol, and `Urgency` markings in the `Task` items.
+
+Comments and custom formatting in your `theme.toml` are preserved when the app reads it — checklist only writes the file when it first creates it. If a new release adds theme options you'd like to surface in your existing file, run:
+
+```sh
+checklist theme --migrate
+```
+
+This re-serializes `theme.toml` with all current keys and defaults. Note that it regenerates the file from the parsed struct, so comments are **not** preserved by a migrate.
 
 ## VSCode oddity
 

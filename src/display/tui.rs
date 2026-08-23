@@ -9,8 +9,8 @@ use ratatui::{
 };
 use rusqlite::Connection;
 
-use crate::backend::config::Config;
-use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
+use crate::backend::config::{Config, ConfigDir};
+use crate::backend::database::{delete_task_in_db, get_all_db_contents};
 use crate::backend::task::TaskList;
 use crate::display::add::{EntryMode, Inputs, Stage};
 use crate::display::render::{
@@ -25,14 +25,14 @@ use self::common::{install_hooks, restore_terminal};
 
 pub fn run_tui(
     memory: bool,
-    testing: bool,
+    conn: Connection,
+    dir: ConfigDir,
     config: Config,
     theme: Theme,
     view: Option<LayoutView>,
 ) -> color_eyre::Result<(), anyhow::Error> {
     install_hooks()?;
-    //let _clean_up = CleanUp;
-    let mut app = App::new(memory, testing, config, theme, view)?;
+    let mut app = App::new(memory, conn, dir, config, theme, view)?;
     app.run()?;
 
     restore_terminal()?;
@@ -40,13 +40,7 @@ pub fn run_tui(
     Ok(())
 }
 
-enum Runtime {
-    Memory,
-    Test,
-    Real,
-}
-
-#[derive(Default, PartialEq, Eq, Debug, Clone, ValueEnum)]
+#[derive(Default, PartialEq, Eq, Debug, Clone, ValueEnum, Copy)]
 pub enum LayoutView {
     Horizontal,
     Vertical,
@@ -88,8 +82,10 @@ pub struct App {
     should_exit: bool,
     // DB connection
     pub conn: Connection,
-    // What type of database connection we have
-    runtime: Runtime,
+    // Whether we're backed by an in-memory database (no on-disk persistence)
+    memory: bool,
+    // Config directory (where config.json / theme.toml live)
+    pub config_dir: ConfigDir,
     // Config
     pub config: Config,
     // Theme
@@ -133,28 +129,21 @@ pub struct App {
 impl App {
     fn new(
         memory: bool,
-        testing: bool,
+        conn: Connection,
+        dir: ConfigDir,
         config: Config,
         theme: Theme,
         view: Option<LayoutView>,
     ) -> Result<Self> {
-        let conn = get_db(memory, testing)?;
         let tasklist = TaskList::new();
-
-        let runtime = if memory {
-            Runtime::Memory
-        } else if testing {
-            Runtime::Test
-        } else {
-            Runtime::Real
-        };
 
         let layout_view = view.unwrap_or_default();
 
         Ok(Self {
             should_exit: false,
             conn,
-            runtime,
+            memory,
+            config_dir: dir,
             config,
             theme,
             layout_view,
@@ -195,12 +184,10 @@ impl App {
                     }
                 };
             }
-            if self.config_dirty {
-                match self.runtime {
-                    Runtime::Test => self.config.save(true).map_err(std::io::Error::other)?,
-                    Runtime::Real => self.config.save(false).map_err(std::io::Error::other)?,
-                    _ => {}
-                }
+            if self.config_dirty && !self.memory {
+                self.config
+                    .save(&self.config_dir)
+                    .map_err(std::io::Error::other)?;
             }
             Ok(())
         })

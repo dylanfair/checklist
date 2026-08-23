@@ -1,19 +1,20 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use backend::import::import_database;
 use clap::{Parser, Subcommand};
+use rusqlite::Connection;
 
 mod backend;
 mod display;
 
-use backend::config::{get_config_dir, read_config, set_new_path};
+use backend::config::{Config, ConfigDir, expand_tilde, read_config, set_new_path};
 use backend::database::{create_sqlite_db, get_db};
 use backend::wipe::wipe_tasks;
 
-use display::theme::{create_empty_theme_toml, get_toml_file, read_theme};
+use display::theme::{Theme, create_empty_theme_toml, migrate_theme, read_theme};
 use display::tui::{LayoutView, run_tui};
-use display::ui::run_ui;
+
+use crate::backend::import::import;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -22,11 +23,6 @@ struct Cli {
     /// As a result, no data will be kept on program exit.
     #[arg(short, long)]
     memory: bool,
-
-    /// Will run checklist off a test SQLite database.
-    /// This will keep data in a test.checklist.sqlite file.
-    #[arg(short, long)]
-    test: bool,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -40,7 +36,7 @@ enum Commands {
     Init {
         /// Optional argument that will set a given
         /// SQLite database as the new default
-        #[arg(short, long)]
+        #[arg(short, long, value_parser = expand_tilde)]
         set: Option<PathBuf>,
     },
 
@@ -58,10 +54,6 @@ enum Commands {
 
     /// Displays tasks in an interactive terminal
     Display {
-        /// For testing, switches between ratatui or my hand-rolled interface
-        #[arg(long)]
-        old: bool,
-
         /// What Layout View to start with
         #[arg(short, long, value_enum)]
         view: Option<LayoutView>,
@@ -85,151 +77,169 @@ enum Commands {
     /// Import tasks from one checklist db to your current one
     Import {
         /// Path to the database you want to import
-        database: String,
+        #[arg(value_parser = expand_tilde)]
+        database: PathBuf,
+
+        /// Open the TUI displaying the imported tasks after the import finishes
+        #[arg(long)]
+        display: bool,
+
+        /// What Layout View to start with (used with --display)
+        #[arg(short, long, value_enum)]
+        view: Option<LayoutView>,
+    },
+
+    /// Manage the theme.toml file
+    Theme {
+        /// Re-serialize theme.toml with all current keys and defaults.
+        /// Useful for picking up newly available theme options after an
+        /// update. Note: comments and custom formatting are not preserved.
+        #[arg(long)]
+        migrate: bool,
     },
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    // Resolve the config directory once and thread it through. This is the
+    // single source of truth for where checklist's data files live.
+    let dir = ConfigDir::resolve_default()?;
+
     match cli.command {
         Some(Commands::Init { set }) => {
             if let Some(valid_path) = set {
-                set_new_path(valid_path, cli.test)?;
+                set_new_path(valid_path, &dir)?;
             } else {
                 // Probably need to decouple, but this will make the config
                 // file and the sqlite db
-                create_sqlite_db(cli.test)?;
+                create_sqlite_db(&dir)?;
                 println!("Successfully created the database to store your items in!");
             }
 
             // This will handle the theme, making a default one if
-            // One doesn't exist
-            let toml_file = get_toml_file()?;
-
-            if !toml_file.exists() {
-                create_empty_theme_toml()?;
+            // one doesn't exist. Migrate it right away so a fresh theme
+            // file has all the current keys/options shown.
+            let theme_path = dir.theme_path();
+            if !theme_path.exists() {
+                create_empty_theme_toml(&dir)?;
+                migrate_theme(&dir)?;
             }
         }
 
         Some(Commands::Wipe { yes, hard }) => {
-            let conn = get_db(cli.memory, cli.test)?;
+            let conn = get_db(cli.memory, &dir)?;
             wipe_tasks(&conn, yes, hard)?
         }
 
-        Some(Commands::Display { old, view }) => {
-            let config = match read_config(cli.test) {
-                Ok(config) => config,
-                Err(_) => {
-                    create_sqlite_db(cli.test)?;
-                    println!("Successfully created the database to store your items in!");
-                    read_config(cli.test).unwrap()
-                }
-            };
+        Some(Commands::Display { view }) => bootstrap(cli.memory, dir, view)?,
 
-            // This will handle the theme, making a default one if
-            // One doesn't exist
-            let toml_file = get_toml_file()?;
-            if !toml_file.exists() {
-                create_empty_theme_toml()?;
+        Some(Commands::Where { db, config, theme }) => {
+            if !db && !config && !theme {
+                println!("{}", dir.path().display());
             }
-
-            // Now read it in
-            let theme = read_theme()?;
-            if old {
-                run_ui(cli.memory, cli.test)?;
-            } else {
-                run_tui(cli.memory, cli.test, config, theme, view)?;
+            if db {
+                match read_config(&dir) {
+                    Ok(config) => {
+                        let db_path = config.db_path;
+                        if db_path.exists() {
+                            println!("{}", db_path.display());
+                        } else {
+                            eprintln!("Could not find a SQLite database file.")
+                        }
+                    }
+                    Err(_) => {
+                        eprintln!("Could not read the config file holding the database location.");
+                    }
+                }
+            }
+            if config {
+                let config_path = dir.config_path();
+                if config_path.exists() {
+                    println!("{}", config_path.display());
+                } else {
+                    eprintln!("Could not find a config file.")
+                }
+            }
+            if theme {
+                let theme_path = dir.theme_path();
+                if theme_path.exists() {
+                    println!("{}", theme_path.display());
+                } else {
+                    eprintln!("Could not find a theme file.")
+                }
             }
         }
 
-        Some(Commands::Where { db, config, theme }) => match get_config_dir() {
-            Ok(dir) => {
-                if !db & !config & !theme {
-                    println!("{}", dir.to_str().unwrap());
-                }
-                if db {
-                    let db_path = if cli.test {
-                        dir.join(String::from("test.checklist.sqlite"))
-                    } else {
-                        dir.join(String::from("checklist.sqlite"))
-                    };
-                    if db_path.exists() {
-                        println!("{}", db_path.to_str().unwrap());
-                    } else {
-                        eprintln!("Could not find a SQLite database file.")
-                    }
-                }
-                if config {
-                    let config_path = if cli.test {
-                        dir.join(String::from("test.config.json"))
-                    } else {
-                        dir.join(String::from("config.json"))
-                    };
-                    if config_path.exists() {
-                        println!("{}", config_path.to_str().unwrap());
-                    } else {
-                        eprintln!("Could not find a config file.")
-                    }
-                }
-                if theme {
-                    let theme_path = dir.join(String::from("theme.toml"));
-                    if theme_path.exists() {
-                        println!("{}", theme_path.to_str().unwrap());
-                    } else {
-                        eprintln!("Could not find a theme file.")
-                    }
-                }
+        Some(Commands::Import {
+            database,
+            display,
+            view,
+        }) => {
+            let conn = import(database, cli.memory, &dir)?;
+            if display {
+                launch_tui(cli.memory, dir, conn, view)?;
             }
-            Err(_) => {
-                eprintln!("Could not find the folder that should hold checklist files");
-                eprintln!("Try getting started with 'checklist init' or 'checklist'!");
+        }
+
+        Some(Commands::Theme { migrate }) => {
+            if migrate {
+                migrate_theme(&dir)?;
+            } else {
+                eprintln!(
+                    "No action specified. Use `checklist theme --migrate` to re-serialize theme.toml."
+                );
             }
-        },
-
-        Some(Commands::Import { database }) => {
-            let config = match read_config(cli.test) {
-                Ok(config) => config,
-                Err(_) => {
-                    create_sqlite_db(cli.test)?;
-                    println!("Could not find an existing database, creating a new one.");
-                    read_config(cli.test).unwrap()
-                }
-            };
-
-            import_database(database, config)?;
-            println!("Finished import tasks to current database.")
         }
 
         None => {
-            let config = match read_config(cli.test) {
-                Ok(config) => config,
-                Err(_) => {
-                    create_sqlite_db(cli.test)?;
-                    println!("Successfully created the database to store your items in!");
-                    read_config(cli.test).unwrap()
-                }
-            };
-
-            // This will handle the theme, making a default one if
-            // One doesn't exist
-            let toml_file = get_toml_file()?;
-            if !toml_file.exists() {
-                create_empty_theme_toml()?;
-            }
-
-            // Now read it in
-            let theme = read_theme()?;
-
-            run_tui(
-                cli.memory,
-                cli.test,
-                config,
-                theme,
-                Some(LayoutView::default()),
-            )?;
+            bootstrap(cli.memory, dir, Some(LayoutView::default()))?;
         }
     }
 
+    Ok(())
+}
+
+fn bootstrap(memory: bool, dir: ConfigDir, view: Option<LayoutView>) -> Result<()> {
+    let conn = get_db(memory, &dir).or_else(|_| {
+        // Disk mode with no config yet: bootstrap a default DB + config, then retry.
+        create_sqlite_db(&dir)?;
+        println!("Successfully created the database to store your items in!");
+        get_db(memory, &dir)
+    })?;
+    launch_tui(memory, dir, conn, view)
+}
+
+fn launch_tui(
+    memory: bool,
+    dir: ConfigDir,
+    conn: Connection,
+    view: Option<LayoutView>,
+) -> Result<()> {
+    let config = match read_config(&dir) {
+        Ok(config) => config,
+        Err(_) if memory => Config::new(PathBuf::new()),
+        Err(_) => {
+            create_sqlite_db(&dir)?;
+            println!("Successfully created the database to store your items in!");
+            read_config(&dir)?
+        }
+    };
+
+    // In memory mode, use a default theme without touching disk so no
+    // theme.toml is created. Otherwise, make a default one if it doesn't
+    // exist and read it in.
+    let theme = if memory {
+        Theme::default()
+    } else {
+        let theme_path = dir.theme_path();
+        if !theme_path.exists() {
+            create_empty_theme_toml(&dir)?;
+            migrate_theme(&dir)?; // if a brand new theme, let's save contents for new users
+        }
+        read_theme(&dir)?
+    };
+
+    run_tui(memory, conn, dir, config, theme, view)?;
     Ok(())
 }

@@ -5,4 +5,3 @@ pub mod render;
 pub mod text;
 pub mod theme;
 pub mod tui;
-pub mod ui;

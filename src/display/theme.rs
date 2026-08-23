@@ -1,6 +1,5 @@
 use std::fs::{File, rename};
-use std::io::{BufReader, prelude::*};
-use std::path::PathBuf;
+use std::io::prelude::*;
 
 use anyhow::{Context, Result};
 use ratatui::style::{
@@ -10,7 +9,7 @@ use ratatui::style::{
 use serde::{Deserialize, Serialize};
 use struct_field_names_as_array::FieldNamesAsArray;
 
-use crate::backend::config::get_config_dir;
+use crate::backend::config::ConfigDir;
 
 // Default colors
 fn slate_950() -> Color {
@@ -98,6 +97,34 @@ pub struct ThemeColors {
     pub highlight_color_fg: Color,
 }
 
+impl Default for ThemeColors {
+    fn default() -> Self {
+        Self {
+            normal_row_bg: slate_950(),
+            alt_row_bg: slate_900(),
+            selected_style: slate_800(),
+            status_bar: emerald_950(),
+            tasks_box_bg: slate_950(),
+            tasks_box_outline: white_default(),
+            tasks_box_scrollbar: white_default(),
+            tasks_info_box_bg: slate_950(),
+            tasks_info_box_outline: white_default(),
+            tasks_info_box_scrollbar: white_default(),
+            state_box_bg: slate_950(),
+            state_box_outline: white_default(),
+            state_box_scrollbar: white_default(),
+            help_menu_bg: slate_950(),
+            help_menu_outline: white_default(),
+            help_menu_scrollbar: white_default(),
+            pop_up_bg: slate_800(),
+            pop_up_outline: white_default(),
+            state_box_outline_during_tags_edit: blue_default(),
+            highlight_color_bg: cyan_default(),
+            highlight_color_fg: black_default(),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ThemeText {
     #[serde(default = "cyan_default")]
@@ -150,6 +177,38 @@ pub struct ThemeText {
     pub help_quick_actions: Color,
     #[serde(default = "yellow_default")]
     pub help_movement: Color,
+}
+
+impl Default for ThemeText {
+    fn default() -> Self {
+        Self {
+            status_open: cyan_default(),
+            status_working: blue_default(),
+            status_paused: yellow_default(),
+            status_completed: green_default(),
+            urgency_low: green_default(),
+            urgency_medium: yellow_default(),
+            urgency_high: magenta_default(),
+            urgency_critical: red_default(),
+            urgency_ascending: red_default(),
+            urgency_descending: blue_default(),
+            title: magenta_default(),
+            created_date: cyan_default(),
+            completed_date: green_default(),
+            latest: blue_default(),
+            description: magenta_default(),
+            tags: blue_default(),
+            layout_smart: yellow_default(),
+            layout_horizontal: cyan_default(),
+            layout_vertical: blue_default(),
+            filter_status_all: cyan_default(),
+            filter_status_completed: green_default(),
+            filter_status_notcompleted: yellow_default(),
+            help_actions: blue_default(),
+            help_quick_actions: magenta_default(),
+            help_movement: yellow_default(),
+        }
+    }
 }
 
 // Default Theme styles
@@ -209,19 +268,39 @@ pub struct ThemeStyles {
     pub completed: String,
 }
 
+impl Default for ThemeStyles {
+    fn default() -> Self {
+        Self {
+            scrollbar_begin: scroll_begin(),
+            scrollbar_end: scroll_end(),
+            scrollbar_thumb: scroll_thumb(),
+            scrollbar_track: scroll_track(),
+            highlight_symbol: highlight_symbol(),
+            urgency_low: urgency_low(),
+            urgency_medium: urgency_medium(),
+            urgency_high: urgency_high(),
+            urgency_critical: urgency_critical(),
+            completed: completed(),
+        }
+    }
+}
+
 /// Overall struct that holds `ThemeColors` and `ThemeStyles`
-#[derive(Debug, Deserialize, Serialize, FieldNamesAsArray)]
+#[derive(Debug, Deserialize, Serialize, FieldNamesAsArray, Default)]
 pub struct Theme {
     // Colors
+    #[serde(default)]
     pub theme_colors: ThemeColors,
     // Text Colors
+    #[serde(default)]
     pub text_colors: ThemeText,
     // Styles
+    #[serde(default)]
     pub theme_styles: ThemeStyles,
 }
 
-pub fn create_empty_theme_toml() -> Result<()> {
-    let toml_file_path = get_toml_file()?;
+pub fn create_empty_theme_toml(dir: &ConfigDir) -> Result<()> {
+    let toml_file_path = dir.theme_path();
     let mut file = File::create(&toml_file_path).with_context(|| {
         format!(
             "Could not create an empty theme.toml file at '{}'",
@@ -240,94 +319,65 @@ pub fn create_empty_theme_toml() -> Result<()> {
 }
 
 impl Theme {
-    /// Saves the `Theme` to a theme.toml file.
-    /// Save location is based on `directories::BaseDirs`.
-    pub fn save(&self) -> Result<()> {
-        match get_config_dir() {
-            Ok(conf_local_dir) => {
-                // For when we want to save the toml file
-                // We can do this by creating a .tmp file and renaming it
-                // This minimizes the chance of data being lost if an error
-                // happens mid-write
-                let toml_file = String::from("theme.toml");
-                let tmp_file = format!("{toml_file}.tmp");
+    /// Saves the `Theme` to the `theme.toml` file inside `dir`.
+    ///
+    /// Writes to a `.tmp` file first and renames it into place, which
+    /// minimizes the chance of data loss if an error happens mid-write.
+    pub fn save(&self, dir: &ConfigDir) -> Result<()> {
+        let toml_file_path = dir.theme_path();
+        let tmp_file_path = dir.path().join("theme.toml.tmp");
 
-                let toml_file_path = conf_local_dir.join(&toml_file);
-                let tmp_file_path = conf_local_dir.join(&tmp_file);
+        let toml_string =
+            toml::to_string(self).context("Had an issue serializing the toml file")?;
 
-                let toml_string =
-                    toml::to_string(self).context("Had an issue serializing the toml file")?;
+        // Create a .tmp file
+        let mut file = File::create(&tmp_file_path).context("Failed to make a .tmp file")?;
+        file.write_all(toml_string.as_bytes())
+            .context("Failed to write theme toml file")?;
 
-                // Create a .tmp file
-                let mut file =
-                    File::create(&tmp_file_path).context("Failed to make a .tmp file")?;
-                file.write_all(toml_string.as_bytes())
-                    .context("Failed to write theme toml file")?;
-
-                // Rename .tmp file to old file
-                rename(&tmp_file_path, &toml_file_path)
-                    .with_context(|| { format!("Failed to update config file with rename:\ntmp_file: {tmp_file:?}\nconfig_file:{toml_file:?}")})?;
-            }
-            Err(e) => {
-                println!("Failed getting the configuration location: {e:?}");
-                panic!()
-            }
-        }
+        // Rename .tmp file into place
+        rename(&tmp_file_path, &toml_file_path).with_context(|| {
+            format!(
+                "Failed to update theme file with rename:\ntmp_file: {tmp_file_path:?}\ntoml_file: {toml_file_path:?}"
+            )
+        })?;
         Ok(())
     }
 }
 
-/// Returns a `Result<PathBuf>` of the theme.toml file
-pub fn get_toml_file() -> Result<PathBuf> {
-    match get_config_dir() {
-        Ok(local_config_dir) => {
-            let toml_f = String::from("theme.toml");
-            let toml_file_path = local_config_dir.join(&toml_f);
-
-            Ok(toml_file_path)
-        }
-        Err(e) => {
-            println!("Failed getting the theme toml at: {e:?}");
-            panic!()
-        }
-    }
-}
-
-/// Returns a `Result<Theme>` from the theme.toml file
-pub fn read_theme() -> Result<Theme> {
-    let toml_file_path = get_toml_file()?;
-    let toml_file = std::fs::File::open(&toml_file_path)
-        .with_context(|| format!("Failed to open {toml_file_path:?}"))?;
-    let mut reader = BufReader::new(toml_file);
-
-    let mut buf = String::new();
-    reader
-        .read_to_string(&mut buf)
-        .context("Failed to read file contents to string")?;
-
-    // Check if all theme elements are present
-    let theme_elements = Theme::FIELD_NAMES_AS_ARRAY;
-    for element in theme_elements {
-        // If one isn't, add it
-        // This allows the toml file to get read in
-        // by Theme, which can then fill in defaults
-        // as needed
-        if !buf.contains(element) {
-            buf.push_str(&format!("\n[{element}]"));
-            println!("Added new theme element [{element}] into the theme.toml");
-        }
-    }
+/// Returns a `Result<Theme>` from the `theme.toml` file in `dir`.
+///
+/// This is a pure read — it never writes to disk. Missing tables or fields
+/// fall back to their `#[serde(default)]` values, so older `theme.toml` files
+/// (or ones missing newly added options) still load. User comments and
+/// formatting in the file are preserved because nothing is re-serialized.
+///
+/// To re-serialize the file with all current keys and defaults (e.g. after an
+/// update adds new theme options), use [`migrate_theme`] or `checklist theme --migrate`.
+pub fn read_theme(dir: &ConfigDir) -> Result<Theme> {
+    let toml_file_path = dir.theme_path();
+    let buf = std::fs::read_to_string(&toml_file_path)
+        .with_context(|| format!("Failed to read {toml_file_path:?}"))?;
 
     let theme: Theme =
         toml::from_str(&buf).context("Failed to parse toml string to Theme struct")?;
 
-    // Save in case attributes are missing
-    // or new theme elements were added in
-    // i.e. if user updates to a checklist version
-    // that has new theme options
-    theme.save()?;
-
     Ok(theme)
+}
+
+/// Re-serializes `theme.toml` in `dir` with all current keys and defaults.
+///
+/// Reads the existing theme (filling any gaps with defaults), then writes it
+/// back via [`Theme::save`]. This is the only path that rewrites the file, so
+/// it is opt-in — note that it will **not** preserve user comments
+/// since the file is regenerated from the parsed struct. Intended
+/// for picking up newly available theme options after a checklist update.
+pub fn migrate_theme(dir: &ConfigDir) -> Result<()> {
+    let theme = read_theme(dir)?;
+    theme.save(dir)?;
+    println!("Re-serialized theme.toml with all current keys and defaults.");
+    println!("Note: any comments or custom formatting were not preserved.");
+    Ok(())
 }
 
 #[cfg(test)]
@@ -373,5 +423,49 @@ mod tests {
         )
         .unwrap();
         println!("{theme:?}");
+    }
+
+    #[test]
+    fn default_theme_matches_defaults_without_disk() {
+        // Theme::default() should produce the same values a freshly generated
+        // theme.toml would, without touching the filesystem.
+        let theme = Theme::default();
+
+        // A couple of representative defaults from each section.
+        assert_eq!(theme.theme_colors.normal_row_bg, SLATE.c950);
+        assert_eq!(theme.text_colors.status_open, Color::Cyan);
+        assert_eq!(theme.theme_styles.scrollbar_thumb, Some(String::from("█")));
+        assert_eq!(theme.theme_styles.urgency_critical, String::from("!!!"));
+    }
+
+    #[test]
+    fn read_theme_fills_missing_tables_with_defaults() {
+        // A theme.toml missing entire tables should still deserialize, with
+        // serde defaults filling the gaps — no patch-up or rewrite needed.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = ConfigDir::new(tmp.path().to_path_buf());
+
+        // Only one table, partially specified.
+        std::fs::write(
+            dir.theme_path(),
+            "# a comment that must survive\n[text_colors]\nstatus_open = 'red'\n",
+        )
+        .unwrap();
+
+        let theme = read_theme(&dir).unwrap();
+        // Specified value is honored.
+        assert_eq!(theme.text_colors.status_open, Color::Red);
+        // Missing field within the present table uses its serde default.
+        assert_eq!(theme.text_colors.status_completed, Color::Green);
+        // Entirely missing tables fall back to defaults.
+        assert_eq!(theme.theme_colors.normal_row_bg, SLATE.c950);
+        assert_eq!(theme.theme_styles.scrollbar_thumb, Some(String::from("█")));
+
+        // read_theme must not rewrite the file — the comment survives.
+        let on_disk = std::fs::read_to_string(dir.theme_path()).unwrap();
+        assert!(
+            on_disk.contains("a comment that must survive"),
+            "read_theme should not rewrite the file"
+        );
     }
 }

@@ -1,13 +1,13 @@
 [package]
 name = "checklist-tui"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2024"
 license = "MIT"
 description = "A TUI for keeping track of your tasks in slim terminal views"
 readme = "README.md"
 repository = "https://github.com/dylanfair/checklist"
 keywords = ["tui", "todo", "task", "terminal", "dashboard"]
-categories = ["command-line-interface"]
+categories = ["command-line-utilities"]
 exclude = ["images/"]
 
 [profile.release]
@@ -33,5 +33,8 @@ serde_json = "1.0.122"
 struct-field-names-as-array = "0.3.0"
 strum = { version = "0.28.0", features = ["strum_macros"] }
 strum_macros = "0.28.0"
-toml = "1.1.2+spec-1.1.0"
+toml = "1.1.2"
 uuid = { version = "1.10.0", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"
