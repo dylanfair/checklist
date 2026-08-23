@@ -8,6 +8,7 @@ Internal refactor focused on the config directory and test isolation.
 
 - `checklist import <DB PATH>` now supports `~` expansion for the import path.
 - `checklist import --memory <DB PATH>` now imports into an in-memory database instead of the configured on-disk database, and no longer creates config or database files on disk when a config does not exist.
+- `--memory` no longer creates a `theme.toml` file on disk. A default theme is constructed in memory instead, so `--memory` is now fully ephemeral (no config, database, or theme files written).
 - `checklist import` now accepts a `--display` flag (and optional `-v/--view`) to open the TUI showing the imported tasks once the import finishes. Works with `--memory` — the import is loaded into the in-memory database and then displayed.
 - `init --set <path>` has been improved upon in the following ways:
   - User provided input to the `init --set <path>` command now supports paths leading with `~` to denote the user's home directory.

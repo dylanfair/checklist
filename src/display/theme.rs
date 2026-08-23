@@ -239,6 +239,18 @@ pub fn create_empty_theme_toml(dir: &ConfigDir) -> Result<()> {
 }
 
 impl Theme {
+    /// Returns a `Theme` populated with all the default values, without
+    /// reading from or writing to disk. Used for `--memory` mode so no
+    /// `theme.toml` is created on disk.
+    ///
+    /// Deserializing the three empty tables triggers each field's
+    /// `#[serde(default = "...")]` function, yielding the same defaults a
+    /// freshly generated `theme.toml` would produce.
+    pub fn default_theme() -> Theme {
+        toml::from_str("[theme_colors]\n[text_colors]\n[theme_styles]\n")
+            .expect("default theme TOML is a compile-time constant and must parse")
+    }
+
     /// Saves the `Theme` to the `theme.toml` file inside `dir`.
     ///
     /// Writes to a `.tmp` file first and renames it into place, which
@@ -346,5 +358,18 @@ mod tests {
         )
         .unwrap();
         println!("{theme:?}");
+    }
+
+    #[test]
+    fn default_theme_matches_defaults_without_disk() {
+        // default_theme() should produce the same values a freshly generated
+        // theme.toml would, without touching the filesystem.
+        let theme = Theme::default_theme();
+
+        // A couple of representative defaults from each section.
+        assert_eq!(theme.theme_colors.normal_row_bg, SLATE.c950);
+        assert_eq!(theme.text_colors.status_open, Color::Cyan);
+        assert_eq!(theme.theme_styles.scrollbar_thumb, Some(String::from("█")));
+        assert_eq!(theme.theme_styles.urgency_critical, String::from("!!!"));
     }
 }

@@ -11,7 +11,7 @@ use backend::config::{Config, ConfigDir, expand_tilde, read_config, set_new_path
 use backend::database::{create_sqlite_db, get_db};
 use backend::wipe::wipe_tasks;
 
-use display::theme::{create_empty_theme_toml, read_theme};
+use display::theme::{Theme, create_empty_theme_toml, read_theme};
 use display::tui::{LayoutView, run_tui};
 
 use crate::backend::import::import;
@@ -201,15 +201,18 @@ fn launch_tui(
         }
     };
 
-    // This will handle the theme, making a default one if
-    // One doesn't exist
-    let theme_path = dir.theme_path();
-    if !theme_path.exists() {
-        create_empty_theme_toml(&dir)?;
-    }
-
-    // Now read it in
-    let theme = read_theme(&dir)?;
+    // In memory mode, use a default theme without touching disk so no
+    // theme.toml is created. Otherwise, make a default one if it doesn't
+    // exist and read it in.
+    let theme = if memory {
+        Theme::default_theme()
+    } else {
+        let theme_path = dir.theme_path();
+        if !theme_path.exists() {
+            create_empty_theme_toml(&dir)?;
+        }
+        read_theme(&dir)?
+    };
 
     run_tui(memory, conn, dir, config, theme, view)?;
     Ok(())
