@@ -96,6 +96,15 @@ If you instead want to import tasks from another `checklist` SQLite database (i.
 checklist import <DB PATH>
 ```
 
+If you'd like to jump straight into the TUI after the import finishes, pass `--display`. You can also pair it with `-v/--view` to pick the starting layout view:
+
+```sh
+checklist import --display <DB PATH>
+checklist import --display -v vertical <DB PATH>
+```
+
+This works with `--memory` too — the tasks are imported into the in-memory database and then displayed, so you can preview an import without writing to disk.
+
 There are only a couple other commands from the CLI that you need to know:
 
 ```sh

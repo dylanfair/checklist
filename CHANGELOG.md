@@ -8,6 +8,7 @@ Internal refactor focused on the config directory and test isolation.
 
 - `checklist import <DB PATH>` now supports `~` expansion for the import path.
 - `checklist import --memory <DB PATH>` now imports into an in-memory database instead of the configured on-disk database, and no longer creates config or database files on disk when a config does not exist.
+- `checklist import` now accepts a `--display` flag (and optional `-v/--view`) to open the TUI showing the imported tasks once the import finishes. Works with `--memory` — the import is loaded into the in-memory database and then displayed.
 - `init --set <path>` has been improved upon in the following ways:
   - User provided input to the `init --set <path>` command now supports paths leading with `~` to denote the user's home directory.
   - If user passes in a directory and no 'checklist.sqlite' exists, one is made. Otherwise, the existing 'checklist.sqlite' is used.
@@ -22,6 +23,7 @@ Internal refactor focused on the config directory and test isolation.
 - The config directory is now resolved once at startup and passed through as a value (`ConfigDir`) instead of being a hardcoded global switched by a `testing` flag. As a result, the `--test` CLI flag has been removed (`--memory` covers user testing needs).
 - Tests now run against isolated temp directories instead of the real `~/.config/checklist/`. The full test suite passes under default parallel execution; `--test-threads=1` is no longer needed.
 - `Runtime` enum (Memory/Test/Real) collapsed to a simpler `memory` flag on the app.
+- `import` now returns the `Connection` it imported into, and `run_tui`/`App` accept an existing connection instead of always opening their own. This lets `import --display` (including with `--memory`) show the freshly imported tasks in the same database.
 - Cleaned up the `toml` dependency version string.
 
 # v0.1.7

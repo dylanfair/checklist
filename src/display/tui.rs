@@ -10,7 +10,7 @@ use ratatui::{
 use rusqlite::Connection;
 
 use crate::backend::config::{Config, ConfigDir};
-use crate::backend::database::{delete_task_in_db, get_all_db_contents, get_db};
+use crate::backend::database::{delete_task_in_db, get_all_db_contents};
 use crate::backend::task::TaskList;
 use crate::display::add::{EntryMode, Inputs, Stage};
 use crate::display::render::{
@@ -25,13 +25,14 @@ use self::common::{install_hooks, restore_terminal};
 
 pub fn run_tui(
     memory: bool,
+    conn: Connection,
     dir: ConfigDir,
     config: Config,
     theme: Theme,
     view: Option<LayoutView>,
 ) -> color_eyre::Result<(), anyhow::Error> {
     install_hooks()?;
-    let mut app = App::new(memory, dir, config, theme, view)?;
+    let mut app = App::new(memory, conn, dir, config, theme, view)?;
     app.run()?;
 
     restore_terminal()?;
@@ -128,12 +129,12 @@ pub struct App {
 impl App {
     fn new(
         memory: bool,
+        conn: Connection,
         dir: ConfigDir,
         config: Config,
         theme: Theme,
         view: Option<LayoutView>,
     ) -> Result<Self> {
-        let conn = get_db(memory, &dir)?;
         let tasklist = TaskList::new();
 
         let layout_view = view.unwrap_or_default();

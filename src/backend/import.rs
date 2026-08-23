@@ -9,7 +9,7 @@ use crate::backend::{
     },
 };
 
-pub fn import(database: PathBuf, memory: bool, config_directory: &ConfigDir) -> Result<()> {
+pub fn import(database: PathBuf, memory: bool, config_directory: &ConfigDir) -> Result<Connection> {
     let dest_conn = if memory {
         make_memory_connection()?
     } else {
@@ -26,7 +26,7 @@ pub fn import(database: PathBuf, memory: bool, config_directory: &ConfigDir) -> 
 
     import_database(database, &dest_conn)?;
     println!("Finished importing tasks to current database.");
-    Ok(())
+    Ok(dest_conn)
 }
 
 fn import_database(database_path: PathBuf, dest_conn: &Connection) -> Result<()> {

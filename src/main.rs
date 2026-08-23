@@ -2,11 +2,12 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use rusqlite::Connection;
 
 mod backend;
 mod display;
 
-use backend::config::{ConfigDir, expand_tilde, read_config, set_new_path};
+use backend::config::{Config, ConfigDir, expand_tilde, read_config, set_new_path};
 use backend::database::{create_sqlite_db, get_db};
 use backend::wipe::wipe_tasks;
 
@@ -78,6 +79,14 @@ enum Commands {
         /// Path to the database you want to import
         #[arg(value_parser = expand_tilde)]
         database: PathBuf,
+
+        /// Open the TUI displaying the imported tasks after the import finishes
+        #[arg(long)]
+        display: bool,
+
+        /// What Layout View to start with (used with --display)
+        #[arg(short, long, value_enum)]
+        view: Option<LayoutView>,
     },
 }
 
@@ -112,7 +121,7 @@ fn main() -> Result<()> {
             wipe_tasks(&conn, yes, hard)?
         }
 
-        Some(Commands::Display { view }) => bootstrap(&cli, dir, view)?,
+        Some(Commands::Display { view }) => bootstrap(cli.memory, dir, view)?,
 
         Some(Commands::Where { db, config, theme }) => {
             if !db && !config && !theme {
@@ -151,19 +160,40 @@ fn main() -> Result<()> {
             }
         }
 
-        Some(Commands::Import { database }) => import(database, cli.memory, &dir)?,
+        Some(Commands::Import { database, display, view }) => {
+            let conn = import(database, cli.memory, &dir)?;
+            if display {
+                launch_tui(cli.memory, dir, conn, view)?;
+            }
+        }
 
         None => {
-            bootstrap(&cli, dir, Some(LayoutView::default()))?;
+            bootstrap(cli.memory, dir, Some(LayoutView::default()))?;
         }
     }
 
     Ok(())
 }
 
-fn bootstrap(cli: &Cli, dir: ConfigDir, view: Option<LayoutView>) -> Result<()> {
+fn bootstrap(memory: bool, dir: ConfigDir, view: Option<LayoutView>) -> Result<()> {
+    let conn = get_db(memory, &dir).or_else(|_| {
+        // Disk mode with no config yet: bootstrap a default DB + config, then retry.
+        create_sqlite_db(&dir)?;
+        println!("Successfully created the database to store your items in!");
+        get_db(memory, &dir)
+    })?;
+    launch_tui(memory, dir, conn, view)
+}
+
+fn launch_tui(
+    memory: bool,
+    dir: ConfigDir,
+    conn: Connection,
+    view: Option<LayoutView>,
+) -> Result<()> {
     let config = match read_config(&dir) {
         Ok(config) => config,
+        Err(_) if memory => Config::new(PathBuf::new()),
         Err(_) => {
             create_sqlite_db(&dir)?;
             println!("Successfully created the database to store your items in!");
@@ -181,6 +211,6 @@ fn bootstrap(cli: &Cli, dir: ConfigDir, view: Option<LayoutView>) -> Result<()> 
     // Now read it in
     let theme = read_theme(&dir)?;
 
-    run_tui(cli.memory, dir, config, theme, view)?;
+    run_tui(memory, conn, dir, config, theme, view)?;
     Ok(())
 }
