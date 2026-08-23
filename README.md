@@ -157,7 +157,7 @@ Comments and custom formatting in your `theme.toml` are preserved when the app r
 checklist theme --migrate
 ```
 
-This re-serializes `theme.toml` with all current keys and defaults. Note that it regenerates the file from the parsed struct, so comments and custom formatting are **not** preserved by a migrate.
+This re-serializes `theme.toml` with all current keys and defaults. Note that it regenerates the file from the parsed struct, so comments are **not** preserved by a migrate.
 
 ## VSCode oddity
 

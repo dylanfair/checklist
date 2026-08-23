@@ -331,8 +331,7 @@ impl Theme {
             toml::to_string(self).context("Had an issue serializing the toml file")?;
 
         // Create a .tmp file
-        let mut file =
-            File::create(&tmp_file_path).context("Failed to make a .tmp file")?;
+        let mut file = File::create(&tmp_file_path).context("Failed to make a .tmp file")?;
         file.write_all(toml_string.as_bytes())
             .context("Failed to write theme toml file")?;
 
@@ -370,8 +369,8 @@ pub fn read_theme(dir: &ConfigDir) -> Result<Theme> {
 ///
 /// Reads the existing theme (filling any gaps with defaults), then writes it
 /// back via [`Theme::save`]. This is the only path that rewrites the file, so
-/// it is opt-in — note that it will **not** preserve user comments or custom
-/// formatting, since the file is regenerated from the parsed struct. Intended
+/// it is opt-in — note that it will **not** preserve user comments
+/// since the file is regenerated from the parsed struct. Intended
 /// for picking up newly available theme options after a checklist update.
 pub fn migrate_theme(dir: &ConfigDir) -> Result<()> {
     let theme = read_theme(dir)?;
