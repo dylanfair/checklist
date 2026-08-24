@@ -115,8 +115,6 @@ checklist import --display -v vertical <DB PATH>
 
 This works with `--memory` too — the tasks are imported into the in-memory database and then displayed, so you can preview an import without writing to disk.
 
-There are only a couple other commands from the CLI that you need to know:
-
 ### `wipe` Command - Cleaning out your database
 
 ```sh
