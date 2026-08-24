@@ -577,19 +577,27 @@ mod tests {
     #[test]
     fn schema_release_history_is_complete() {
         let latest = latest_schema_version();
-        let mut expected: Vec<usize> = (0..=latest).rev().collect();
+        let expected: Vec<usize> = (0..=latest).rev().collect();
         let actual: Vec<usize> = SCHEMA_RELEASE_HISTORY.iter().map(|(v, _)| *v).collect();
-        assert_eq!(actual, expected, "SCHEMA_RELEASE_HISTORY should list every schema version 0..={latest}, newest first — add an entry when introducing a migration");
+        assert_eq!(
+            actual, expected,
+            "SCHEMA_RELEASE_HISTORY should list every schema version 0..={latest}, newest first — add an entry when introducing a migration"
+        );
     }
 
     #[test]
     fn resolve_target_prior() {
-        let conn = Connection::open_in_memory().unwrap();
         let mut conn = make_memory_connection().unwrap();
         run_migrations(&mut conn, None).unwrap(); // now at V1
 
         let plan = resolve_target(&conn, RequestedVersion::Prior).unwrap();
-        assert_eq!(plan, MigrationPlan { target: 0, current: 1 });
+        assert_eq!(
+            plan,
+            MigrationPlan {
+                target: 0,
+                current: 1
+            }
+        );
         assert!(plan.is_downward());
 
         // From the bottom there is no prior.
@@ -599,7 +607,7 @@ mod tests {
 
     #[test]
     fn resolve_target_rejects_unknown_versions() {
-        let mut conn = make_memory_connection().unwrap();
+        let conn = make_memory_connection().unwrap();
 
         let err = resolve_target(&conn, RequestedVersion::Exact(99))
             .expect_err("exact target above latest must be rejected");
@@ -630,7 +638,6 @@ mod tests {
         // Schema 0 predates v0.1.9, which introduced schema 1.
         assert_eq!(releases_for_schema(0), "checklist versions before v0.1.9");
         // Nothing has moved past the newest schema yet.
-        assert!(releases_for_schema(latest_schema_version())
-            .starts_with("all checklist releases"));
+        assert!(releases_for_schema(latest_schema_version()).starts_with("all checklist releases"));
     }
 }
