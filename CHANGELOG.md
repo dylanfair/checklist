@@ -10,7 +10,7 @@ Tags get a proper home in the database schema, and databases now upgrade themsel
 - Database schema changes now ship as automatic migrations: on first launch after updating, pending migrations apply in order before the app opens. No manual steps are needed to upgrade an existing database.
 - `checklist import` remains lossless when importing from older, pre-migration databases - their tags are read from the legacy format and written into the new one.
 - Startup errors retrieving the database or config are now reported to stderr instead of failing silently, making issues like a stale `config.json` path easier to diagnose.
-- Before a database upgrade applies, a snapshot of your database is kept alongside it (e.g. `checklist.sqlite.pre-migration-v0.bak`). If an upgrade ever misbehaves, that file can be restored and used with the previous version of `checklist`. Snapshots are never overwritten by later attempts, and no backup is created when there is nothing to upgrade.
+- Before a database upgrade applies, a snapshot of your database is kept in a `migration-snapshots/` folder next to it (e.g. `migration-snapshots/checklist.sqlite.pre-migration-v0.bak`). If an upgrade ever misbehaves, that file can be restored and used with the previous version of `checklist`. Snapshots are never overwritten by later attempts, and no backup is created when there is nothing to upgrade.
 
 ## Internal Changes
 

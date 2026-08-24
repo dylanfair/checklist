@@ -61,6 +61,9 @@ pub fn migrations() -> Migrations<'static> {
 /// Behavior:
 /// - No-op when the database is already at the latest version (nothing is
 ///   about to change).
+/// - Snapshots collect in a `migration-snapshots/` folder next to the
+///   database (wherever it lives — the config dir by default, or an
+///   `init --set` location), keeping each database's safety net with it.
 /// - Backup files carry the source version in their name
 ///   (`checklist.sqlite.pre-migration-v0.bak`), so each upgrade era gets its
 ///   own snapshot.
@@ -78,7 +81,22 @@ pub fn backup_before_migration(conn: &Connection, db_path: &Path) -> anyhow::Res
         return Ok(());
     }
 
-    let mut bak_name = db_path.as_os_str().to_os_string();
+    // Collect snapshots in a dedicated folder next to the database rather
+    // than cluttering its directory.
+    let snapshots_dir = db_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("migration-snapshots");
+    std::fs::create_dir_all(&snapshots_dir).with_context(|| {
+        format!(
+            "Failed to create the migration snapshots folder: {}",
+            snapshots_dir.display()
+        )
+    })?;
+
+    let mut bak_name = snapshots_dir
+        .join(db_path.file_name().unwrap_or_default())
+        .into_os_string();
     bak_name.push(format!(".pre-migration-v{current}.bak"));
     let bak_path = std::path::PathBuf::from(bak_name);
 
@@ -366,7 +384,10 @@ mod tests {
         }
 
         let conn = make_connection(&db_path).unwrap();
-        let bak_path = tmp.path().join("checklist.sqlite.pre-migration-v0.bak");
+        let bak_path = tmp
+            .path()
+            .join("migration-snapshots")
+            .join("checklist.sqlite.pre-migration-v0.bak");
         assert!(!bak_path.exists());
 
         backup_before_migration(&conn, &db_path).unwrap();
@@ -393,7 +414,10 @@ mod tests {
         // real version-0 checklist database.
         create_sqlite_db_at(db_path.clone()).unwrap();
         let conn = make_connection(&db_path).unwrap();
-        let bak_path = tmp.path().join("checklist.sqlite.pre-migration-v0.bak");
+        let bak_path = tmp
+            .path()
+            .join("migration-snapshots")
+            .join("checklist.sqlite.pre-migration-v0.bak");
         backup_before_migration(&conn, &db_path).unwrap();
         drop(conn);
         let pristine = std::fs::read(&bak_path).unwrap();
@@ -422,7 +446,10 @@ mod tests {
         // Already at latest: no pending migration, so no backup should be
         // created even though the path is writable.
         backup_before_migration(&conn, &db_path).unwrap();
-        let bak_path = tmp.path().join("checklist.sqlite.pre-migration-v1.bak");
+        let bak_path = tmp
+            .path()
+            .join("migration-snapshots")
+            .join("checklist.sqlite.pre-migration-v1.bak");
         assert!(!bak_path.exists());
     }
 }
