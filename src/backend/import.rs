@@ -65,7 +65,7 @@ fn import_database(database_path: PathBuf, dest_conn: &Connection) -> Result<()>
 #[cfg(test)]
 mod tests {
     use crate::backend::config::ConfigDir;
-    use crate::backend::task::{Status, Task, Urgency};
+    use crate::backend::task::{Status, Urgency};
     use std::collections::HashSet;
     use tempfile::tempdir;
 
@@ -80,20 +80,6 @@ mod tests {
             rusqlite::params![uuid::Uuid::new_v4(), chrono::Local::now()],
         )
         .unwrap();
-    }
-
-    fn sample_task() -> Task {
-        Task::new(
-            "My new task".to_string(),
-            Some("New description".to_string()),
-            Some("New latest".to_string()),
-            Some(Urgency::Critical),
-            Some(Status::Open),
-            Some(HashSet::from_iter(vec![
-                String::from("Tag1"),
-                String::from("Tag2"),
-            ])),
-        )
     }
 
     #[test]

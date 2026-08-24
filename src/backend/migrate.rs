@@ -33,7 +33,7 @@
 
 use include_dir::{Dir, include_dir};
 use rusqlite::Connection;
-use rusqlite_migration::{Migrations, SchemaVersion};
+use rusqlite_migration::Migrations;
 
 /// The embedded migrations directory.
 static MIGRATION_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/migrations");
@@ -42,8 +42,7 @@ static MIGRATION_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/migrations");
 /// (non-consecutive ids, missing `up.sql`) — that's a build-time authoring bug,
 /// not a runtime condition, so failing fast is appropriate.
 pub fn migrations() -> Migrations<'static> {
-    Migrations::from_directory(&MIGRATION_DIR)
-        .expect("embedded migration files should be valid")
+    Migrations::from_directory(&MIGRATION_DIR).expect("embedded migration files should be valid")
 }
 
 /// Bring a database up to the latest schema version. Applies any pending
@@ -85,13 +84,14 @@ mod tests {
     use super::*;
 
     use crate::backend::database::make_memory_connection;
+    use rusqlite_migration::SchemaVersion;
 
     #[test]
     fn migrations_load_from_embedded_directory() {
         // A malformed migrations directory would have made `migrations()`
         // panic; reaching here means ids were consecutive and every migration
         // had an up.sql.
-        let mut conn = make_memory_connection().unwrap();
+        let conn = make_memory_connection().unwrap();
         assert_eq!(
             migrations().current_version(&conn).unwrap(),
             SchemaVersion::NoneSet,
@@ -192,10 +192,11 @@ mod tests {
         );
 
         // 2. The old tags column is gone.
-        let tags_column_gone = conn
-            .prepare("SELECT tags FROM task")
-            .is_err();
-        assert!(tags_column_gone, "task.tags column should have been dropped");
+        let tags_column_gone = conn.prepare("SELECT tags FROM task").is_err();
+        assert!(
+            tags_column_gone,
+            "task.tags column should have been dropped"
+        );
 
         // 3. Tags were copied into the tag table for the tagged task...
         let tag_rows: HashSet<String> = conn
@@ -207,10 +208,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             tag_rows,
-            HashSet::from_iter([
-                "work".to_string(),
-                "urgent".to_string(),
-            ])
+            HashSet::from_iter(["work".to_string(), "urgent".to_string(),])
         );
 
         // ...and the untagged task produced no rows.
