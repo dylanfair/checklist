@@ -43,7 +43,7 @@ static MIGRATION_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/migrations");
 /// The highest schema version the running binary knows about. Migration ids
 /// are consecutive starting at 1 (validated by `from_directory`), so the
 /// directory count is exactly the latest id.
-fn latest_schema_version() -> usize {
+pub fn latest_schema_version() -> usize {
     MIGRATION_DIR.dirs().count()
 }
 
@@ -54,13 +54,13 @@ pub fn migrations() -> Migrations<'static> {
     Migrations::from_directory(&MIGRATION_DIR).expect("embedded migration files should be valid")
 }
 
-/// Snapshot the database file before a pending migration, so a bad migration
-/// can be recovered from by restoring the backup and reinstalling an older
-/// binary (schema and binary are a matched pair — see README).
+/// Snapshot the database file before a schema change (up or down), so a bad
+/// migration can be recovered from by restoring the backup and reinstalling a
+/// matching binary (schema and binary are a matched pair — see README).
 ///
 /// Behavior:
-/// - No-op when the database is already at the latest version (nothing is
-///   about to change).
+/// - No-op when the database is already at `target` (nothing is about to
+///   change). Works for downward moves too — see [`migrate_to_version`].
 /// - Snapshots collect in a `checklist-migration-snapshots/` folder next to the
 ///   database (wherever it lives — the config dir by default, or an
 ///   `init --set` location), keeping each database's safety net with it.
@@ -70,14 +70,17 @@ pub fn migrations() -> Migrations<'static> {
 /// - An existing backup for that era is never overwritten: if a migration
 ///   fails and corrupts the database, retrying cannot clobber the pristine
 ///   pre-migration snapshot with the damaged file.
-pub fn backup_before_migration(conn: &Connection, db_path: &Path) -> anyhow::Result<()> {
+pub fn backup_before_schema_change(
+    conn: &Connection,
+    db_path: &Path,
+    target: usize,
+) -> anyhow::Result<()> {
     let current = match migrations().current_version(conn)? {
         SchemaVersion::Inside(n) | SchemaVersion::Outside(n) => n.get(),
         SchemaVersion::NoneSet => 0,
     };
-    let latest = latest_schema_version();
-    if current >= latest {
-        // Nothing pending — the database is already current (or ahead of us).
+    if current == target {
+        // Nothing is about to change.
         return Ok(());
     }
 
@@ -112,22 +115,130 @@ pub fn backup_before_migration(conn: &Connection, db_path: &Path) -> anyhow::Res
     Ok(())
 }
 
-/// Bring a database up to the latest schema version. Applies any pending
-/// migrations in order; a no-op when already current. When `db_path` is given,
-/// a pre-migration backup of the database file is ensured first (see
-/// [`backup_before_migration`]).
+/// Which schema version a user asked to move to, from the CLI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequestedVersion {
+    /// One below the database's current version.
+    Prior,
+    /// The newest this binary supports.
+    Latest,
+    /// An exact version.
+    Exact(usize),
+}
+
+/// A resolved migration request, ready to execute.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MigrationPlan {
+    pub target: usize,
+    pub current: usize,
+}
+
+impl MigrationPlan {
+    /// True when this plan moves the schema backwards.
+    pub fn is_downward(&self) -> bool {
+        self.target < self.current
+    }
+
+    /// True when executing would change nothing.
+    pub fn is_no_op(&self) -> bool {
+        self.target == self.current
+    }
+}
+
+/// Maps schema versions to the last checklist release that used them. Used to
+/// tell users which app version can open a database after a downgrade.
+///
+/// Maintenance convention: when you add migration `N`, add one entry here —
+/// `(N, "<current crate version>")` — in the same commit as its SQL. Write
+/// the version as a literal string rather than `env!("CARGO_PKG_VERSION")`:
+/// the env value is only correct in the release that introduces the
+/// migration and would silently drift afterwards. A unit test enforces that
+/// this table keeps covering every known schema version.
+const SCHEMA_RELEASE_HISTORY: &[(usize, &str)] = &[(1, "0.1.9"), (0, "0.1.8")];
+
+/// Human-readable description of which checklist releases open a database at
+/// the given schema version. Derived from [`SCHEMA_RELEASE_HISTORY`]: the
+/// first release that moved *past* `schema` is the first one that can no
+/// longer read it natively.
+pub fn releases_for_schema(schema: usize) -> String {
+    match SCHEMA_RELEASE_HISTORY.iter().find(|(v, _)| *v > schema) {
+        Some((_, first_incompatible)) => {
+            format!("checklist versions before v{first_incompatible}")
+        }
+        // Every known release uses this schema or older; nothing has moved
+        // past it yet.
+        None => format!(
+            "all checklist releases up to and including v{}",
+            env!("CARGO_PKG_VERSION")
+        ),
+    }
+}
+
+/// Turn a user's migration request into a concrete plan against a database.
+/// Pure validation — no I/O beyond reading the schema version — so the CLI
+/// can prompt before anything executes.
+pub fn resolve_target(
+    conn: &Connection,
+    requested: RequestedVersion,
+) -> anyhow::Result<MigrationPlan> {
+    let current = match migrations().current_version(conn)? {
+        SchemaVersion::Inside(n) | SchemaVersion::Outside(n) => n.get(),
+        SchemaVersion::NoneSet => 0,
+    };
+    let latest = latest_schema_version();
+
+    let target = match requested {
+        RequestedVersion::Prior => {
+            if current == 0 {
+                anyhow::bail!(
+                    "Already at schema version 0 — there is no earlier version to migrate to."
+                );
+            }
+            let prior = current - 1;
+            if prior > latest {
+                anyhow::bail!(
+                    "This build understands migrations up to version {latest} and cannot \
+                     reach version {prior}. Install a checklist version closer to the one \
+                     that last wrote this database."
+                );
+            }
+            prior
+        }
+        RequestedVersion::Latest => latest,
+        RequestedVersion::Exact(n) => {
+            if n > latest {
+                anyhow::bail!(
+                    "Schema version {n} is unknown to this build, which supports versions \
+                     0..={latest}."
+                );
+            }
+            n
+        }
+    };
+
+    Ok(MigrationPlan { target, current })
+}
+
+/// Bring a database to exactly `target` (up **or** down), with a pre-change
+/// snapshot when the call would actually change something. When `db_path` is
+/// given, the snapshot is a file backup; without it (memory databases) no
+/// backup is possible.
 ///
 /// Per rusqlite_migration's guidance, foreign key enforcement is switched off
 /// for the duration of the migration and restored afterwards — SQLite advises
 /// running schema changes with FK checks off, and PRAGMA foreign_keys is a
 /// no-op inside the migration's own transaction.
-pub fn run_migrations(conn: &mut Connection, db_path: Option<&Path>) -> anyhow::Result<()> {
+pub fn migrate_to_version(
+    conn: &mut Connection,
+    db_path: Option<&Path>,
+    target: usize,
+) -> anyhow::Result<()> {
     if let Some(path) = db_path {
-        backup_before_migration(conn, path)?;
+        backup_before_schema_change(conn, path, target)?;
     }
     conn.pragma_update(None, "foreign_keys", "OFF")?;
     let result = migrations()
-        .to_latest(conn)
+        .to_version(conn, target)
         .map_err(|e| anyhow::anyhow!("Database migration failed: {e}"));
     conn.pragma_update(None, "foreign_keys", "ON")?;
     result?;
@@ -149,6 +260,13 @@ pub fn run_migrations(conn: &mut Connection, db_path: Option<&Path>) -> anyhow::
         );
     }
     Ok(())
+}
+
+/// Bring a database up to the latest schema version. Applies any pending
+/// migrations in order; a no-op when already current. Used by normal startup
+/// paths — see [`migrate_to_version`] for explicit-version moves.
+pub fn run_migrations(conn: &mut Connection, db_path: Option<&Path>) -> anyhow::Result<()> {
+    migrate_to_version(conn, db_path, latest_schema_version())
 }
 
 #[cfg(test)]
@@ -390,7 +508,7 @@ mod tests {
             .join("checklist.sqlite.pre-migration-v0.bak");
         assert!(!bak_path.exists());
 
-        backup_before_migration(&conn, &db_path).unwrap();
+        backup_before_schema_change(&conn, &db_path, 1).unwrap(); // pending: v0 -> v1
         assert!(bak_path.exists());
 
         // The snapshot is a faithful copy: same byte length.
@@ -418,7 +536,7 @@ mod tests {
             .path()
             .join("checklist-migration-snapshots")
             .join("checklist.sqlite.pre-migration-v0.bak");
-        backup_before_migration(&conn, &db_path).unwrap();
+        backup_before_schema_change(&conn, &db_path, 1).unwrap(); // pending: v0 -> v1
         drop(conn);
         let pristine = std::fs::read(&bak_path).unwrap();
 
@@ -426,7 +544,7 @@ mod tests {
         // it can no longer report a usable schema version.
         std::fs::write(&db_path, b"corrupted beyond recognition").unwrap();
         let conn_after = make_connection(&db_path).unwrap();
-        let _ = backup_before_migration(&conn_after, &db_path); // may Err; must not clobber
+        let _ = backup_before_schema_change(&conn_after, &db_path, 1); // may Err; must not clobber
 
         let after_retry = std::fs::read(&bak_path).unwrap();
         assert_eq!(pristine, after_retry, "backup must survive retry attempts");
@@ -445,11 +563,74 @@ mod tests {
 
         // Already at latest: no pending migration, so no backup should be
         // created even though the path is writable.
-        backup_before_migration(&conn, &db_path).unwrap();
+        backup_before_schema_change(&conn, &db_path, 1).unwrap();
         let bak_path = tmp
             .path()
             .join("checklist-migration-snapshots")
             .join("checklist.sqlite.pre-migration-v1.bak");
         assert!(!bak_path.exists());
+    }
+
+    /// SCHEMA_RELEASE_HISTORY must cover every schema version 0..=latest
+    /// exactly once, in descending order — it's what makes downgrade guidance
+    /// trustworthy.
+    #[test]
+    fn schema_release_history_is_complete() {
+        let latest = latest_schema_version();
+        let mut expected: Vec<usize> = (0..=latest).rev().collect();
+        let actual: Vec<usize> = SCHEMA_RELEASE_HISTORY.iter().map(|(v, _)| *v).collect();
+        assert_eq!(actual, expected, "SCHEMA_RELEASE_HISTORY should list every schema version 0..={latest}, newest first — add an entry when introducing a migration");
+    }
+
+    #[test]
+    fn resolve_target_prior() {
+        let conn = Connection::open_in_memory().unwrap();
+        let mut conn = make_memory_connection().unwrap();
+        run_migrations(&mut conn, None).unwrap(); // now at V1
+
+        let plan = resolve_target(&conn, RequestedVersion::Prior).unwrap();
+        assert_eq!(plan, MigrationPlan { target: 0, current: 1 });
+        assert!(plan.is_downward());
+
+        // From the bottom there is no prior.
+        migrations().to_version(&mut conn, 0).unwrap();
+        assert!(resolve_target(&conn, RequestedVersion::Prior).is_err());
+    }
+
+    #[test]
+    fn resolve_target_rejects_unknown_versions() {
+        let mut conn = make_memory_connection().unwrap();
+
+        let err = resolve_target(&conn, RequestedVersion::Exact(99))
+            .expect_err("exact target above latest must be rejected");
+        assert!(err.to_string().contains("unknown to this build"));
+
+        // A database claiming to be from a newer checklist can't be reached
+        // with --prior either: we lack those down files.
+        conn.pragma_update(None, "user_version", &7).unwrap();
+        let err = resolve_target(&conn, RequestedVersion::Prior)
+            .expect_err("--prior on a newer database must be rejected");
+        assert!(err.to_string().contains("cannot"));
+    }
+
+    #[test]
+    fn resolve_target_latest_and_exact_no_op() {
+        let mut conn = make_memory_connection().unwrap();
+        run_migrations(&mut conn, None).unwrap();
+
+        let plan = resolve_target(&conn, RequestedVersion::Latest).unwrap();
+        assert!(plan.is_no_op(), "latest on a current db is a no-op");
+
+        let plan = resolve_target(&conn, RequestedVersion::Exact(1)).unwrap();
+        assert!(plan.is_no_op());
+    }
+
+    #[test]
+    fn releases_for_schema_derives_guidance() {
+        // Schema 0 predates v0.1.9, which introduced schema 1.
+        assert_eq!(releases_for_schema(0), "checklist versions before v0.1.9");
+        // Nothing has moved past the newest schema yet.
+        assert!(releases_for_schema(latest_schema_version())
+            .starts_with("all checklist releases"));
     }
 }
