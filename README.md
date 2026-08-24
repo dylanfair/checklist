@@ -70,7 +70,70 @@ The SQLite database is where your tasks are stored.
 
 When you update `checklist`, any database schema changes ship as automatic migrations — the first launch after an update applies them in order before the app opens. No manual steps are needed, and your data is untouched (each migration runs in a transaction, so an interrupted upgrade simply retries next time). Before an upgrade applies, a snapshot of your database is kept in a `checklist-migration-snapshots/` folder next to it (e.g. `checklist.sqlite.pre-migration-v0.bak`) — if anything ever goes wrong, one of those files can be restored and used with the previous version of `checklist`.
 
-### Moving between schema versions
+## Commands
+
+### `where` Comamnd - Locating files important to checklist
+
+You can always check where files related to checklist live with:
+
+```sh
+checklist where # returns the folder that holds checklist related files
+```
+
+To get specific files:
+
+```sh
+checklist where -d # SQLite database
+checklist where -c # config.json file
+checklist where -t # theme.toml file
+```
+
+### `init` Command - Managing the database location
+
+If you want to point `checklist` to a specific SQLite database (say you moved your files to a new computer), that can be done with:
+
+```sh
+checklist init --set <DB PATH>
+```
+
+If a directory path is given instead, `checklist` will create a `checklist.sqlite` in that location. If a `checklist.sqlite` is already found in that directory, then `checklist` simply uses that database.
+
+If you instead want to import tasks from another `checklist` SQLite database (i.e. you want to merge the tasks from one database with your current one), that can be done with the `checklist import` command. Databases created by older versions of `checklist` import just fine — their data is read and written into the current format.
+
+### `import` Command - Importing a database into your own
+
+```sh
+checklist import <DB PATH>
+```
+
+If you'd like to jump straight into the TUI after the import finishes, pass `--display`. You can also pair it with `-v/--view` to pick the starting layout view:
+
+```sh
+checklist import --display <DB PATH>
+checklist import --display -v vertical <DB PATH>
+```
+
+This works with `--memory` too — the tasks are imported into the in-memory database and then displayed, so you can preview an import without writing to disk.
+
+There are only a couple other commands from the CLI that you need to know:
+
+### `wipe` Command - Cleaning out your database
+
+```sh
+checklist wipe
+```
+
+This will wipe out all tasks in your database should you accept the confirmation prompt -- use with caution.
+
+### `display` Command - Alternative to opening up the TUI
+
+`checklist display` will open up the TUI just like `checklist` by itself would, but it does also allow you to preemptively set the layout view you want to use with the `-v` flag, like so:
+
+```sh
+checklist display -v horizontal
+```
+
+### `migrate` Command - Moving between schema versions
 
 The database format occasionally changes between releases. `checklist migrate` lets you inspect where your database sits and move it deliberately:
 
@@ -103,58 +166,7 @@ Every move takes a fresh snapshot into `checklist-migration-snapshots/` beforeha
 checklist migrate --latest
 ```
 
-Note that moving *up* never prompts (it's the same thing a normal launch does); only moves that go backwards ask for confirmation.
-
-You can always check where files related to checklist live with:
-
-```sh
-checklist where # returns the folder that holds checklist related files
-```
-
-To get specific files:
-
-```sh
-checklist where -d # SQLite database
-checklist where -c # config.json file
-checklist where -t # theme.toml file
-```
-
-If you want to point `checklist` to a specific SQLite database (say you moved your files to a new computer), that can be done with:
-
-```sh
-checklist init --set <DB PATH>
-```
-
-If a directory path is given instead, `checklist` will create a `checklist.sqlite` in that location. If a `checklist.sqlite` is already found in that directory, then `checklist` simply uses that database.
-
-If you instead want to import tasks from another `checklist` SQLite database (i.e. you want to merge the tasks from one database with your current one), that can be done with the `checklist import` command. Databases created by older versions of `checklist` import just fine — their data is read and written into the current format.
-
-```sh
-checklist import <DB PATH>
-```
-
-If you'd like to jump straight into the TUI after the import finishes, pass `--display`. You can also pair it with `-v/--view` to pick the starting layout view:
-
-```sh
-checklist import --display <DB PATH>
-checklist import --display -v vertical <DB PATH>
-```
-
-This works with `--memory` too — the tasks are imported into the in-memory database and then displayed, so you can preview an import without writing to disk.
-
-There are only a couple other commands from the CLI that you need to know:
-
-```sh
-checklist wipe
-```
-
-This will wipe out all tasks in your database should you accept the confirmation prompt -- use with caution.
-
-`checklist display` will open up the TUI just like `checklist` by itself would, but it does also allow you to preemptively set the layout view you want to use with the `-v` flag, like so:
-
-```sh
-checklist display -v horizontal
-```
+Note that moving _up_ never prompts (it's the same thing a normal launch does); only moves that go backwards ask for confirmation.
 
 ## In the App
 
