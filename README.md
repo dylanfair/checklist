@@ -70,6 +70,41 @@ The SQLite database is where your tasks are stored.
 
 When you update `checklist`, any database schema changes ship as automatic migrations — the first launch after an update applies them in order before the app opens. No manual steps are needed, and your data is untouched (each migration runs in a transaction, so an interrupted upgrade simply retries next time). Before an upgrade applies, a snapshot of your database is kept in a `checklist-migration-snapshots/` folder next to it (e.g. `checklist.sqlite.pre-migration-v0.bak`) — if anything ever goes wrong, one of those files can be restored and used with the previous version of `checklist`.
 
+### Moving between schema versions
+
+The database format occasionally changes between releases. `checklist migrate` lets you inspect where your database sits and move it deliberately:
+
+```sh
+checklist migrate # shows your current schema version and what this build supports
+```
+
+Say you want to share your database (or a copy of it) with another machine that still runs an older `checklist`. A database written by a newer release can't be opened by older releases as-is, but you can migrate it down first:
+
+```sh
+checklist migrate --prior # step back one schema version
+```
+
+You'll be shown what's about to happen and asked to confirm. Afterwards you'll see something like:
+
+```sh
+Database migrated down to schema version 0.
+Databases at this version are opened by checklist versions before v0.1.9.
+```
+
+so you know exactly which release can read it. If you know the exact version you want instead of stepping back one at a time, use `--to`:
+
+```sh
+checklist migrate --to 0
+```
+
+Every move takes a fresh snapshot into `checklist-migration-snapshots/` beforehand, so nothing is lost if you change your mind — restore the snapshot, or just run `checklist` again: launching this version of `checklist` will upgrade the database forward automatically. You can also make that explicit with:
+
+```sh
+checklist migrate --latest
+```
+
+Note that moving *up* never prompts (it's the same thing a normal launch does); only moves that go backwards ask for confirmation.
+
 You can always check where files related to checklist live with:
 
 ```sh
