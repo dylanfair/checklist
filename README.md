@@ -68,6 +68,8 @@ Mac\*: `~/Library/Application Support/checklist/`
 
 The SQLite database is where your tasks are stored.
 
+When you update `checklist`, any database schema changes ship as automatic migrations — the first launch after an update applies them in order before the app opens. No manual steps are needed, and your data is untouched (each migration runs in a transaction, so an interrupted upgrade simply retries next time).
+
 You can always check where files related to checklist live with:
 
 ```sh
@@ -90,7 +92,7 @@ checklist init --set <DB PATH>
 
 If a directory path is given instead, `checklist` will create a `checklist.sqlite` in that location. If a `checklist.sqlite` is already found in that directory, then `checklist` simply uses that database.
 
-If you instead want to import tasks from another `checklist` SQLite database (i.e. you want to merge the tasks from one database with your current one), that can be done with the `checklist import` command.
+If you instead want to import tasks from another `checklist` SQLite database (i.e. you want to merge the tasks from one database with your current one), that can be done with the `checklist import` command. Databases created by older versions of `checklist` import just fine — their data is read and written into the current format.
 
 ```sh
 checklist import <DB PATH>
