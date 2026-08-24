@@ -31,8 +31,8 @@
 //! all pending migrations apply to them in order on first launch of a version
 //! of checklist that runs migrations.
 
-use include_dir::{Dir, include_dir};
 use anyhow::Context;
+use include_dir::{Dir, include_dir};
 use rusqlite::Connection;
 use rusqlite_migration::{Migrations, SchemaVersion};
 use std::path::Path;
@@ -103,10 +103,7 @@ pub fn backup_before_migration(conn: &Connection, db_path: &Path) -> anyhow::Res
 /// for the duration of the migration and restored afterwards — SQLite advises
 /// running schema changes with FK checks off, and PRAGMA foreign_keys is a
 /// no-op inside the migration's own transaction.
-pub fn run_migrations(
-    conn: &mut Connection,
-    db_path: Option<&Path>,
-) -> anyhow::Result<()> {
+pub fn run_migrations(conn: &mut Connection, db_path: Option<&Path>) -> anyhow::Result<()> {
     if let Some(path) = db_path {
         backup_before_migration(conn, path)?;
     }
@@ -339,11 +336,9 @@ mod tests {
         // Tags re-materialized in the legacy column. group_concat order is
         // unspecified, so compare as the old reader did: split into a set.
         let joined: String = conn
-            .query_row(
-                "SELECT tags FROM task WHERE id = ?1",
-                [task_id],
-                |row| row.get(0),
-            )
+            .query_row("SELECT tags FROM task WHERE id = ?1", [task_id], |row| {
+                row.get(0)
+            })
             .unwrap();
         let restored: HashSet<String> = joined.split(';').map(str::to_string).collect();
         assert_eq!(
@@ -354,7 +349,7 @@ mod tests {
 
     #[test]
     fn backup_created_before_pending_migration() {
-        use crate::backend::database::{make_connection, make_memory_connection};
+        use crate::backend::database::make_connection;
 
         // A real file-based database at version 0 with data worth protecting.
         let tmp = tempfile::tempdir().unwrap();
