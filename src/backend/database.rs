@@ -95,21 +95,61 @@ pub fn get_db(memory: bool, dir: &ConfigDir) -> Result<Connection> {
         crate::backend::migrate::run_migrations(&mut conn)?;
         Ok(conn)
     } else {
-        let config = read_config(dir).context("Failed to read in config")?;
+        let config = if dir.config_path().exists() {
+            read_config(dir).context(format!(
+                "Failed to read in config in location: {:?}",
+                dir.config_path()
+            ))?
+        } else {
+            let new_config = Config::new(dir.db_path());
+            new_config.save(dir).context(format!(
+                "Failed to save config in location: {:?}",
+                dir.config_path()
+            ))?;
+            new_config
+        };
         let mut conn = make_connection(&config.db_path).with_context(|| {
             format!(
                 "Failed to make a connection to the database: {:?}",
                 config.db_path,
             )
         })?;
+        // A brand-new database file has no tables yet; create the baseline
+        // schema so migrations have something to bring forward.
+        ensure_baseline_schema(&conn)?;
         crate::backend::migrate::run_migrations(&mut conn)?;
         Ok(conn)
     }
 }
 
+/// If the `task` table doesn't exist at all (a brand-new database file),
+/// create the baseline schema. Migrations then bring the database current,
+/// so every checklist-managed database follows the same version-0-to-latest
+/// path regardless of how it came into existence.
+fn ensure_baseline_schema(conn: &Connection) -> Result<()> {
+    // PRAGMA table_info returns one row per column; zero rows means the
+    // table is absent.
+    let mut stmt = conn
+        .prepare("PRAGMA table_info(task)")
+        .context("Failed to inspect the 'task' table schema")?;
+    let columns = stmt
+        .query_map(params![], |row| row.get::<_, String>(1))
+        .context("Failed to read the 'task' table schema")?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .context("Failed to read the 'task' table schema")?;
+    if columns.is_empty() {
+        init_schema(conn)?;
+    }
+    Ok(())
+}
+
 /// Writes a task's tags into the `tag` table, replacing any existing rows for
 /// that task. An empty/`None` set clears the task's tags.
-fn write_task_tags(conn: &Connection, task_id: &uuid::Uuid, tags: &Option<HashSet<String>>) -> Result<()> {
+fn write_task_tags(
+    conn: &Connection,
+    task_id: &uuid::Uuid,
+    tags: &Option<HashSet<String>>,
+) -> Result<()> {
     conn.execute("DELETE FROM tag WHERE task_id = ?1", params![task_id])
         .context("Failed to clear existing tags for the task")?;
     if let Some(tags) = tags {
@@ -230,7 +270,9 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
         "SELECT id, name, description, latest, urgency, status, date_added, completed_on
          FROM task"
     };
-    let mut stmt = conn.prepare(sql).context("Failed to prepare the 'task' query")?;
+    let mut stmt = conn
+        .prepare(sql)
+        .context("Failed to prepare the 'task' query")?;
 
     let task_iter = stmt
         .query_map(params![], move |row| {
@@ -240,8 +282,7 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
                 let tags_option: Option<String> = row.get(6)?;
                 tags_option.map(|tags| {
                     HashSet::from_iter(
-                        tags
-                            .split(';')
+                        tags.split(';')
                             .filter(|p| !p.is_empty())
                             .map(str::to_string),
                     )
@@ -250,8 +291,7 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
                 None // relational tags filled in per-task below
             };
 
-            let (date_added_idx, completed_idx) =
-                if legacy_tags { (7, 8) } else { (6, 7) };
+            let (date_added_idx, completed_idx) = if legacy_tags { (7, 8) } else { (6, 7) };
 
             Ok(Task::from_sql(
                 row.get(0)?,
@@ -313,6 +353,42 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
+
+    #[test]
+    fn get_db_self_heals_a_brand_new_install() {
+        // The true first-run state: no config.json, no database file, nothing.
+        // get_db should create both and hand back a migrated connection that
+        // can immediately store tasks — without any prior `checklist init`.
+        let tmp = tempdir().unwrap();
+        let dir = ConfigDir::new(tmp.path().to_path_buf());
+        assert!(!dir.config_path().exists());
+        assert!(!dir.db_path().exists());
+
+        let conn = get_db(false, &dir).unwrap();
+
+        assert!(dir.config_path().exists(), "config should have been created");
+        let config = read_config(&dir).unwrap();
+        assert!(config.db_path.exists(), "database file should have been created");
+
+        // And it should actually be usable end-to-end.
+        use crate::backend::task::{Status, Task, Urgency};
+        let task = Task::new(
+            "First task".to_string(),
+            None,
+            None,
+            Some(Urgency::Low),
+            Some(Status::Open),
+            Some(HashSet::from_iter(["setup".to_string()])),
+        );
+        add_to_db(&conn, &task).unwrap();
+        let loaded = get_all_db_contents(&conn).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded.tasks[0].name, "First task");
+        assert_eq!(
+            loaded.tasks[0].tags,
+            Some(HashSet::from_iter(["setup".to_string()]))
+        );
+    }
 
     #[test]
     fn create_db() {
