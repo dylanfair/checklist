@@ -201,10 +201,13 @@ fn main() -> Result<()> {
 }
 
 fn bootstrap(memory: bool, dir: ConfigDir, view: Option<LayoutView>) -> Result<()> {
-    let conn = get_db(memory, &dir).or_else(|_| {
+    let conn = get_db(memory, &dir).or_else(|e| {
+        eprintln!("Error retrieving database: {}", e);
         // Disk mode with no config yet: bootstrap a default DB + config, then retry.
-        create_sqlite_db(&dir)?;
-        println!("Successfully created the database to store your items in!");
+        if !memory {
+            create_sqlite_db(&dir)?;
+            println!("Successfully created the database to store your items in!");
+        }
         get_db(memory, &dir)
     })?;
     launch_tui(memory, dir, conn, view)
@@ -219,7 +222,8 @@ fn launch_tui(
     let config = match read_config(&dir) {
         Ok(config) => config,
         Err(_) if memory => Config::new(PathBuf::new()),
-        Err(_) => {
+        Err(e) => {
+            eprintln!("Error reading config: {}", e);
             create_sqlite_db(&dir)?;
             println!("Successfully created the database to store your items in!");
             read_config(&dir)?

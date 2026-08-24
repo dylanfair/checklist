@@ -28,6 +28,8 @@ crossterm = "0.29.0"
 directories = "6.0.0"
 ratatui = { version = "0.30.0", features = ["serde"] }
 rusqlite = { version = "0.40.0", features = ["bundled", "chrono", "uuid"] }
+rusqlite_migration = { version = "2", features = ["from-directory"] }
+include_dir = "0.7"
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.122"
 struct-field-names-as-array = "0.3.0"
