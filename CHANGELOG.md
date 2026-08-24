@@ -8,7 +8,7 @@ Tags get a proper home in the database schema, and databases now upgrade themsel
 
 - Tags are now stored relationally (a `tag` table keyed to each task) instead of a single `;`-joined text column. Tags containing `;` or any other character are now stored and round-trip correctly.
 - Database schema changes now ship as automatic migrations: on first launch after updating, pending migrations apply in order before the app opens. No manual steps are needed to upgrade an existing database.
-- `checklist import` remains lossless when importing from older, pre-migration databases — their tags are read from the legacy format and written into the new one.
+- `checklist import` remains lossless when importing from older, pre-migration databases - their tags are read from the legacy format and written into the new one.
 - Startup errors retrieving the database or config are now reported to stderr instead of failing silently, making issues like a stale `config.json` path easier to diagnose.
 
 ## Internal Changes
