@@ -204,7 +204,7 @@ fn bootstrap(memory: bool, dir: ConfigDir, view: Option<LayoutView>) -> Result<(
     let conn = get_db(memory, &dir).or_else(|e| {
         eprintln!("Error retrieving database: {}", e);
         // Disk mode with no config yet: bootstrap a default DB + config, then retry.
-        if memory {
+        if !memory {
             create_sqlite_db(&dir)?;
             println!("Successfully created the database to store your items in!");
         }
