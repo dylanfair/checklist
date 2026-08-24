@@ -469,6 +469,32 @@ mod tests {
         );
         assert!(conn.prepare("SELECT * FROM tag").is_err());
 
+        // The rebuilt table must match the ORIGINAL column order exactly.
+        // ALTER TABLE ADD COLUMN would have appended tags last, and older
+        // binaries read positionally — a reordered table breaks them even
+        // though every name is present.
+        let column_names: Vec<String> = conn
+            .prepare("PRAGMA table_info(task)")
+            .unwrap()
+            .query_map([], |row| row.get::<_, String>(1))
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            column_names,
+            vec![
+                "id",
+                "name",
+                "description",
+                "latest",
+                "urgency",
+                "status",
+                "tags",
+                "date_added",
+                "completed_on",
+            ]
+        );
+
         // Tags re-materialized in the legacy column. group_concat order is
         // unspecified, so compare as the old reader did: split into a set.
         let joined: String = conn
@@ -481,6 +507,34 @@ mod tests {
             restored,
             HashSet::from_iter(["work".to_string(), "urgent".to_string()])
         );
+
+        // Simulate the old binary's positional reader (SELECT * + fixed
+        // indices): index 6 must be the tags string, 7 the populated
+        // date_added, 8 the NULL completed_on. This is the exact read that
+        // failed with 'Invalid column type Null at index: 7' when down.sql
+        // used ADD COLUMN instead of a rebuild.
+        let (pos_tags, pos_date_added, pos_completed): (
+            Option<String>,
+            String,
+            Option<String>,
+        ) = conn
+            .query_row(
+                "SELECT * FROM task WHERE id = ?1",
+                [task_id],
+                |row| Ok((row.get(6)?, row.get(7)?, row.get(8)?)),
+            )
+            .unwrap();
+        let pos_tag_set: HashSet<String> = pos_tags
+            .unwrap()
+            .split(';')
+            .map(str::to_string)
+            .collect();
+        assert_eq!(
+            pos_tag_set,
+            HashSet::from_iter(["work".to_string(), "urgent".to_string()])
+        );
+        assert!(!pos_date_added.is_empty(), "date_added must not be NULL at index 7");
+        assert!(pos_completed.is_none(), "completed_on must stay NULL at index 8 for this task");
     }
 
     #[test]
