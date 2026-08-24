@@ -68,7 +68,7 @@ Mac\*: `~/Library/Application Support/checklist/`
 
 The SQLite database is where your tasks are stored.
 
-When you update `checklist`, any database schema changes ship as automatic migrations — the first launch after an update applies them in order before the app opens. No manual steps are needed, and your data is untouched (each migration runs in a transaction, so an interrupted upgrade simply retries next time).
+When you update `checklist`, any database schema changes ship as automatic migrations — the first launch after an update applies them in order before the app opens. No manual steps are needed, and your data is untouched (each migration runs in a transaction, so an interrupted upgrade simply retries next time). Before an upgrade applies, a snapshot of your database is kept alongside it (e.g. `checklist.sqlite.pre-migration-v0.bak`) — if anything ever goes wrong, that file can be restored and used with the previous version of `checklist`.
 
 You can always check where files related to checklist live with:
 
