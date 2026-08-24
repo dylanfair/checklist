@@ -11,8 +11,8 @@ use crate::backend::{
 };
 
 pub fn import(database: PathBuf, memory: bool, config_directory: &ConfigDir) -> Result<Connection> {
-    let mut dest_conn = if memory {
-        make_memory_connection()?
+    let (mut dest_conn, dest_path) = if memory {
+        (make_memory_connection()?, None)
     } else {
         let config = match read_config(config_directory) {
             Ok(config) => config,
@@ -22,12 +22,14 @@ pub fn import(database: PathBuf, memory: bool, config_directory: &ConfigDir) -> 
                 read_config(config_directory)?
             }
         };
-        make_connection(&config.db_path)?
+        let conn = make_connection(&config.db_path)?;
+        (conn, Some(config.db_path))
     };
 
     // The destination may predate the migration system (version 0); bring it
-    // current before writing, since add_to_db writes tags relationally.
-    run_migrations(&mut dest_conn)?;
+    // current before writing, since add_to_db writes tags relationally. Back
+    // up the destination file first — it can hold real user data.
+    run_migrations(&mut dest_conn, dest_path.as_deref())?;
 
     import_database(database, &dest_conn)?;
     println!("Finished importing tasks to current database.");
@@ -98,7 +100,7 @@ mod tests {
 
         // Import from temp disk db to a memory db
         let mut memory_conn = make_memory_connection().unwrap();
-        run_migrations(&mut memory_conn).unwrap();
+        run_migrations(&mut memory_conn, None).unwrap();
         import_database(db_path, &memory_conn).unwrap();
 
         // Check if task is in memory db
@@ -141,7 +143,7 @@ mod tests {
 
         // Destination is migrated current first, as import() does.
         let mut disk_conn2 = make_connection(&db_path2).unwrap();
-        run_migrations(&mut disk_conn2).unwrap();
+        run_migrations(&mut disk_conn2, None).unwrap();
 
         // Import from temp disk db to another disk db
         import_database(db_path, &disk_conn2).unwrap();

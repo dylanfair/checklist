@@ -92,7 +92,7 @@ pub fn get_db(memory: bool, dir: &ConfigDir) -> Result<Connection> {
     if memory {
         println!("Using an in-memory sqlite database");
         let mut conn = make_memory_connection()?;
-        crate::backend::migrate::run_migrations(&mut conn)?;
+        crate::backend::migrate::run_migrations(&mut conn, None)?;
         Ok(conn)
     } else {
         let config = if dir.config_path().exists() {
@@ -115,9 +115,15 @@ pub fn get_db(memory: bool, dir: &ConfigDir) -> Result<Connection> {
             )
         })?;
         // A brand-new database file has no tables yet; create the baseline
-        // schema so migrations have something to bring forward.
-        ensure_baseline_schema(&conn)?;
-        crate::backend::migrate::run_migrations(&mut conn)?;
+        // schema so migrations have something to bring forward. A freshly
+        // created file holds no user data, so no pre-migration backup is
+        // needed for it.
+        let freshly_created = ensure_baseline_schema(&conn)?;
+        if freshly_created {
+            crate::backend::migrate::run_migrations(&mut conn, None)?;
+        } else {
+            crate::backend::migrate::run_migrations(&mut conn, Some(&config.db_path))?;
+        }
         Ok(conn)
     }
 }
@@ -126,7 +132,10 @@ pub fn get_db(memory: bool, dir: &ConfigDir) -> Result<Connection> {
 /// create the baseline schema. Migrations then bring the database current,
 /// so every checklist-managed database follows the same version-0-to-latest
 /// path regardless of how it came into existence.
-fn ensure_baseline_schema(conn: &Connection) -> Result<()> {
+///
+/// Returns whether the baseline was just created (i.e. the file held no data
+/// worth backing up).
+fn ensure_baseline_schema(conn: &Connection) -> Result<bool> {
     // PRAGMA table_info returns one row per column; zero rows means the
     // table is absent.
     let mut stmt = conn
@@ -137,10 +146,11 @@ fn ensure_baseline_schema(conn: &Connection) -> Result<()> {
         .context("Failed to read the 'task' table schema")?
         .collect::<std::result::Result<Vec<_>, _>>()
         .context("Failed to read the 'task' table schema")?;
-    if columns.is_empty() {
+    let missing = columns.is_empty();
+    if missing {
         init_schema(conn)?;
     }
-    Ok(())
+    Ok(missing)
 }
 
 /// Writes a task's tags into the `tag` table, replacing any existing rows for
