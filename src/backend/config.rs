@@ -36,6 +36,41 @@ impl ConfigDir {
         Ok(Self(dir))
     }
 
+    pub fn resolve_config_dir(flag: Option<PathBuf>) -> Result<Self> {
+        if let Some(p) = flag {
+            if !p.exists() {
+                std::fs::create_dir_all(&p)
+                    .with_context(|| format!("Failed to create the following path: {p:?}"))?;
+            }
+            if !p.is_dir() {
+                return Err(anyhow::anyhow!(
+                    "Path provided for the checklist configuration directory must be a directory."
+                ));
+            }
+            return Ok(ConfigDir::new(p));
+        }
+        if let Ok(env_dir) = std::env::var("CHECKLIST_CONFIG_DIR") {
+            let expanded_env = expand_tilde(&env_dir).map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to expand the tilde in the CHECKLIST_CONFIG_DIR: {}",
+                    e
+                )
+            })?;
+            if !expanded_env.exists() {
+                std::fs::create_dir_all(&expanded_env).with_context(|| {
+                    format!("Failed to create the following path: {expanded_env:?}")
+                })?;
+            }
+            if !expanded_env.is_dir() {
+                return Err(anyhow::anyhow!(
+                    "Path provided in CHECKLIST_CONFIG_DIR must be a directory."
+                ));
+            }
+            return Ok(ConfigDir::new(expanded_env));
+        }
+        ConfigDir::resolve_default()
+    }
+
     /// Construct a `ConfigDir` pointing at an explicit path. Does not create
     /// the directory; intended for tests pointing at a `tempfile::tempdir()`,
     /// and for a future `--config-dir` override.

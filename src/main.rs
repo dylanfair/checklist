@@ -26,6 +26,9 @@ struct Cli {
 
     #[command(subcommand)]
     command: Option<Commands>,
+
+    #[arg(long, global = true, value_parser = expand_tilde)]
+    config_dir: Option<PathBuf>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -125,7 +128,7 @@ fn main() -> Result<()> {
 
     // Resolve the config directory once and thread it through. This is the
     // single source of truth for where checklist's data files live.
-    let dir = ConfigDir::resolve_default()?;
+    let dir = ConfigDir::resolve_config_dir(cli.config_dir)?;
 
     match cli.command {
         Some(Commands::Init { set }) => {
