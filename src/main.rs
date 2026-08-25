@@ -27,6 +27,9 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
+    /// Provide where you want the config_dir that holds checklist's
+    /// data files to be (config, database, theme) instead of the
+    /// default location. This only holds true for that particular run.
     #[arg(long, global = true, value_parser = expand_tilde)]
     config_dir: Option<PathBuf>,
 }

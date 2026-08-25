@@ -38,34 +38,19 @@ impl ConfigDir {
 
     pub fn resolve_config_dir(flag: Option<PathBuf>) -> Result<Self> {
         if let Some(p) = flag {
-            if !p.exists() {
-                std::fs::create_dir_all(&p)
-                    .with_context(|| format!("Failed to create the following path: {p:?}"))?;
-            }
-            if !p.is_dir() {
-                return Err(anyhow::anyhow!(
-                    "Path provided for the checklist configuration directory must be a directory."
-                ));
-            }
+            ensure_valid_dir(&p)?;
             return Ok(ConfigDir::new(p));
         }
-        if let Ok(env_dir) = std::env::var("CHECKLIST_CONFIG_DIR") {
+        if let Ok(env_dir) = std::env::var("CHECKLIST_CONFIG_DIR")
+            && !env_dir.is_empty()
+        {
             let expanded_env = expand_tilde(&env_dir).map_err(|e| {
                 anyhow::anyhow!(
                     "Failed to expand the tilde in the CHECKLIST_CONFIG_DIR: {}",
                     e
                 )
             })?;
-            if !expanded_env.exists() {
-                std::fs::create_dir_all(&expanded_env).with_context(|| {
-                    format!("Failed to create the following path: {expanded_env:?}")
-                })?;
-            }
-            if !expanded_env.is_dir() {
-                return Err(anyhow::anyhow!(
-                    "Path provided in CHECKLIST_CONFIG_DIR must be a directory."
-                ));
-            }
+            ensure_valid_dir(&expanded_env)?;
             return Ok(ConfigDir::new(expanded_env));
         }
         ConfigDir::resolve_default()
@@ -142,6 +127,20 @@ impl Config {
         })?;
         Ok(())
     }
+}
+
+/// Given a pathbuf, creates a directory if there isn't already one.
+/// If path does exist, checks if the path given was for a directory.
+fn ensure_valid_dir(path: &Path) -> Result<()> {
+    if !path.exists() {
+        std::fs::create_dir_all(path)
+            .with_context(|| format!("Failed to create the following path: {path:?}"))?;
+    } else if !path.is_dir() {
+        return Err(anyhow::anyhow!(
+            "Path provided for the checklist config directory must be a directory: {path:?}",
+        ));
+    }
+    Ok(())
 }
 
 /// Looks for the `config.json` file in `dir` and reads it in, returning a
