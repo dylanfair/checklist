@@ -52,6 +52,8 @@ The keybindings take inspiration from vim motions, such as `j` and `k` for movin
 
 ## Getting started
 
+### Typical Init
+
 Once you have `checklist` installed, you can get started with:
 
 ```sh
@@ -67,6 +69,18 @@ Mac\*: `~/Library/Application Support/checklist/`
 > \*I don't have a Mac so haven't tested this, but I believe that's where it will go
 
 The SQLite database is where your tasks are stored.
+
+### Memory mode
+
+If you are interested in running checklist _without_ having any tasks written to a file (as a means of demoing the app for example), you can instead run
+
+```sh
+checklist --memory
+```
+
+Any tasks created in this mode are written to an in-memory SQLite database, which are subsequently wiped once closing the program.
+
+### Database changes over time
 
 When you update `checklist`, any database schema changes ship as automatic migrations — the first launch after an update applies them in order before the app opens. No manual steps are needed, and your data is untouched (each migration runs in a transaction, so an interrupted upgrade simply retries next time). Before an upgrade applies, a snapshot of your database is kept in a `checklist-migration-snapshots/` folder next to it (e.g. `checklist.sqlite.pre-migration-v0.bak`) — if anything ever goes wrong, one of those files can be restored and used with the previous version of `checklist`.
 
