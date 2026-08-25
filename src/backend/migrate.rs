@@ -31,11 +31,16 @@
 //! all pending migrations apply to them in order on first launch of a version
 //! of checklist that runs migrations.
 
-use anyhow::Context;
+use anyhow::{Context, Result};
 use include_dir::{Dir, include_dir};
 use rusqlite::Connection;
 use rusqlite_migration::{Migrations, SchemaVersion};
 use std::path::Path;
+
+use crate::backend::{
+    config::{ConfigDir, read_config},
+    database::make_connection,
+};
 
 /// The embedded migrations directory.
 static MIGRATION_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/migrations");
@@ -267,6 +272,105 @@ pub fn migrate_to_version(
 /// paths — see [`migrate_to_version`] for explicit-version moves.
 pub fn run_migrations(conn: &mut Connection, db_path: Option<&Path>) -> anyhow::Result<()> {
     migrate_to_version(conn, db_path, latest_schema_version())
+}
+
+/// `checklist migrate` — status by default; explicit, backed-up moves up or
+/// down when a target is given. Never uses get_db: opening through it would
+/// silently upgrade the database before the user has decided anything.
+pub fn run_migrate_command(
+    dir: &ConfigDir,
+    memory: bool,
+    to: Option<usize>,
+    prior: bool,
+    latest: bool,
+    yes: bool,
+) -> Result<()> {
+    if memory {
+        anyhow::bail!(
+            "Schema migrations do not apply to --memory databases: they are ephemeral \
+             and always start at this build's latest schema."
+        );
+    }
+
+    let config = read_config(dir)?;
+    let mut conn = make_connection(&config.db_path)?;
+
+    let requested = if prior {
+        RequestedVersion::Prior
+    } else if latest {
+        RequestedVersion::Latest
+    } else if let Some(n) = to {
+        RequestedVersion::Exact(n)
+    } else {
+        // Status mode.
+        let current = resolve_target(&conn, RequestedVersion::Latest)?.current;
+        let supported = latest_schema_version();
+        println!("Database schema version: {current}");
+        println!("This build supports schema versions 0..={supported}");
+        let pending = supported.saturating_sub(current);
+        if pending > 0 {
+            println!(
+                "{pending} migration(s) pending — they will apply automatically \
+                 next time the app opens."
+            );
+        } else if current > supported {
+            println!(
+                "Warning: this database was last written by a newer checklist \
+                 (schema version {current} > {supported})."
+            );
+        }
+        return Ok(());
+    };
+
+    let plan = resolve_target(&conn, requested)?;
+
+    if plan.is_no_op() {
+        println!("Already at schema version {}; nothing to do.", plan.target);
+        return Ok(());
+    }
+
+    // Moving down changes the database into a format this binary cannot use
+    // afterward — worth one beat of friction.
+    if plan.is_downward() && !yes {
+        println!(
+            "About to migrate the database DOWN from schema version {} to {}.",
+            plan.current, plan.target
+        );
+        println!(
+            "Afterwards, {} can open this database; running this version of \
+             checklist again will upgrade it automatically.",
+            releases_for_schema(plan.target)
+        );
+        print!("Proceed? (y/n) ");
+        use std::io::Write;
+        std::io::stdout().flush()?;
+
+        let mut answer = String::new();
+        std::io::stdin().read_line(&mut answer)?;
+        match answer.trim().to_lowercase().as_str() {
+            "y" | "yes" => {}
+            _ => {
+                println!("Aborted; database unchanged.");
+                return Ok(());
+            }
+        }
+    }
+
+    migrate_to_version(&mut conn, Some(&config.db_path), plan.target)?;
+
+    let direction = if plan.is_downward() { "down" } else { "up" };
+    println!(
+        "Database migrated {} to schema version {}.",
+        direction, plan.target
+    );
+    if plan.is_downward() {
+        println!(
+            "Databases at this version are opened by {}.",
+            releases_for_schema(plan.target)
+        );
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -513,28 +617,25 @@ mod tests {
         // date_added, 8 the NULL completed_on. This is the exact read that
         // failed with 'Invalid column type Null at index: 7' when down.sql
         // used ADD COLUMN instead of a rebuild.
-        let (pos_tags, pos_date_added, pos_completed): (
-            Option<String>,
-            String,
-            Option<String>,
-        ) = conn
-            .query_row(
-                "SELECT * FROM task WHERE id = ?1",
-                [task_id],
-                |row| Ok((row.get(6)?, row.get(7)?, row.get(8)?)),
-            )
+        let (pos_tags, pos_date_added, pos_completed): (Option<String>, String, Option<String>) =
+            conn.query_row("SELECT * FROM task WHERE id = ?1", [task_id], |row| {
+                Ok((row.get(6)?, row.get(7)?, row.get(8)?))
+            })
             .unwrap();
-        let pos_tag_set: HashSet<String> = pos_tags
-            .unwrap()
-            .split(';')
-            .map(str::to_string)
-            .collect();
+        let pos_tag_set: HashSet<String> =
+            pos_tags.unwrap().split(';').map(str::to_string).collect();
         assert_eq!(
             pos_tag_set,
             HashSet::from_iter(["work".to_string(), "urgent".to_string()])
         );
-        assert!(!pos_date_added.is_empty(), "date_added must not be NULL at index 7");
-        assert!(pos_completed.is_none(), "completed_on must stay NULL at index 8 for this task");
+        assert!(
+            !pos_date_added.is_empty(),
+            "date_added must not be NULL at index 7"
+        );
+        assert!(
+            pos_completed.is_none(),
+            "completed_on must stay NULL at index 8 for this task"
+        );
     }
 
     #[test]
