@@ -9,12 +9,12 @@ mod display;
 
 use backend::config::{Config, ConfigDir, expand_tilde, read_config, set_new_path};
 use backend::database::{create_sqlite_db, get_db};
+use backend::import::import;
+use backend::migrate::run_migrate_command;
 use backend::wipe::wipe_tasks;
 
 use display::theme::{Theme, create_empty_theme_toml, migrate_theme, read_theme};
 use display::tui::{LayoutView, run_tui};
-
-use crate::backend::import::import;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -96,6 +96,27 @@ enum Commands {
         /// update. Note: comments and custom formatting are not preserved.
         #[arg(long)]
         migrate: bool,
+    },
+
+    /// Inspect or move the database schema version. Moving down produces a
+    /// database readable by the checklist release that shipped with that
+    /// schema version — useful when sharing a database with an older install.
+    Migrate {
+        /// Move to this exact schema version (may go down or up).
+        #[arg(long, conflicts_with_all = ["prior", "latest"])]
+        to: Option<usize>,
+
+        /// Move back one schema version from the current one.
+        #[arg(long, conflicts_with_all = ["to", "latest"])]
+        prior: bool,
+
+        /// Upgrade to the latest schema version this build supports.
+        #[arg(long, conflicts_with_all = ["to", "prior"])]
+        latest: bool,
+
+        /// Skip the confirmation prompt (only asked when moving down).
+        #[arg(short, long)]
+        yes: bool,
     },
 }
 
@@ -190,6 +211,15 @@ fn main() -> Result<()> {
                     "No action specified. Use `checklist theme --migrate` to re-serialize theme.toml."
                 );
             }
+        }
+
+        Some(Commands::Migrate {
+            to,
+            prior,
+            latest,
+            yes,
+        }) => {
+            run_migrate_command(&dir, cli.memory, to, prior, latest, yes)?;
         }
 
         None => {
