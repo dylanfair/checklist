@@ -323,12 +323,9 @@ impl App {
                 KeyCode::Down | KeyCode::Char('j') => self.adjust_task_info_scrollbar_down(),
                 _ => {}
             },
-            KeyModifiers::SHIFT => match key.code {
-                KeyCode::Char('G') => {
-                    self.select_last();
-                    self.adjust_list_scrollbar_last();
-                }
-                _ => {}
+            KeyModifiers::SHIFT => if let KeyCode::Char('G') = key.code {
+                self.select_last();
+                self.adjust_list_scrollbar_last();
             },
             KeyModifiers::NONE => match key.code {
                 KeyCode::Char('x') | KeyCode::Esc => self.should_exit = true,

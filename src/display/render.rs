@@ -21,7 +21,7 @@ use crate::display::tui::{App, LayoutView};
 
 impl Status {
     /// Based on the Enum value, will return a colored `Span`
-    pub fn to_colored_span(&self, theme: &Theme) -> Span<'_> {
+    pub fn to_colored_span(self, theme: &Theme) -> Span<'static> {
         match self {
             Status::Open => Span::styled(
                 String::from("Open"),
@@ -45,7 +45,7 @@ impl Status {
 
 impl Urgency {
     /// Based on the Enum value, will return a colored `Span`
-    pub fn to_colored_span(&self, theme: &Theme) -> Span<'_> {
+    pub fn to_colored_span(self, theme: &Theme) -> Span<'static> {
         match self {
             Urgency::Low => Span::styled(
                 String::from("Low"),
@@ -67,7 +67,7 @@ impl Urgency {
     }
 
     /// Based on the Enum value, will return a colored `Span` of exclamation marks
-    pub fn to_colored_exclamation_marks(&self, theme: &Theme) -> Span<'_> {
+    pub fn to_colored_exclamation_marks(self, theme: &Theme) -> Span<'static> {
         match self {
             Urgency::Low => Span::styled(
                 String::from(&theme.theme_styles.urgency_low),
@@ -91,7 +91,7 @@ impl Urgency {
 
 impl Display {
     /// Based on the Enum value, will return a colored `Span`
-    pub fn to_colored_span(&self, theme: &Theme) -> Span<'_> {
+    pub fn to_colored_span(self, theme: &Theme) -> Span<'static> {
         match self {
             Display::All => Span::styled(
                 String::from("All"),
@@ -111,7 +111,7 @@ impl Display {
 
 impl LayoutView {
     /// Based on the Enum value, will return a colored `Span`
-    pub fn to_colored_span(&self, theme: &Theme) -> Span<'_> {
+    pub fn to_colored_span(self, theme: &Theme) -> Span<'static> {
         match self {
             LayoutView::Horizontal => Span::styled(
                 String::from("Horizontal"),
@@ -244,7 +244,7 @@ impl Task {
 }
 
 const fn alternate_colors(i: usize, normal_color: Color, alternate_color: Color) -> Color {
-    if i % 2 == 0 {
+    if i.is_multiple_of(2) {
         normal_color
     } else {
         alternate_color
