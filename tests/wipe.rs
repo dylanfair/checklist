@@ -90,15 +90,38 @@ fn wipe_reprompts_on_invalid_input_then_accepts_y() {
 
 #[test]
 fn wipe_soft_also_cascades_tag_rows() {
-    // The tag table's FK declares ON DELETE CASCADE; connections enable FK
-    // enforcement, so a soft wipe must leave no orphaned tag rows behind.
+    // Seeding writes legacy-format tags (no tag table exists yet); migrating
+    // to latest copies them into the relational tag table — and we verify
+    // that copy EXISTS before wiping, so the cascade assertion below proves
+    // deletion rather than passing vacuously on an empty table.
     let sb = Sandbox::new();
     sb.command().arg("init").assert().success();
     common::seed_task(sb.db_path(), "Tagged", "High", "Open", Some("work;urgent"));
 
-    sb.command().args(["wipe", "-y"]).assert().success();
+    sb.command()
+        .arg("migrate")
+        .arg("--latest")
+        .assert()
+        .success();
 
     let conn = rusqlite::Connection::open(sb.db_path()).unwrap();
+    let tags_before: Vec<String> = {
+        let mut stmt = conn
+            .prepare("SELECT tag FROM tag ORDER BY tag")
+            .expect("tag table should exist after migration");
+        stmt.query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<std::result::Result<_, _>>()
+            .unwrap()
+    };
+    assert_eq!(
+        tags_before,
+        vec!["urgent".to_string(), "work".to_string()],
+        "migration should have copied the seeded tags into the tag table"
+    );
+
+    sb.command().args(["wipe", "-y"]).assert().success();
+
     let tag_rows: i64 = conn
         .query_row("SELECT COUNT(*) FROM tag", [], |row| row.get(0))
         .unwrap();
