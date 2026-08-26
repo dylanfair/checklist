@@ -12,7 +12,7 @@ pub fn make_memory_connection() -> Result<Connection> {
     println!("Setting up an in-memory sqlite_db");
     let mut conn =
         Connection::open_in_memory().with_context(|| "Failed to create database in memory")?;
-    enable_foreign_keys(&mut conn);
+    enable_foreign_keys(&mut conn)?;
     init_schema(&conn)?;
     Ok(conn)
 }
@@ -42,17 +42,18 @@ fn init_schema(conn: &Connection) -> Result<()> {
 /// per-connection; without this, the tag table's ON DELETE CASCADE would not
 /// fire. (Note: rusqlite_migration flips this off/on around migrations; see
 /// `migrate::run_migrations`.)
-fn enable_foreign_keys(conn: &mut Connection) {
+fn enable_foreign_keys(conn: &mut Connection) -> Result<()> {
     if let Err(e) = conn.pragma_update(None, "foreign_keys", "ON") {
-        eprintln!("checklist: could not enable foreign key enforcement: {e}");
+        anyhow::bail!("checklist: could not enable foreign key enforcement: {e}");
     }
+    Ok(())
 }
 
 /// Returns a `Result<Connection>` given a `&Pathbuf` to a SQLite database
 pub fn make_connection(path: &PathBuf) -> Result<Connection> {
     let mut conn = Connection::open(path)
         .with_context(|| format!("Failed connect to the database at {path:?}"))?;
-    enable_foreign_keys(&mut conn);
+    enable_foreign_keys(&mut conn)?;
 
     Ok(conn)
 }
@@ -376,9 +377,15 @@ mod tests {
 
         let conn = get_db(false, &dir).unwrap();
 
-        assert!(dir.config_path().exists(), "config should have been created");
+        assert!(
+            dir.config_path().exists(),
+            "config should have been created"
+        );
         let config = read_config(&dir).unwrap();
-        assert!(config.db_path.exists(), "database file should have been created");
+        assert!(
+            config.db_path.exists(),
+            "database file should have been created"
+        );
 
         // And it should actually be usable end-to-end.
         use crate::backend::task::{Status, Task, Urgency};
