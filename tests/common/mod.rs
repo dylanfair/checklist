@@ -65,8 +65,7 @@ pub fn seed_task(
     status: &str,
     tags: Option<&str>,
 ) {
-    let conn =
-        rusqlite::Connection::open(db_path).expect("failed to open db for seeding");
+    let conn = rusqlite::Connection::open(db_path).expect("failed to open db for seeding");
     conn.execute(
         "INSERT INTO task (id, name, description, latest, urgency, status, tags, date_added, completed_on)
          VALUES (?1, ?2, NULL, NULL, ?3, ?4, ?5, datetime('now'), NULL)",
@@ -138,7 +137,12 @@ pub fn read_tasks(db_path: impl AsRef<Path>) -> Vec<TaskSummary> {
             };
             tags.sort();
 
-            TaskSummary { name, urgency, status, tags }
+            TaskSummary {
+                name,
+                urgency,
+                status,
+                tags,
+            }
         })
         .collect();
 
