@@ -1,6 +1,5 @@
 mod common;
 
-
 use common::{Sandbox, TaskSummary};
 
 #[test]
@@ -10,9 +9,21 @@ fn import_moves_all_tasks_between_databases() {
     //    original writer did — so the source stays a genuine pre-V1 database.
     let source = Sandbox::new();
     source.command().arg("init").assert().success();
-    common::seed_task(source.db_path(), "Write report", "High", "Open", Some("work;urgent"));
+    common::seed_task(
+        source.db_path(),
+        "Write report",
+        "High",
+        "Open",
+        Some("work;urgent"),
+    );
     common::seed_task(source.db_path(), "Buy milk", "Low", "Open", None);
-    common::seed_task(source.db_path(), "Call mom", "Medium", "Working", Some("family"));
+    common::seed_task(
+        source.db_path(),
+        "Call mom",
+        "Medium",
+        "Working",
+        Some("family"),
+    );
 
     // 2. All three are present in the source database.
     let seeded = common::read_tasks(source.db_path());
@@ -52,7 +63,9 @@ fn import_moves_all_tasks_between_databases() {
         .arg(source.db_path())
         .assert()
         .success()
-        .stdout(predicates::str::contains("Adding 3 tasks to current database"));
+        .stdout(predicates::str::contains(
+            "Adding 3 tasks to current database",
+        ));
 
     // 5. The same tasks — names, urgencies, statuses, and tags — exist on the
     //    other side, in the destination's current schema format.
@@ -90,7 +103,11 @@ fn import_handles_legacy_double_separators() {
     assert_eq!(imported[0].name, "Edge case");
     assert_eq!(
         imported[0].tags,
-        vec!["and".to_string(), "double".to_string(), "leading".to_string()]
+        vec![
+            "and".to_string(),
+            "double".to_string(),
+            "leading".to_string()
+        ]
     );
 }
 
