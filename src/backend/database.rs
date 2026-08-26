@@ -12,7 +12,7 @@ pub fn make_memory_connection() -> Result<Connection> {
     println!("Setting up an in-memory sqlite_db");
     let mut conn =
         Connection::open_in_memory().with_context(|| "Failed to create database in memory")?;
-    enable_foreign_keys(&mut conn);
+    enable_foreign_keys(&mut conn)?;
     init_schema(&conn)?;
     Ok(conn)
 }
@@ -42,17 +42,18 @@ fn init_schema(conn: &Connection) -> Result<()> {
 /// per-connection; without this, the tag table's ON DELETE CASCADE would not
 /// fire. (Note: rusqlite_migration flips this off/on around migrations; see
 /// `migrate::run_migrations`.)
-fn enable_foreign_keys(conn: &mut Connection) {
+fn enable_foreign_keys(conn: &mut Connection) -> Result<()> {
     if let Err(e) = conn.pragma_update(None, "foreign_keys", "ON") {
-        eprintln!("checklist: could not enable foreign key enforcement: {e}");
+        anyhow::bail!("checklist: could not enable foreign key enforcement: {e}");
     }
+    Ok(())
 }
 
 /// Returns a `Result<Connection>` given a `&Pathbuf` to a SQLite database
 pub fn make_connection(path: &PathBuf) -> Result<Connection> {
     let mut conn = Connection::open(path)
         .with_context(|| format!("Failed connect to the database at {path:?}"))?;
-    enable_foreign_keys(&mut conn);
+    enable_foreign_keys(&mut conn)?;
 
     Ok(conn)
 }
@@ -344,9 +345,29 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
 /// If `hard` is true, this will also DROP the task table.
 pub fn remove_all_db_contents(conn: &Connection, hard: bool) -> Result<()> {
     if hard {
-        conn.execute("DROP TABLE task", ())
-            .context("Failed to drop the task table")?;
-        println!("'task' table dropped successfully");
+        // Drop every user table so the next launch rebuilds from baseline and
+        // migrates forward. Sweeping sqlite_master (rather than naming
+        // tables) keeps this correct automatically as the schema grows.
+        conn.pragma_update(None, "foreign_keys", "OFF")?;
+        let tables: Vec<String> = {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT name FROM sqlite_master \
+                     WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+                )
+                .context("Failed to list database tables")?;
+            stmt.query_map([], |row| row.get::<_, String>(0))
+                .context("Failed to list database tables")?
+                .collect::<std::result::Result<_, _>>()
+                .context("Failed to list database tables")?
+        };
+        for name in &tables {
+            let quoted = format!("\"{}\"", name.replace('"', "\"\""));
+            conn.execute(&format!("DROP TABLE IF EXISTS {quoted}"), [])
+                .with_context(|| format!("Failed to drop table {name}"))?;
+        }
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        println!("{} table(s) dropped successfully", tables.len());
     } else {
         conn.execute("DELETE FROM task", ())
             .context("Failed to wipe all tasks from the task table")?;
@@ -376,9 +397,15 @@ mod tests {
 
         let conn = get_db(false, &dir).unwrap();
 
-        assert!(dir.config_path().exists(), "config should have been created");
+        assert!(
+            dir.config_path().exists(),
+            "config should have been created"
+        );
         let config = read_config(&dir).unwrap();
-        assert!(config.db_path.exists(), "database file should have been created");
+        assert!(
+            config.db_path.exists(),
+            "database file should have been created"
+        );
 
         // And it should actually be usable end-to-end.
         use crate::backend::task::{Status, Task, Urgency};

@@ -770,7 +770,7 @@ mod tests {
 
         // A database claiming to be from a newer checklist can't be reached
         // with --prior either: we lack those down files.
-        conn.pragma_update(None, "user_version", &7).unwrap();
+        conn.pragma_update(None, "user_version", 7).unwrap();
         let err = resolve_target(&conn, RequestedVersion::Prior)
             .expect_err("--prior on a newer database must be rejected");
         assert!(err.to_string().contains("cannot"));

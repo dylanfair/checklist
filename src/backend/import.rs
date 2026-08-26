@@ -55,11 +55,11 @@ fn import_database(database_path: PathBuf, dest_conn: &Connection) -> Result<()>
     }
 
     if !failed_tasks.is_empty() {
-        eprintln!("{} tasks failed to get moved over.", failed_tasks.len());
         eprintln!("Failed task ids:");
-        for task in failed_tasks {
+        for task in &failed_tasks {
             eprintln!("{}", task.get_id());
         }
+        anyhow::bail!("{} tasks failed to get moved over.", failed_tasks.len());
     }
     Ok(())
 }

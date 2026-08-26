@@ -102,6 +102,8 @@ checklist where -c # config.json file
 checklist where -t # theme.toml file
 ```
 
+Where this configuration directory lives can be controlled either by a `--config-dir` flag or `CHECKLIST_CONFIG_DIR` env, with the precedence being: `flag > env > default`
+
 ### `init` Command - Managing the database location
 
 If you want to point `checklist` to a specific SQLite database (say you moved your files to a new computer), that can be done with:
@@ -136,6 +138,12 @@ checklist wipe
 ```
 
 This will wipe out all tasks in your database should you accept the confirmation prompt -- use with caution.
+
+```sh
+checklist wipe --hard
+```
+
+This will drop all user tables after a "proceed?" prompt. Your next launch of `checklist` would effectively rebuild the schema from scratch.
 
 ### `display` Command - Alternative to opening up the TUI
 

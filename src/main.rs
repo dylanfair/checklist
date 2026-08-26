@@ -26,6 +26,12 @@ struct Cli {
 
     #[command(subcommand)]
     command: Option<Commands>,
+
+    /// Provide where you want the config_dir that holds checklist's
+    /// data files to be (config, database, theme) instead of the
+    /// default location. This only holds true for that particular run.
+    #[arg(long, global = true, value_parser = expand_tilde)]
+    config_dir: Option<PathBuf>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -125,7 +131,7 @@ fn main() -> Result<()> {
 
     // Resolve the config directory once and thread it through. This is the
     // single source of truth for where checklist's data files live.
-    let dir = ConfigDir::resolve_default()?;
+    let dir = ConfigDir::resolve_config_dir(cli.config_dir)?;
 
     match cli.command {
         Some(Commands::Init { set }) => {
@@ -166,11 +172,13 @@ fn main() -> Result<()> {
                         if db_path.exists() {
                             println!("{}", db_path.display());
                         } else {
-                            eprintln!("Could not find a SQLite database file.")
+                            anyhow::bail!("Could not find a SQLite database file.")
                         }
                     }
                     Err(_) => {
-                        eprintln!("Could not read the config file holding the database location.");
+                        anyhow::bail!(
+                            "Could not read the config file holding the database location."
+                        );
                     }
                 }
             }
@@ -179,7 +187,7 @@ fn main() -> Result<()> {
                 if config_path.exists() {
                     println!("{}", config_path.display());
                 } else {
-                    eprintln!("Could not find a config file.")
+                    anyhow::bail!("Could not find a config file.")
                 }
             }
             if theme {
@@ -187,7 +195,7 @@ fn main() -> Result<()> {
                 if theme_path.exists() {
                     println!("{}", theme_path.display());
                 } else {
-                    eprintln!("Could not find a theme file.")
+                    anyhow::bail!("Could not find a theme file.")
                 }
             }
         }
@@ -207,7 +215,7 @@ fn main() -> Result<()> {
             if migrate {
                 migrate_theme(&dir)?;
             } else {
-                eprintln!(
+                anyhow::bail!(
                     "No action specified. Use `checklist theme --migrate` to re-serialize theme.toml."
                 );
             }
