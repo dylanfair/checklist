@@ -99,8 +99,7 @@ fn wipe_soft_also_cascades_tag_rows() {
     common::seed_task(sb.db_path(), "Tagged", "High", "Open", Some("work;urgent"));
 
     sb.command()
-        .arg("migrate")
-        .arg("--latest")
+        .args(["migrate", "--latest"])
         .assert()
         .success();
 
