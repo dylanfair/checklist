@@ -29,3 +29,16 @@ fn test_where_returns_correct_paths() {
         .assert()
         .stdout(predicate::eq(sb.theme_path().display().to_string()).trim());
 }
+
+#[test]
+fn test_where_fails_when_no_init_ran() {
+    let sb = Sandbox::new();
+
+    sb.command()
+        .args(["where", "-d"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "Could not read the config file holding the database location.",
+        ));
+}

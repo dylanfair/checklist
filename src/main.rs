@@ -172,11 +172,13 @@ fn main() -> Result<()> {
                         if db_path.exists() {
                             println!("{}", db_path.display());
                         } else {
-                            eprintln!("Could not find a SQLite database file.")
+                            anyhow::bail!("Could not find a SQLite database file.")
                         }
                     }
                     Err(_) => {
-                        eprintln!("Could not read the config file holding the database location.");
+                        anyhow::bail!(
+                            "Could not read the config file holding the database location."
+                        );
                     }
                 }
             }
@@ -185,7 +187,7 @@ fn main() -> Result<()> {
                 if config_path.exists() {
                     println!("{}", config_path.display());
                 } else {
-                    eprintln!("Could not find a config file.")
+                    anyhow::bail!("Could not find a config file.")
                 }
             }
             if theme {
@@ -193,7 +195,7 @@ fn main() -> Result<()> {
                 if theme_path.exists() {
                     println!("{}", theme_path.display());
                 } else {
-                    eprintln!("Could not find a theme file.")
+                    anyhow::bail!("Could not find a theme file.")
                 }
             }
         }
@@ -213,7 +215,7 @@ fn main() -> Result<()> {
             if migrate {
                 migrate_theme(&dir)?;
             } else {
-                eprintln!(
+                anyhow::bail!(
                     "No action specified. Use `checklist theme --migrate` to re-serialize theme.toml."
                 );
             }
