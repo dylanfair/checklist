@@ -43,4 +43,5 @@ tempfile = "3"
 assert_cmd = "2"
 predicates = "3"
 rusqlite = "0.40"
+toml = "1"
 uuid = { version = "1", features = ["v4"] }
