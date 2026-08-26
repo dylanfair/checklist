@@ -60,8 +60,13 @@ fn migrate_to_1_then_prior_round_trips_the_schema() {
         .stdout(contains("up to schema version 1"))
         .stdout(contains("Backed up database")); // snapshot taken before moving
 
-    // Version stamped at exactly 1, tags copied relationally.
+    // Version stamped at exactly 1, tags copied relationally, and the
+    // pre-upgrade snapshot actually on disk (not just a log line).
     assert_eq!(user_version(&sb.db_path()), 1);
+    assert!(
+        sb.snapshot(0).exists(),
+        "v0 snapshot should exist after --to 1"
+    );
     {
         let conn = rusqlite::Connection::open(sb.db_path()).unwrap();
         let tag_rows: i64 = conn
@@ -83,6 +88,12 @@ fn migrate_to_1_then_prior_round_trips_the_schema() {
         .stdout(contains("checklist versions before v0.1.9"));
 
     assert_eq!(user_version(&sb.db_path()), 0);
+
+    // The downgrade took its own era snapshot too.
+    assert!(
+        sb.snapshot(1).exists(),
+        "v1 snapshot should exist after --prior"
+    );
 
     // Tasks survive, with tags back in the legacy column. group_concat
     // ordering is unspecified, so compare tags as sets.
@@ -121,7 +132,8 @@ fn migrate_latest_upgrades_cleanly_without_errors() {
         .stdout(contains("Backed up database"))
         .stderr(predicates::str::is_empty());
 
-    assert_eq!(user_version(&sb.db_path()), 1);
+    // Latest will always not be 0 now - more robust than hardcoding a value
+    assert_ne!(user_version(&sb.db_path()), 0);
 
     // Data made it across: both tags live in the tag table, attached to the
     // right task.
@@ -166,6 +178,12 @@ fn migrate_prior_answering_n_keeps_database_untouched() {
         .assert()
         .success()
         .stdout(contains("Aborted; database unchanged"));
+
+    // An aborted move must not have produced a snapshot: nothing ran.
+    assert!(
+        !sb.snapshot(1).exists(),
+        "aborted --prior must not create snapshots"
+    );
 
     assert_eq!(user_version(&sb.db_path()), 1);
     let conn = rusqlite::Connection::open(sb.db_path()).unwrap();

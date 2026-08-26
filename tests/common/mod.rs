@@ -41,6 +41,20 @@ impl Sandbox {
     pub fn theme_path(&self) -> PathBuf {
         self.dir.path().join("theme.toml")
     }
+
+    /// Folder where pre-migration snapshots are collected for this
+    /// sandbox's database.
+    pub fn snapshots_dir(&self) -> PathBuf {
+        self.dir.path().join("checklist-migration-snapshots")
+    }
+
+    /// Expected snapshot file for a migration originating at schema version
+    /// `from`.
+    pub fn snapshot(&self, from_version: usize) -> PathBuf {
+        self.snapshots_dir().join(format!(
+            "checklist.sqlite.pre-migration-v{from_version}.bak"
+        ))
+    }
 }
 
 /// A task read back from a database file, normalized across schema formats
