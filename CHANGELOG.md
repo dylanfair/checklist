@@ -2,8 +2,6 @@
 
 > NOTE: In this version AI assistance is used.
 
-Tags get a proper home in the database schema, and databases now upgrade themselves.
-
 ## Enhancements
 
 - Tags are now stored relationally (a `tag` table keyed to each task) instead of a single `;`-joined text column. Tags containing `;` or any other character are now stored and round-trip correctly.
@@ -29,7 +27,7 @@ Tags get a proper home in the database schema, and databases now upgrade themsel
 
 ## Testing
 
-- Added a black-box CLI test suite (`tests/`) covering happy and failure paths for `init`, `where`, `import`, `wipe`, `theme`, and `migrate` — 20 tests spawning the real binary against isolated config directories. Combined with unit tests: 55 total, zero clippy warnings across all targets.
+- Added a black-box CLI test suite (`tests/`) covering happy and failure paths for `init`, `where`, `import`, `wipe`, `theme`, and `migrate`
 
 # v0.1.8
 
