@@ -345,9 +345,29 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
 /// If `hard` is true, this will also DROP the task table.
 pub fn remove_all_db_contents(conn: &Connection, hard: bool) -> Result<()> {
     if hard {
-        conn.execute("DROP TABLE task", ())
-            .context("Failed to drop the task table")?;
-        println!("'task' table dropped successfully");
+        // Drop every user table so the next launch rebuilds from baseline and
+        // migrates forward. Sweeping sqlite_master (rather than naming
+        // tables) keeps this correct automatically as the schema grows.
+        conn.pragma_update(None, "foreign_keys", "OFF")?;
+        let tables: Vec<String> = {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT name FROM sqlite_master \
+                     WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+                )
+                .context("Failed to list database tables")?;
+            stmt.query_map([], |row| row.get::<_, String>(0))
+                .context("Failed to list database tables")?
+                .collect::<std::result::Result<_, _>>()
+                .context("Failed to list database tables")?
+        };
+        for name in &tables {
+            let quoted = format!("\"{}\"", name.replace('"', "\"\""));
+            conn.execute(&format!("DROP TABLE IF EXISTS {quoted}"), [])
+                .with_context(|| format!("Failed to drop table {name}"))?;
+        }
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        println!("{} table(s) dropped successfully", tables.len());
     } else {
         conn.execute("DELETE FROM task", ())
             .context("Failed to wipe all tasks from the task table")?;

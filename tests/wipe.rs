@@ -33,7 +33,7 @@ fn wipe_hard_also_drops_the_task_table() {
         .args(["wipe", "-y", "--hard"])
         .assert()
         .success()
-        .stdout(contains("'task' table dropped successfully"));
+        .stdout(contains("table(s) dropped successfully"));
 
     // The whole table is gone, not just emptied.
     let conn = rusqlite::Connection::open(sb.db_path()).unwrap();
@@ -86,4 +86,39 @@ fn wipe_reprompts_on_invalid_input_then_accepts_y() {
         .stdout(contains("Success!"));
 
     assert_eq!(common::task_count(sb.db_path()), 0);
+}
+
+#[test]
+fn wipe_soft_also_cascades_tag_rows() {
+    // The tag table's FK declares ON DELETE CASCADE; connections enable FK
+    // enforcement, so a soft wipe must leave no orphaned tag rows behind.
+    let sb = Sandbox::new();
+    sb.command().arg("init").assert().success();
+    common::seed_task(sb.db_path(), "Tagged", "High", "Open", Some("work;urgent"));
+
+    sb.command().args(["wipe", "-y"]).assert().success();
+
+    let conn = rusqlite::Connection::open(sb.db_path()).unwrap();
+    let tag_rows: i64 = conn
+        .query_row("SELECT COUNT(*) FROM tag", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(tag_rows, 0, "cascade should have removed all tag rows");
+}
+
+#[test]
+fn wipe_with_closed_stdin_halts_instead_of_looping() {
+    let sb = Sandbox::new();
+    sb.command().arg("init").assert().success();
+    common::seed_task(sb.db_path(), "Survivor", "Low", "Open", None);
+
+    // Empty stdin = immediate EOF. Before the EOF guard this looped forever
+    // printing the reprompt message; now it must halt and preserve tasks.
+    sb.command()
+        .arg("wipe")
+        .write_stdin("")
+        .assert()
+        .success()
+        .stdout(contains("No answer received; halting wipe"));
+
+    assert_eq!(common::task_count(sb.db_path()), 1);
 }

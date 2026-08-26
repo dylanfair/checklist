@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use rusqlite::Connection;
 
 use crate::backend::database::remove_all_db_contents;
@@ -11,7 +11,16 @@ pub fn wipe_tasks(conn: &Connection, confirm_skip: bool, hard: bool) -> Result<(
         println!("Are you sure you want to proceed with the wipe? (y/n)");
         loop {
             let mut confirmation = String::new();
-            std::io::stdin().read_line(&mut confirmation).unwrap();
+            let bytes = std::io::stdin()
+                .read_line(&mut confirmation)
+                .context("Failed to read confirmation")?;
+
+            // EOF without an answer (closed pipe, empty file, Ctrl+D):
+            // treat as 'n' rather than looping forever on zero-byte reads.
+            if bytes == 0 {
+                println!("No answer received; halting wipe");
+                return Ok(());
+            }
 
             match confirmation.to_lowercase().trim_end() {
                 "y" => break,
