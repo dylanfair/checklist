@@ -2,7 +2,27 @@ name: Checklist CI
 
 on:
   push:
+    branches:
+      - main
+    paths:
+      - src/**
+      - tests/**
+      - migrations/**
+      - Cargo.toml
+      - Cargo.lock
+      - README.md
+      - .github/workflows/ci.yml
   pull_request:
+    branches:
+      - main
+    paths:
+      - src/**
+      - tests/**
+      - migrations/**
+      - Cargo.toml
+      - Cargo.lock
+      - README.md
+      - .github/workflows/ci.yml
 
 env:
   CARGO_TERM_COLOR: always
