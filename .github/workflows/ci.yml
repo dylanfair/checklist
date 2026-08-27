@@ -2,8 +2,6 @@ name: Checklist CI
 
 on:
   push:
-    branches:
-      - main
     paths:
       - src/**
       - tests/**
