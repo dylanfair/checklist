@@ -9,12 +9,12 @@ mod display;
 
 use backend::config::{Config, ConfigDir, expand_tilde, read_config, set_new_path};
 use backend::database::{create_sqlite_db, get_db};
+use backend::import::import;
+use backend::migrate::run_migrate_command;
 use backend::wipe::wipe_tasks;
 
 use display::theme::{Theme, create_empty_theme_toml, migrate_theme, read_theme};
 use display::tui::{LayoutView, run_tui};
-
-use crate::backend::import::import;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -26,6 +26,12 @@ struct Cli {
 
     #[command(subcommand)]
     command: Option<Commands>,
+
+    /// Provide where you want the config_dir that holds checklist's
+    /// data files to be (config, database, theme) instead of the
+    /// default location. This only holds true for that particular run.
+    #[arg(long, global = true, value_parser = expand_tilde)]
+    config_dir: Option<PathBuf>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -97,6 +103,27 @@ enum Commands {
         #[arg(long)]
         migrate: bool,
     },
+
+    /// Inspect or move the database schema version. Moving down produces a
+    /// database readable by the checklist release that shipped with that
+    /// schema version — useful when sharing a database with an older install.
+    Migrate {
+        /// Move to this exact schema version (may go down or up).
+        #[arg(long, conflicts_with_all = ["prior", "latest"])]
+        to: Option<usize>,
+
+        /// Move back one schema version from the current one.
+        #[arg(long, conflicts_with_all = ["to", "latest"])]
+        prior: bool,
+
+        /// Upgrade to the latest schema version this build supports.
+        #[arg(long, conflicts_with_all = ["to", "prior"])]
+        latest: bool,
+
+        /// Skip the confirmation prompt (only asked when moving down).
+        #[arg(short, long)]
+        yes: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -104,7 +131,7 @@ fn main() -> Result<()> {
 
     // Resolve the config directory once and thread it through. This is the
     // single source of truth for where checklist's data files live.
-    let dir = ConfigDir::resolve_default()?;
+    let dir = ConfigDir::resolve_config_dir(cli.config_dir)?;
 
     match cli.command {
         Some(Commands::Init { set }) => {
@@ -145,11 +172,13 @@ fn main() -> Result<()> {
                         if db_path.exists() {
                             println!("{}", db_path.display());
                         } else {
-                            eprintln!("Could not find a SQLite database file.")
+                            anyhow::bail!("Could not find a SQLite database file.")
                         }
                     }
                     Err(_) => {
-                        eprintln!("Could not read the config file holding the database location.");
+                        anyhow::bail!(
+                            "Could not read the config file holding the database location."
+                        );
                     }
                 }
             }
@@ -158,7 +187,7 @@ fn main() -> Result<()> {
                 if config_path.exists() {
                     println!("{}", config_path.display());
                 } else {
-                    eprintln!("Could not find a config file.")
+                    anyhow::bail!("Could not find a config file.")
                 }
             }
             if theme {
@@ -166,7 +195,7 @@ fn main() -> Result<()> {
                 if theme_path.exists() {
                     println!("{}", theme_path.display());
                 } else {
-                    eprintln!("Could not find a theme file.")
+                    anyhow::bail!("Could not find a theme file.")
                 }
             }
         }
@@ -186,10 +215,19 @@ fn main() -> Result<()> {
             if migrate {
                 migrate_theme(&dir)?;
             } else {
-                eprintln!(
+                anyhow::bail!(
                     "No action specified. Use `checklist theme --migrate` to re-serialize theme.toml."
                 );
             }
+        }
+
+        Some(Commands::Migrate {
+            to,
+            prior,
+            latest,
+            yes,
+        }) => {
+            run_migrate_command(&dir, cli.memory, to, prior, latest, yes)?;
         }
 
         None => {
@@ -201,10 +239,13 @@ fn main() -> Result<()> {
 }
 
 fn bootstrap(memory: bool, dir: ConfigDir, view: Option<LayoutView>) -> Result<()> {
-    let conn = get_db(memory, &dir).or_else(|_| {
+    let conn = get_db(memory, &dir).or_else(|e| {
+        eprintln!("Error retrieving database: {}", e);
         // Disk mode with no config yet: bootstrap a default DB + config, then retry.
-        create_sqlite_db(&dir)?;
-        println!("Successfully created the database to store your items in!");
+        if !memory {
+            create_sqlite_db(&dir)?;
+            println!("Successfully created the database to store your items in!");
+        }
         get_db(memory, &dir)
     })?;
     launch_tui(memory, dir, conn, view)
@@ -219,7 +260,8 @@ fn launch_tui(
     let config = match read_config(&dir) {
         Ok(config) => config,
         Err(_) if memory => Config::new(PathBuf::new()),
-        Err(_) => {
+        Err(e) => {
+            eprintln!("Error reading config: {}", e);
             create_sqlite_db(&dir)?;
             println!("Successfully created the database to store your items in!");
             read_config(&dir)?

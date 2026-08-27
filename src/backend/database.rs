@@ -10,8 +10,9 @@ use crate::backend::task::{Task, TaskList};
 /// Returns a `Result<Connection>` to an in-memory SQLite db
 pub fn make_memory_connection() -> Result<Connection> {
     println!("Setting up an in-memory sqlite_db");
-    let conn =
+    let mut conn =
         Connection::open_in_memory().with_context(|| "Failed to create database in memory")?;
+    enable_foreign_keys(&mut conn)?;
     init_schema(&conn)?;
     Ok(conn)
 }
@@ -37,10 +38,22 @@ fn init_schema(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// Enable foreign key enforcement on a connection. SQLite ships with it OFF
+/// per-connection; without this, the tag table's ON DELETE CASCADE would not
+/// fire. (Note: rusqlite_migration flips this off/on around migrations; see
+/// `migrate::run_migrations`.)
+fn enable_foreign_keys(conn: &mut Connection) -> Result<()> {
+    if let Err(e) = conn.pragma_update(None, "foreign_keys", "ON") {
+        anyhow::bail!("checklist: could not enable foreign key enforcement: {e}");
+    }
+    Ok(())
+}
+
 /// Returns a `Result<Connection>` given a `&Pathbuf` to a SQLite database
 pub fn make_connection(path: &PathBuf) -> Result<Connection> {
-    let conn = Connection::open(path)
+    let mut conn = Connection::open(path)
         .with_context(|| format!("Failed connect to the database at {path:?}"))?;
+    enable_foreign_keys(&mut conn)?;
 
     Ok(conn)
 }
@@ -74,35 +87,113 @@ pub fn create_sqlite_db(dir: &ConfigDir) -> Result<()> {
 /// Returns a `Result<Connection>` based on `memory` and the config directory.
 ///
 /// When `memory` is true, an in-memory SQLite database is used and `dir` is
-/// otherwise ignored.
+/// otherwise ignored. In both cases, any pending schema migrations are applied
+/// before the connection is returned (a no-op on an already-current database).
 pub fn get_db(memory: bool, dir: &ConfigDir) -> Result<Connection> {
     if memory {
         println!("Using an in-memory sqlite database");
-        let conn = make_memory_connection().unwrap();
+        let mut conn = make_memory_connection()?;
+        crate::backend::migrate::run_migrations(&mut conn, None)?;
         Ok(conn)
     } else {
-        let config = read_config(dir).context("Failed to read in config")?;
-        let conn = make_connection(&config.db_path).with_context(|| {
+        let config = if dir.config_path().exists() {
+            read_config(dir).context(format!(
+                "Failed to read in config in location: {:?}",
+                dir.config_path()
+            ))?
+        } else {
+            let new_config = Config::new(dir.db_path());
+            new_config.save(dir).context(format!(
+                "Failed to save config in location: {:?}",
+                dir.config_path()
+            ))?;
+            new_config
+        };
+        let mut conn = make_connection(&config.db_path).with_context(|| {
             format!(
                 "Failed to make a connection to the database: {:?}",
                 config.db_path,
             )
         })?;
+        // A brand-new database file has no tables yet; create the baseline
+        // schema so migrations have something to bring forward. A freshly
+        // created file holds no user data, so no pre-migration backup is
+        // needed for it.
+        let freshly_created = ensure_baseline_schema(&conn)?;
+        if freshly_created {
+            crate::backend::migrate::run_migrations(&mut conn, None)?;
+        } else {
+            crate::backend::migrate::run_migrations(&mut conn, Some(&config.db_path))?;
+        }
         Ok(conn)
     }
 }
 
+/// If the `task` table doesn't exist at all (a brand-new database file),
+/// create the baseline schema. Migrations then bring the database current,
+/// so every checklist-managed database follows the same version-0-to-latest
+/// path regardless of how it came into existence.
+///
+/// Returns whether the baseline was just created (i.e. the file held no data
+/// worth backing up).
+fn ensure_baseline_schema(conn: &Connection) -> Result<bool> {
+    // PRAGMA table_info returns one row per column; zero rows means the
+    // table is absent.
+    let mut stmt = conn
+        .prepare("PRAGMA table_info(task)")
+        .context("Failed to inspect the 'task' table schema")?;
+    let columns = stmt
+        .query_map(params![], |row| row.get::<_, String>(1))
+        .context("Failed to read the 'task' table schema")?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .context("Failed to read the 'task' table schema")?;
+    let missing = columns.is_empty();
+    if missing {
+        init_schema(conn)?;
+    }
+    Ok(missing)
+}
+
+/// Writes a task's tags into the `tag` table, replacing any existing rows for
+/// that task. An empty/`None` set clears the task's tags.
+fn write_task_tags(
+    conn: &Connection,
+    task_id: &uuid::Uuid,
+    tags: &Option<HashSet<String>>,
+) -> Result<()> {
+    conn.execute("DELETE FROM tag WHERE task_id = ?1", params![task_id])
+        .context("Failed to clear existing tags for the task")?;
+    if let Some(tags) = tags {
+        for tag in tags {
+            conn.execute(
+                "INSERT INTO tag (task_id, tag) VALUES (?1, ?2)",
+                params![task_id, tag],
+            )
+            .context("Failed to insert a tag for the task")?;
+        }
+    }
+    Ok(())
+}
+
+/// Reads a task's tags from the `tag` table. Returns `None` when the task has
+/// no tags.
+fn get_task_tags(conn: &Connection, task_id: &uuid::Uuid) -> Result<Option<HashSet<String>>> {
+    let mut stmt = conn
+        .prepare("SELECT tag FROM tag WHERE task_id = ?1")
+        .context("Failed to prepare the tag query for a task")?;
+    let tags = stmt
+        .query_map(params![task_id], |row| row.get::<_, String>(0))
+        .context("Failed to read tags for the task")?
+        .collect::<std::result::Result<HashSet<_>, _>>()
+        .context("Failed to collect tags for the task")?;
+    Ok(if tags.is_empty() { None } else { Some(tags) })
+}
+
 /// Adds a `&Task` to a SQLite database based on the `&Connection` given.
 pub fn add_to_db(conn: &Connection, task: &Task) -> Result<()> {
-    // Handle inserting tags
-    let mut tags_insert = None;
-    if let Some(tags) = &task.tags {
-        tags_insert = Some(tags.clone().into_iter().collect::<Vec<String>>().join(";"))
-    }
-
     conn.execute(
-        "INSERT INTO task (id, name, description, latest, urgency, status, tags, date_added, completed_on) 
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO task (id, name, description, latest, urgency, status, date_added, completed_on) 
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             &task.get_id(),
             &task.name,
@@ -110,50 +201,68 @@ pub fn add_to_db(conn: &Connection, task: &Task) -> Result<()> {
             &task.latest,
             &task.urgency,
             &task.status,
-            tags_insert,
             &task.get_date_added(),
             &task.completed_on,
         ],
     )
     .context("Failed to insert values into database")?;
 
+    write_task_tags(conn, &task.get_id(), &task.tags)?;
+
     Ok(())
 }
 
 /// Updates a `&Task` in a SQLite database based on the `&Connecton` given.
 pub fn update_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
-    let mut tags_insert = None;
-    if let Some(tags) = &task.tags {
-        tags_insert = Some(tags.clone().into_iter().collect::<Vec<String>>().join(";"))
-    }
-
     conn.execute(
-        "UPDATE task SET name = ?1, description = ?2, latest = ?3, urgency = ?4, status = ?5, tags = ?6, date_added = ?7, completed_on = ?8 WHERE id = ?9"
+        "UPDATE task SET name = ?1, description = ?2, latest = ?3, urgency = ?4, status = ?5, date_added = ?6, completed_on = ?7 WHERE id = ?8"
         ,params![
             &task.name,
             &task.description,
             &task.latest,
             &task.urgency,
             &task.status,
-            tags_insert,
             &task.get_date_added(),
             &task.completed_on,
             &task.get_id()
         ]
             ).context("Failed to update values for the task")?;
 
+    // Tags are stored relationally: replace the old set wholesale.
+    write_task_tags(conn, &task.get_id(), &task.tags)?;
+
     Ok(())
 }
 
 /// Deletes a `&Task` in a SQLite database based on the `&Connecton` given.
 pub fn delete_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
-    // println!("Deleting task from db");
+    // The tag table's FK declares ON DELETE CASCADE, so its rows go with the
+    // task (connections enable PRAGMA foreign_keys).
     conn.execute("DELETE FROM task WHERE id = ?1", params![&task.get_id()])
         .context("Failed to delete task from the database")?;
     Ok(())
 }
 
+/// Detect whether the `task` table carries the legacy ;-joined `tags` column
+/// (pre-V1 format) or not (V1+ format). Used because databases we *read* may
+/// be older than us — notably import sources — while ones we *write* are
+/// always migrated current first.
+fn has_legacy_tags_column(conn: &Connection) -> Result<bool> {
+    let mut stmt = conn
+        .prepare("PRAGMA table_info(task)")
+        .context("Failed to inspect the 'task' table schema")?;
+    let names = stmt
+        .query_map(params![], |row| row.get::<_, String>(1))
+        .context("Failed to read the 'task' table schema")?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .context("Failed to read the 'task' table schema")?;
+    Ok(names.iter().any(|n| n == "tags"))
+}
+
 /// Returns a `Result<TaskList>` of all tasks in a SQLite database on the `&Connection` given.
+///
+/// Reads both the current relational format and the legacy ;-joined `tags`
+/// column, so older databases (e.g. an import source) load losslessly.
 ///
 /// Rows that fail to deserialize (e.g. a NULL in a NOT NULL column, or a
 /// structurally malformed row) are skipped with a warning printed to stderr
@@ -161,25 +270,39 @@ pub fn delete_task_in_db(conn: &Connection, task: &Task) -> Result<()> {
 /// handled separately: `FromSql` falls back to the default variant, so those
 /// rows still load (see `task::Urgency` / `task::Status`).
 pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
+    let legacy_tags = has_legacy_tags_column(conn)?;
+
+    // Explicit column list rather than SELECT * so positional reads can't
+    // silently shift if the schema changes again.
+    let sql = if legacy_tags {
+        "SELECT id, name, description, latest, urgency, status, tags, date_added, completed_on
+         FROM task"
+    } else {
+        "SELECT id, name, description, latest, urgency, status, date_added, completed_on
+         FROM task"
+    };
     let mut stmt = conn
-        .prepare("SELECT * FROM task")
+        .prepare(sql)
         .context("Failed to prepare the 'task' query")?;
 
     let task_iter = stmt
-        .query_map(params![], |row| {
-            // Need separate handling for the tags
-            // Basically convert string back to a vector
-            let mut tags_entry = None;
-            let tags_option: Option<String> = row.get(6)?;
+        .query_map(params![], move |row| {
+            let tags_entry = if legacy_tags {
+                // Legacy format: split the ;-joined string, dropping empty
+                // segments exactly as the pre-migration reader did.
+                let tags_option: Option<String> = row.get(6)?;
+                tags_option.map(|tags| {
+                    HashSet::from_iter(
+                        tags.split(';')
+                            .filter(|p| !p.is_empty())
+                            .map(str::to_string),
+                    )
+                })
+            } else {
+                None // relational tags filled in per-task below
+            };
 
-            if let Some(tags) = tags_option {
-                let tags_vec: Vec<String> = tags
-                    .split(';')
-                    .filter(|p| !p.is_empty())
-                    .map(str::to_string)
-                    .collect();
-                tags_entry = Some(HashSet::from_iter(tags_vec));
-            }
+            let (date_added_idx, completed_idx) = if legacy_tags { (7, 8) } else { (6, 7) };
 
             Ok(Task::from_sql(
                 row.get(0)?,
@@ -189,8 +312,8 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
                 row.get(4)?,
                 row.get(5)?,
                 tags_entry,
-                row.get(7)?,
-                row.get(8)?,
+                row.get(date_added_idx)?,
+                row.get(completed_idx)?,
             ))
         })
         .context("Failed to map over the 'task' rows")?;
@@ -199,7 +322,12 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
     let mut skipped = 0usize;
     for task in task_iter {
         match task {
-            Ok(t) => task_list.tasks.push(t),
+            Ok(mut t) => {
+                if !legacy_tags {
+                    t.tags = get_task_tags(conn, &t.get_id())?;
+                }
+                task_list.tasks.push(t);
+            }
             Err(e) => {
                 skipped += 1;
                 eprintln!("checklist: skipping a malformed task row: {e}");
@@ -217,9 +345,29 @@ pub fn get_all_db_contents(conn: &Connection) -> Result<TaskList> {
 /// If `hard` is true, this will also DROP the task table.
 pub fn remove_all_db_contents(conn: &Connection, hard: bool) -> Result<()> {
     if hard {
-        conn.execute("DROP TABLE task", ())
-            .context("Failed to drop the task table")?;
-        println!("'task' table dropped successfully");
+        // Drop every user table so the next launch rebuilds from baseline and
+        // migrates forward. Sweeping sqlite_master (rather than naming
+        // tables) keeps this correct automatically as the schema grows.
+        conn.pragma_update(None, "foreign_keys", "OFF")?;
+        let tables: Vec<String> = {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT name FROM sqlite_master \
+                     WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+                )
+                .context("Failed to list database tables")?;
+            stmt.query_map([], |row| row.get::<_, String>(0))
+                .context("Failed to list database tables")?
+                .collect::<std::result::Result<_, _>>()
+                .context("Failed to list database tables")?
+        };
+        for name in &tables {
+            let quoted = format!("\"{}\"", name.replace('"', "\"\""));
+            conn.execute(&format!("DROP TABLE IF EXISTS {quoted}"), [])
+                .with_context(|| format!("Failed to drop table {name}"))?;
+        }
+        conn.pragma_update(None, "foreign_keys", "ON")?;
+        println!("{} table(s) dropped successfully", tables.len());
     } else {
         conn.execute("DELETE FROM task", ())
             .context("Failed to wipe all tasks from the task table")?;
@@ -236,6 +384,48 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
+
+    #[test]
+    fn get_db_self_heals_a_brand_new_install() {
+        // The true first-run state: no config.json, no database file, nothing.
+        // get_db should create both and hand back a migrated connection that
+        // can immediately store tasks — without any prior `checklist init`.
+        let tmp = tempdir().unwrap();
+        let dir = ConfigDir::new(tmp.path().to_path_buf());
+        assert!(!dir.config_path().exists());
+        assert!(!dir.db_path().exists());
+
+        let conn = get_db(false, &dir).unwrap();
+
+        assert!(
+            dir.config_path().exists(),
+            "config should have been created"
+        );
+        let config = read_config(&dir).unwrap();
+        assert!(
+            config.db_path.exists(),
+            "database file should have been created"
+        );
+
+        // And it should actually be usable end-to-end.
+        use crate::backend::task::{Status, Task, Urgency};
+        let task = Task::new(
+            "First task".to_string(),
+            None,
+            None,
+            Some(Urgency::Low),
+            Some(Status::Open),
+            Some(HashSet::from_iter(["setup".to_string()])),
+        );
+        add_to_db(&conn, &task).unwrap();
+        let loaded = get_all_db_contents(&conn).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded.tasks[0].name, "First task");
+        assert_eq!(
+            loaded.tasks[0].tags,
+            Some(HashSet::from_iter(["setup".to_string()]))
+        );
+    }
 
     #[test]
     fn create_db() {

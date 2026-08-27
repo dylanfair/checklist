@@ -52,6 +52,8 @@ The keybindings take inspiration from vim motions, such as `j` and `k` for movin
 
 ## Getting started
 
+### Typical Init
+
 Once you have `checklist` installed, you can get started with:
 
 ```sh
@@ -68,6 +70,24 @@ Mac\*: `~/Library/Application Support/checklist/`
 
 The SQLite database is where your tasks are stored.
 
+### Memory mode
+
+If you are interested in running checklist _without_ having any tasks written to a file (as a means of demoing the app for example), you can instead run
+
+```sh
+checklist --memory
+```
+
+Any tasks created in this mode are written to an in-memory SQLite database, which are subsequently wiped once closing the program.
+
+### Database changes over time
+
+When you update `checklist`, any database schema changes ship as automatic migrations — the first launch after an update applies them in order before the app opens. No manual steps are needed, and your data is untouched (each migration runs in a transaction, so an interrupted upgrade simply retries next time). Before an upgrade applies, a snapshot of your database is kept in a `checklist-migration-snapshots/` folder next to it (e.g. `checklist.sqlite.pre-migration-v0.bak`) — if anything ever goes wrong, one of those files can be restored and used with the previous version of `checklist`.
+
+## Commands
+
+### `where` Comamnd - Locating files important to checklist
+
 You can always check where files related to checklist live with:
 
 ```sh
@@ -82,6 +102,10 @@ checklist where -c # config.json file
 checklist where -t # theme.toml file
 ```
 
+Where this configuration directory lives can be controlled either by a `--config-dir` flag or `CHECKLIST_CONFIG_DIR` env, with the precedence being: `flag > env > default`
+
+### `init` Command - Managing the database location
+
 If you want to point `checklist` to a specific SQLite database (say you moved your files to a new computer), that can be done with:
 
 ```sh
@@ -90,7 +114,9 @@ checklist init --set <DB PATH>
 
 If a directory path is given instead, `checklist` will create a `checklist.sqlite` in that location. If a `checklist.sqlite` is already found in that directory, then `checklist` simply uses that database.
 
-If you instead want to import tasks from another `checklist` SQLite database (i.e. you want to merge the tasks from one database with your current one), that can be done with the `checklist import` command.
+If you instead want to import tasks from another `checklist` SQLite database (i.e. you want to merge the tasks from one database with your current one), that can be done with the `checklist import` command. Databases created by older versions of `checklist` import just fine — their data is read and written into the current format.
+
+### `import` Command - Importing a database into your own
 
 ```sh
 checklist import <DB PATH>
@@ -105,7 +131,7 @@ checklist import --display -v vertical <DB PATH>
 
 This works with `--memory` too — the tasks are imported into the in-memory database and then displayed, so you can preview an import without writing to disk.
 
-There are only a couple other commands from the CLI that you need to know:
+### `wipe` Command - Cleaning out your database
 
 ```sh
 checklist wipe
@@ -113,11 +139,54 @@ checklist wipe
 
 This will wipe out all tasks in your database should you accept the confirmation prompt -- use with caution.
 
+```sh
+checklist wipe --hard
+```
+
+This will drop all user tables after a "proceed?" prompt. Your next launch of `checklist` would effectively rebuild the schema from scratch.
+
+### `display` Command - Alternative to opening up the TUI
+
 `checklist display` will open up the TUI just like `checklist` by itself would, but it does also allow you to preemptively set the layout view you want to use with the `-v` flag, like so:
 
 ```sh
 checklist display -v horizontal
 ```
+
+### `migrate` Command - Moving between schema versions
+
+The database format occasionally changes between releases. `checklist migrate` lets you inspect where your database sits and move it deliberately:
+
+```sh
+checklist migrate # shows your current schema version and what this build supports
+```
+
+Say you want to share your database (or a copy of it) with another machine that still runs an older `checklist`. A database written by a newer release can't be opened by older releases as-is, but you can migrate it down first:
+
+```sh
+checklist migrate --prior # step back one schema version
+```
+
+You'll be shown what's about to happen and asked to confirm. Afterwards you'll see something like:
+
+```sh
+Database migrated down to schema version 0.
+Databases at this version are opened by checklist versions before v0.1.9.
+```
+
+so you know exactly which release can read it. If you know the exact version you want instead of stepping back one at a time, use `--to`:
+
+```sh
+checklist migrate --to 0
+```
+
+Every move takes a fresh snapshot into `checklist-migration-snapshots/` beforehand, so nothing is lost if you change your mind — restore the snapshot, or just run `checklist` again: launching this version of `checklist` will upgrade the database forward automatically. You can also make that explicit with:
+
+```sh
+checklist migrate --latest
+```
+
+Note that moving _up_ never prompts (it's the same thing a normal launch does); only moves that go backwards ask for confirmation.
 
 ## In the App
 

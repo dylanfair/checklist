@@ -166,6 +166,8 @@ impl Task {
         self.date_added
     }
 
+    /// Args mirror the task table layout
+    #[allow(clippy::too_many_arguments)]
     pub fn from_sql(
         id: Uuid,
         name: String,

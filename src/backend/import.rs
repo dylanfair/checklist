@@ -7,11 +7,12 @@ use crate::backend::{
     database::{
         add_to_db, create_sqlite_db, get_all_db_contents, make_connection, make_memory_connection,
     },
+    migrate::run_migrations,
 };
 
 pub fn import(database: PathBuf, memory: bool, config_directory: &ConfigDir) -> Result<Connection> {
-    let dest_conn = if memory {
-        make_memory_connection()?
+    let (mut dest_conn, dest_path) = if memory {
+        (make_memory_connection()?, None)
     } else {
         let config = match read_config(config_directory) {
             Ok(config) => config,
@@ -21,8 +22,14 @@ pub fn import(database: PathBuf, memory: bool, config_directory: &ConfigDir) -> 
                 read_config(config_directory)?
             }
         };
-        make_connection(&config.db_path)?
+        let conn = make_connection(&config.db_path)?;
+        (conn, Some(config.db_path))
     };
+
+    // The destination may predate the migration system (version 0); bring it
+    // current before writing, since add_to_db writes tags relationally. Back
+    // up the destination file first — it can hold real user data.
+    run_migrations(&mut dest_conn, dest_path.as_deref())?;
 
     import_database(database, &dest_conn)?;
     println!("Finished importing tasks to current database.");
@@ -48,11 +55,11 @@ fn import_database(database_path: PathBuf, dest_conn: &Connection) -> Result<()>
     }
 
     if !failed_tasks.is_empty() {
-        eprintln!("{} tasks failed to get moved over.", failed_tasks.len());
         eprintln!("Failed task ids:");
-        for task in failed_tasks {
+        for task in &failed_tasks {
             eprintln!("{}", task.get_id());
         }
+        anyhow::bail!("{} tasks failed to get moved over.", failed_tasks.len());
     }
     Ok(())
 }
@@ -60,24 +67,21 @@ fn import_database(database_path: PathBuf, dest_conn: &Connection) -> Result<()>
 #[cfg(test)]
 mod tests {
     use crate::backend::config::ConfigDir;
-    use crate::backend::task::{Status, Task, Urgency};
+    use crate::backend::task::{Status, Urgency};
     use std::collections::HashSet;
     use tempfile::tempdir;
 
     use super::*;
 
-    fn sample_task() -> Task {
-        Task::new(
-            "My new task".to_string(),
-            Some("New description".to_string()),
-            Some("New latest".to_string()),
-            Some(Urgency::Critical),
-            Some(Status::Open),
-            Some(HashSet::from_iter(vec![
-                String::from("Tag1"),
-                String::from("Tag2"),
-            ])),
+    /// Seed a task into a database the way the OLD writer did: raw insert with
+    /// a ;-joined tags string. Used to simulate pre-V1 databases.
+    fn seed_task_old_style(conn: &Connection) {
+        conn.execute(
+            "INSERT INTO task (id, name, description, latest, urgency, status, tags, date_added, completed_on)
+             VALUES (?1, 'My new task', 'New description', 'New latest', 'Critical', 'Open', 'Tag1;Tag2', ?2, NULL)",
+            rusqlite::params![uuid::Uuid::new_v4(), chrono::Local::now()],
         )
+        .unwrap();
     }
 
     #[test]
@@ -87,14 +91,16 @@ mod tests {
         let db_path = dir.db_path();
         assert!(!db_path.exists());
 
-        // Make a temp disk db and add a task to it
+        // Make a temp disk db and add a task to it. The source stays at the
+        // OLD format (version 0, ;-joined tags) to prove imports from
+        // pre-migration databases are lossless.
         create_sqlite_db(&dir).unwrap();
         let disk_conn = make_connection(&db_path).unwrap();
-        let new_task = sample_task();
-        add_to_db(&disk_conn, &new_task).unwrap();
+        seed_task_old_style(&disk_conn);
 
         // Import from temp disk db to a memory db
-        let memory_conn = make_memory_connection().unwrap();
+        let mut memory_conn = make_memory_connection().unwrap();
+        run_migrations(&mut memory_conn, None).unwrap();
         import_database(db_path, &memory_conn).unwrap();
 
         // Check if task is in memory db
@@ -128,14 +134,16 @@ mod tests {
         let db_path2 = dir2.db_path();
         assert!(!db_path2.exists());
 
-        // Make a temp disk db and add a task to it
+        // Make a temp disk db (old-format source) and add a task to it
         create_sqlite_db(&dir).unwrap();
         create_sqlite_db(&dir2).unwrap();
 
         let disk_conn1 = make_connection(&db_path).unwrap();
-        let disk_conn2 = make_connection(&db_path2).unwrap();
-        let new_task = sample_task();
-        add_to_db(&disk_conn1, &new_task).unwrap();
+        seed_task_old_style(&disk_conn1);
+
+        // Destination is migrated current first, as import() does.
+        let mut disk_conn2 = make_connection(&db_path2).unwrap();
+        run_migrations(&mut disk_conn2, None).unwrap();
 
         // Import from temp disk db to another disk db
         import_database(db_path, &disk_conn2).unwrap();

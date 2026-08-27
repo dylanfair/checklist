@@ -1,3 +1,34 @@
+# v0.1.9
+
+> NOTE: In this version AI assistance is used.
+
+## Enhancements
+
+- Tags are now stored relationally (a `tag` table keyed to each task) instead of a single `;`-joined text column. Tags containing `;` or any other character are now stored and round-trip correctly.
+- Database schema changes now ship as automatic migrations: on first launch after updating, pending migrations apply in order before the app opens. No manual steps are needed to upgrade an existing database.
+- `checklist import` remains lossless when importing from older, pre-migration databases - their tags are read from the legacy format and written into the new one.
+- Startup errors retrieving the database or config are now reported to stderr instead of failing silently, making issues like a stale `config.json` path easier to diagnose.
+- Before a database upgrade applies, a snapshot of your database is kept in a `checklist-migration-snapshots/` folder next to it (e.g. `checklist-migration-snapshots/checklist.sqlite.pre-migration-v0.bak`). If an upgrade ever misbehaves, that file can be restored and used with the previous version of `checklist`. Snapshots are never overwritten by later attempts, and no backup is created when there is nothing to upgrade.
+- Expose a `migrate` command to the user that provides an interface for migrating their database up and down versions. Intended use case for this is if a user needs to take a database with an advanced schema and move it back to be compatible with an older `checklist` binary.
+- New `--config-dir <PATH>` flag and `CHECKLIST_CONFIG_DIR` env variable let you point checklist at a specific data directory instead of the default platform location. Precedence is flag > environment > default.
+- `checklist wipe --hard` now drops every user table (including the new `tag` table) instead of only `task`, so the next launch rebuilds the schema from scratch.
+
+## Internal Changes
+
+- Schema migrations are powered by the `rusqlite_migration` crate. Migration SQL lives under `migrations/{id}-{name}/up.sql` (+ optional `down.sql`) and is embedded into the binary at compile time via `include_dir`, so installed binaries carry their own migrations. Applied versions are tracked in SQLite's built-in `user_version` pragma.
+- Each migration runs inside a transaction together with its version stamp, so a crash mid-migration rolls back cleanly and retries on next launch. After migrating, a `PRAGMA foreign_key_check` gate fails loudly rather than letting dangling references surface later.
+- Connections now enable foreign key enforcement (`PRAGMA foreign_keys = ON`, off by default in SQLite), so the tag table's `ON DELETE CASCADE` behaves as declared.
+- Task CRUD (`add_to_db`, `update_task_in_db`, `get_all_db_contents`) reads and writes tags through the new table; the reader detects and supports both the old and new formats so import sources can predate the migration.
+
+## Fixes
+
+- `checklist wipe` without `-y` no longer loops forever if stdin closes before an answer arrives (e.g. piped input or Ctrl+D); it now halts with tasks preserved.
+- Error conditions now exit with a non-zero status code instead of printing and exiting 0: `where -d/-c/-t`, `theme` without an action, partial import failures, and foreign key enforcement failures.
+
+## Testing
+
+- Added a black-box CLI test suite (`tests/`) covering happy and failure paths for `init`, `where`, `import`, `wipe`, `theme`, and `migrate`
+
 # v0.1.8
 
 > NOTE: In this version AI assistance is used.
